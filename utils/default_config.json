@@ -21,14 +21,14 @@
             "server_url": "https://openrouter.ai/api/v1",
             "model_name": "google/gemini-2.0-flash-exp:free",
             "provider_type": "openrouter",
-            "api_key": "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",
+            "api_key": "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",
             "timeout": 60,
             "temperature": 0.7,
             "streaming": true,
             "max_tokens": 8192
         }
     },
-    "active_llm_provider": "openrouter",
+    "active_llm_provider": "llama-cpp",
     "logging": {
         "level": "DEBUG",
         "file_enabled": false,
@@ -37,5 +37,5 @@
     "prompts": {
         "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."},
 
-    "mcp_server": {"server_script_path": "mcp_server/speaker_server.py"}
+    "mcp_server": {"server_script_path": "mcp_server/wifi_mac_server.py"}
 }

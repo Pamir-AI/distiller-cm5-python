@@ -233,47 +233,19 @@ class MCPClient:
             try:
                 if use_stream_this_call:
                     logger.info("Initiating streaming LLM call...")
-                    stream_generator = self.llm_provider.get_chat_completion_streaming_response(
+                    response = await self.llm_provider.get_chat_completion_streaming_response(
                         messages, self.available_tools
                     )
-                    # Iterate through the stream, yield chunks, and accumulate
-                    async for chunk_content in stream_generator:
-                        yield chunk_content # Yield for the UI
-                        # Note: stream_generator doesn't return the final dict,
-                        # we rely on the internal logic of the generator to
-                        # populate `full_response_content` and `accumulated_tool_calls`
-                        # This requires the generator function to be structured correctly
-                        # **Correction**: The generator itself *cannot* modify external vars.
-                        # We need to reconstruct the final result *here* based on the chunks.
-                        # This means the generator needs to yield structured data, not just content.
-                        # Let's revert to the non-streaming approach for simplicity first,
-                        # as the streaming generator needs significant rework.
-                        # Reverting to previous simpler logic temporarily.
-                    # **Problem**: The async generator pattern here is flawed.
-                    # `get_chat_completion_streaming_response` yields strings, but we also need
-                    # the final tool calls. The generator cannot return this.
-                    # Reverting to non-streaming for the core logic until streaming is refactored.
-                    logger.warning("Streaming logic currently cannot capture final tool calls. Falling back to non-streaming for core processing.")
-                    # For now, we will call non-streaming *again* if needed after the stream,
-                    # or simply use non-streaming always internally.
-                    # Let's use non-streaming for the main logic loop for now.
-                    response = await self.llm_provider.get_chat_completion_response(messages, self.available_tools)
-                    message_data = response.get("message", {})
-                    full_response_content = message_data.get("content", "")
-                    accumulated_tool_calls = message_data.get("tool_calls", [])
-                    # Yield the full content at once if we fell back
-                    if full_response_content:
-                         yield full_response_content
-
                 else: # Use non-streaming call
                     logger.info("Initiating non-streaming LLM call...")
                     response = await self.llm_provider.get_chat_completion_response(messages, self.available_tools)
-                    message_data = response.get("message", {})
-                    full_response_content = message_data.get("content", "")
-                    accumulated_tool_calls = message_data.get("tool_calls", [])
-                    # Yield the full content at once for non-streaming cases
-                    if full_response_content:
-                        yield full_response_content
+
+                message_data = response.get("message", {})
+                full_response_content = message_data.get("content", "")
+                accumulated_tool_calls = message_data.get("tool_calls", [])
+                # Yield the full content at once for non-streaming cases
+                if full_response_content:
+                    yield full_response_content
 
                 # --- Process Response (common logic for both stream fallback and non-stream) ---
                 logger.debug(f"LLM full response content: {full_response_content}")

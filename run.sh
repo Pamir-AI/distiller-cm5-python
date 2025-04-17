@@ -4,6 +4,8 @@
 if [ ! -d ".venv" ]; then
   echo "Virtual environment not found. Installing dependencies..."
   # Install dependencies using uv
+  uv init
+  uv venv
   uv pip install -r requirements.txt
   if [ $? -ne 0 ]; then
     echo "Failed to install dependencies."

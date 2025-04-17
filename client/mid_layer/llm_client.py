@@ -5,7 +5,7 @@ import json
 import aiohttp
 import time
 import requests # Add requests for sync check
-from typing import Any, Dict, List, Optional, AsyncGenerator
+from typing import Any, Dict, List, Optional, AsyncGenerator, Callable
 
 from utils.logger import logger
 from utils.config import (TEMPERATURE, TOP_P, TOP_K, REPETITION_PENALTY, N_CTX,
@@ -436,10 +436,11 @@ class LLMClient:
     async def get_chat_completion_streaming_response(
         self,
         messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None
-    ) -> AsyncGenerator[str, Dict[str, Any]]:
+        tools: Optional[List[Dict[str, Any]]] = None,
+        callback: Optional[Callable[[str], None]] = lambda x: print(f"\033[94m{x}\033[0m")
+    ) -> Dict[str, Any]:
         """Get a streaming response from the /chat/completions endpoint.
-           Yields content chunks and returns the final message structure.
+           Yields content chunks into the callback function.
         """
         logger.info(f"LLMClient.get_chat_completion_streaming_response ===== SENDING STREAMING REQUEST TO LLM ({self.provider_type}) =====")
         start_time_req = time.time()
@@ -504,7 +505,7 @@ class LLMClient:
 
                                         if "content" in delta and delta["content"] is not None:
                                             content_piece = delta["content"]
-                                            yield content_piece
+                                            callback(content_piece)
                                             full_response_content += content_piece
 
                                         if "tool_calls" in delta and delta["tool_calls"]:
@@ -551,19 +552,13 @@ class LLMClient:
 
             logger.info(f"LLMClient.get_chat_completion_streaming_response: Processed result. Content length: {len(full_response_content)}, Tool calls: {len(final_tool_calls)}")
 
-            # The final aggregated dictionary is constructed but cannot be returned directly
-            # by a generator using `return {value}`. The caller consuming this
-            # async generator needs to reconstruct the final result if needed.
-            final_result = {
+            return {
                 "message": {
                     "content": full_response_content,
                     "role": "assistant",
                     "tool_calls": final_tool_calls
                 }
             }
-
-            logger.debug(f"Final aggregated result (not returned): {final_result}")
-
 
         except UserVisibleError:
             raise

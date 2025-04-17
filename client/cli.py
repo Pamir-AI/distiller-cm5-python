@@ -8,7 +8,6 @@ import sys
 import os
 import time
 from colorama import Fore, Style, init as colorama_init
-from distiller_cm5_sdk import whisper # Import Whisper
 
 # Add project root to sys.path to allow importing 'client' and 'utils'
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,11 +20,21 @@ from utils.config import (STREAMING_ENABLED, SERVER_URL, PROVIDER_TYPE,
 from utils.distiller_exception import UserVisibleError, LogOnlyError
 from functools import partial # Import partial for asyncio.to_thread
 
-async def chat_loop(client: MCPClient, whisper_instance: whisper.Whisper):
+# Try to import whisper, but don't fail if it's not available initially.
+# We'll handle the actual import attempt later based on args.
+try:
+    from distiller_cm5_sdk import whisper
+except ImportError:
+    whisper = None # Placeholder if the SDK isn't installed
+
+async def chat_loop(client: MCPClient, whisper_instance):
     """Start an interactive chat loop with the user, supporting text and audio input."""
     colorama_init() # Initialize colorama
 
-    print(f"{Style.BRIGHT}Chat session started. Type '/mic' to record audio, 'exit' or 'quit' to end.{Style.RESET_ALL}\n")
+    if whisper_instance:
+        print(f"{Style.BRIGHT}Chat session started. Type '/mic' to record audio, 'exit' or 'quit' to end.{Style.RESET_ALL}\n")
+    else:
+        print(f"{Style.BRIGHT}Chat session started (Audio disabled). Type 'exit' or 'quit' to end.{Style.RESET_ALL}\n")
 
     while True:
         user_input_text = ""
@@ -43,6 +52,10 @@ async def chat_loop(client: MCPClient, whisper_instance: whisper.Whisper):
 
             # Check for audio input command
             if user_input_text.lower() == "/mic":
+                if whisper_instance is None:
+                    print(f"{Fore.YELLOW}Audio input is disabled (SDK not found or --disable-audio used).{Style.RESET_ALL}")
+                    continue
+
                 print(f"{Fore.YELLOW}Starting audio input... Press Enter to start recording.{Style.RESET_ALL}")
                 await asyncio.to_thread(input) # Wait for Enter press
 
@@ -137,6 +150,7 @@ def parse_arguments():
     parser.add_argument("--api-key", default=API_KEY, help="API key for the LLM provider")
     parser.add_argument("--timeout", type=int, default=TIMEOUT, help="Request timeout in seconds")
     parser.add_argument("--log-level", default=LOGGING_LEVEL, choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set logging level")
+    parser.add_argument("--disable-audio", action="store_true", help="Disable audio input features (requires distiller_cm5_sdk)")
     return parser.parse_args()
 
 async def main():
@@ -164,8 +178,35 @@ async def main():
         timeout=args.timeout
     )
 
-    # Instantiate Whisper
-    whisper_instance = whisper.Whisper()
+    # Instantiate Whisper only if SDK is available and not disabled
+    whisper_module = None
+    whisper_instance = None
+    if not args.disable_audio:
+        try:
+            # Dynamically import whisper if not already done or if it was None
+            global whisper
+            if whisper is None:
+                 from distiller_cm5_sdk import whisper as sdk_whisper
+                 whisper = sdk_whisper # Assign to the global placeholder
+
+            if whisper: # Check if import succeeded
+                 whisper_instance = whisper.Whisper()
+                 logger.info("Whisper SDK loaded and instance created.")
+            else:
+                 logger.warning("Audio input disabled: distiller_cm5_sdk not found.")
+                 print(f"{Fore.YELLOW}Warning: distiller_cm5_sdk not found. Audio input will be disabled.{Style.RESET_ALL}")
+        except ImportError:
+            logger.warning("Audio input disabled: Failed to import distiller_cm5_sdk.")
+            print(f"{Fore.YELLOW}Warning: Failed to import distiller_cm5_sdk. Audio input will be disabled.{Style.RESET_ALL}")
+            whisper = None # Ensure whisper is None if import fails here
+        except Exception as e:
+             logger.error(f"Error initializing Whisper: {e}", exc_info=True)
+             print(f"{Fore.RED}Error initializing audio input: {e}{Style.RESET_ALL}")
+             whisper_instance = None # Ensure instance is None on error
+             whisper = None # Ensure whisper module ref is None
+    else:
+        logger.info("Audio input explicitly disabled via --disable-audio flag.")
+        whisper = None # Ensure whisper is None if disabled by flag
 
     try:
         logger.info("Connecting to MCP server...")
@@ -188,7 +229,10 @@ async def main():
         logger.info("Cleaning up client resources...")
         await client.cleanup()
         logger.info("Cleaning up Whisper resources...")
-        whisper_instance.cleanup() # Cleanup Whisper resources
+        if whisper_instance:
+             whisper_instance.cleanup() # Cleanup Whisper resources only if it exists
+        else:
+             logger.info("Whisper resources cleanup skipped (instance not created).")
         logger.info("Client cleanup complete. Exiting.")
 
 if __name__ == "__main__":
