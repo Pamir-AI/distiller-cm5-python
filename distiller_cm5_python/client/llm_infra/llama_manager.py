@@ -11,9 +11,9 @@ import requests
 from typing import Optional
 from urllib.parse import urlparse
 
-from utils.logger import logger
-from utils.config import N_CTX, LLAMA_CPP_START_WAIT_TIME
-from utils.distiller_exception import UserVisibleError
+from distiller_cm5_python.utils.logger import logger
+from distiller_cm5_python.utils.config import N_CTX, LLAMA_CPP_START_WAIT_TIME
+from distiller_cm5_python.utils.distiller_exception import UserVisibleError
 
 class LlamaCppServerManager:
     """Handles starting, stopping, and checking a local llama-cpp server process."""

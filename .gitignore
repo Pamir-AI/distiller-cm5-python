@@ -27,3 +27,6 @@ env/
 .vscode/
 *.swp
 *.swo 
+
+# uv 
+uv.lock

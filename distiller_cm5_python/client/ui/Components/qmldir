@@ -1,0 +1,41 @@
+module Components
+ServerSelectionPage 1.0 ../ServerSelectionPage.qml
+VoiceAssistantPage 1.0 ../VoiceAssistantPage.qml
+SettingsPage 1.0 ../SettingsPage.qml
+ServerStatusIndicator 1.0 ServerStatusIndicator.qml
+VoiceAssistantPageHeader 1.0 VoiceAssistantPageHeader.qml
+MessageItem 1.0 MessageItem.qml
+InputArea 1.0 InputArea.qml
+MessageToast 1.0 MessageToast.qml
+ConversationView 1.0 ConversationView.qml
+LoadingIndicator 1.0 LoadingIndicator.qml
+MCPPageHeader 1.0 MCPPageHeader.qml
+MCPPageEmptyState 1.0 MCPPageEmptyState.qml
+MCPServerListItem 1.0 MCPServerListItem.qml
+MCPServerListView 1.0 MCPServerListView.qml
+StatusText 1.0 StatusText.qml 
+SettingsHeader 1.0 SettingsHeader.qml
+LlmSettingsSection 1.0 LlmSettingsSection.qml
+AudioSettingsSection 1.0 AudioSettingsSection.qml
+DisplaySettingsSection 1.0 DisplaySettingsSection.qml
+DeveloperSettingsSection 1.0 DeveloperSettingsSection.qml
+NetworkInfoSection 1.0 NetworkInfoSection.qml
+AboutSection 1.0 AboutSection.qml
+AudioVisualizer 1.0 AudioVisualizer.qml
+ProcessingAnimation 1.0 ProcessingAnimation.qml
+singleton AppInfo 1.0 AppInfo.qml
+singleton ThemeManager 1.0 ThemeManager.qml
+singleton FontManager 1.0 FontManager.qml
+
+# Reusable UI components
+AppButton 1.0 AppButton.qml
+AppDialog 1.0 AppDialog.qml
+AppHeader 1.0 AppHeader.qml
+AppRoundButton 1.0 AppRoundButton.qml
+AppScrollView 1.0 AppScrollView.qml
+AppSection 1.0 AppSection.qml
+AppTextArea 1.0 AppTextArea.qml
+AppTextField 1.0 AppTextField.qml
+AppToggleSwitch 1.0 AppToggleSwitch.qml
+PageBase 1.0 PageBase.qml
+SettingItem 1.0 SettingItem.qml

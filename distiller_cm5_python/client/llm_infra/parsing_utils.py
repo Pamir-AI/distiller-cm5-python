@@ -7,7 +7,7 @@ import json
 from typing import Optional, List, Dict, Any
 
 # Assuming utils is accessible from the project root
-from utils.logger import logger
+from distiller_cm5_python.utils.logger import logger
 
 def normalize_tool_call_json(tool_call_str: str) -> str:
     """Attempt to fix common JSON issues in tool call strings."""

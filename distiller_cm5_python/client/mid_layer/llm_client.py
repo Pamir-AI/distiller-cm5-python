@@ -7,16 +7,14 @@ import time
 import requests # Add requests for sync check
 from typing import Any, Dict, List, Optional, AsyncGenerator, Callable
 
-from utils.logger import logger
-from utils.config import (TEMPERATURE, TOP_P, TOP_K, REPETITION_PENALTY, N_CTX,
+from distiller_cm5_python.utils.logger import logger
+from distiller_cm5_python.utils.config import (TEMPERATURE, TOP_P, TOP_K, REPETITION_PENALTY, N_CTX,
                             MAX_TOKENS, STOP) # Removed unused OPENAI_URL, DEEPSEEK_URL
-from utils.distiller_exception import UserVisibleError, LogOnlyError
+from distiller_cm5_python.utils.distiller_exception import UserVisibleError, LogOnlyError
 # Import parsing utils
-from client.llm_infra.parsing_utils import (
+from distiller_cm5_python.client.llm_infra.parsing_utils import (
     normalize_tool_call_json, parse_tool_calls, check_is_c_ntx_too_long
 )
-# Import Llama Manager - Removed: No longer needed here
-# from client.llm_infra.llama_manager import LlamaCppServerManager
 
 
 class LLMClient:
@@ -344,7 +342,8 @@ class LLMClient:
     async def get_chat_completion_response(
         self,
         messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
+        callback: Optional[Callable[[str], None]] = lambda x: print(f"\033[94m{x}\033[0m")
     ) -> Dict[str, Any]:
         """Get a non-streaming response from the /chat/completions endpoint."""
         logger.info(f"LLMClient.get_chat_completion_response ===== SENDING REQUEST TO LLM ({self.provider_type}) =====")
@@ -420,6 +419,11 @@ class LLMClient:
                 }
             }
             logger.info(f"LLMClient.get_chat_completion_response: Processed result. Content length: {len(full_response_content)}, Tool calls: {len(tool_calls)}")
+
+            # trigger callback if provided
+            if callback:
+                callback(full_response_content)
+
             return result
 
         except UserVisibleError:
@@ -437,7 +441,7 @@ class LLMClient:
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
-        callback: Optional[Callable[[str], None]] = lambda x: print(f"\033[94m{x}\033[0m")
+        callback: Callable[[str], None] = None
     ) -> Dict[str, Any]:
         """Get a streaming response from the /chat/completions endpoint.
            Yields content chunks into the callback function.

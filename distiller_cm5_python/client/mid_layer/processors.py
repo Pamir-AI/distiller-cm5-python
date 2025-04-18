@@ -6,13 +6,13 @@ This file combines message, tool and prompt processors into a single module.
 import time
 import json
 import logging
+from mcp import ClientSession
 from datetime import datetime
 from typing import List, Dict, Any, Union, Optional, Coroutine
 
-from utils.logger import logger
-from utils.config import MAX_MESSAGES_LENGTH, DEFAULT_SYSTEM_PROMPT
-from mcp import ClientSession
-from utils.distiller_exception import UserVisibleError, LogOnlyError
+from distiller_cm5_python.utils.logger import logger
+from distiller_cm5_python.utils.config import MAX_MESSAGES_LENGTH, DEFAULT_SYSTEM_PROMPT
+from distiller_cm5_python.utils.distiller_exception import UserVisibleError, LogOnlyError
 
 
 def timestamp_to_time(timestamp):

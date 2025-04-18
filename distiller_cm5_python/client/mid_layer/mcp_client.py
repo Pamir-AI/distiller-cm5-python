@@ -1,6 +1,6 @@
 import time
 import asyncio
-from typing import Optional, List, Dict, Any, AsyncGenerator
+from typing import Optional, List, Dict, Any, AsyncGenerator, Callable
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -8,14 +8,14 @@ import sys
 import os
 
 # Change back to absolute imports
-from client.mid_layer.llm_client import LLMClient
-from client.mid_layer.processors import MessageProcessor, ToolProcessor, PromptProcessor
-from utils.logger import logger
-from utils.config import (STREAMING_ENABLED, LOGGING_LEVEL,
+from distiller_cm5_python.client.mid_layer.llm_client import LLMClient
+from distiller_cm5_python.client.mid_layer.processors import MessageProcessor, ToolProcessor, PromptProcessor
+from distiller_cm5_python.utils.logger import logger
+from distiller_cm5_python.utils.config import (STREAMING_ENABLED, LOGGING_LEVEL,
                           SERVER_URL, PROVIDER_TYPE, MODEL_NAME, TIMEOUT)
 from contextlib import AsyncExitStack
 # Remove colorama import
-from utils.distiller_exception import UserVisibleError, LogOnlyError
+from distiller_cm5_python.utils.distiller_exception import UserVisibleError, LogOnlyError
 
 
 class MCPClient:
@@ -206,7 +206,7 @@ class MCPClient:
                     tool_result_content
                 )
 
-    async def process_query(self, query: str) -> AsyncGenerator[str, None]:
+    async def process_query(self, query: str , callback: Callable[[str], None] = lambda x: print(f"\033[94m{x}\033[0m")) -> None:
         """Process a user query, handle LLM calls, tool execution, and streaming.
 
         Yields:
@@ -214,6 +214,8 @@ class MCPClient:
         """
         logger.info(f"Processing query: '{query}'")
         self.message_processor.add_message("user", query)
+        callback("\n\n thinking ... \n\n")
+
 
         max_tool_iterations = 5 # Prevent infinite loops
         current_iteration = 0
@@ -234,20 +236,20 @@ class MCPClient:
                 if use_stream_this_call:
                     logger.info("Initiating streaming LLM call...")
                     response = await self.llm_provider.get_chat_completion_streaming_response(
-                        messages, self.available_tools
+                        messages, self.available_tools, callback=callback
                     )
                 else: # Use non-streaming call
                     logger.info("Initiating non-streaming LLM call...")
                     response = await self.llm_provider.get_chat_completion_response(messages, self.available_tools)
+                    # Yield the full response content to callback
+                    if callback:
+                        callback(response.get("message", {}).get("content", ""))
 
                 message_data = response.get("message", {})
                 full_response_content = message_data.get("content", "")
                 accumulated_tool_calls = message_data.get("tool_calls", [])
-                # Yield the full content at once for non-streaming cases
-                if full_response_content:
-                    yield full_response_content
-
-                # --- Process Response (common logic for both stream fallback and non-stream) ---
+                
+                                # --- Process Response (common logic for both stream fallback and non-stream) ---
                 logger.debug(f"LLM full response content: {full_response_content}")
                 logger.debug(f"LLM tool calls: {accumulated_tool_calls}")
 
@@ -260,6 +262,7 @@ class MCPClient:
                     break # Exit the loop if no tools need execution
 
                 # --- Execute Tool Calls ---
+                callback("\n\n executing tool calls ... \n\n")
                 await self._execute_tool_calls(accumulated_tool_calls)
                 # History is updated within _execute_tool_calls
 
@@ -268,16 +271,16 @@ class MCPClient:
 
             except (UserVisibleError, LogOnlyError) as e:
                 logger.error(f"Error during LLM call or processing: {e}", exc_info=isinstance(e, LogOnlyError))
-                yield f"\n[Error: {e}]\n" # Yield error message to user
+                callback(f"\n[Error: {e}]\n") # Yield error message to user
                 break # Stop processing on error
             except Exception as e:
                 logger.error(f"Unexpected error during LLM call or processing: {e}", exc_info=True)
-                yield f"\n[Unexpected Error: {e}]\n"
+                callback(f"\n[Unexpected Error: {e}]\n")
                 break # Stop processing on unexpected error
 
         if current_iteration >= max_tool_iterations:
             logger.warning("Reached maximum tool execution iterations.")
-            yield "\n[Reached max tool iterations]\n"
+            callback("\n[Reached max tool iterations]\n")
 
         logger.info("--- Query Processing Complete ---")
 

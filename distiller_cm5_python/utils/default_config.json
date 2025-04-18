@@ -37,5 +37,5 @@
     "prompts": {
         "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."},
 
-    "mcp_server": {"server_script_path": "mcp_server/wifi_mac_server.py"}
+    "mcp_server": {"server_script_path": "distiller_cm5_python/mcp_server/wifi_mac_server.py"}
 }

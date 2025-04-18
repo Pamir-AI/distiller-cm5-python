@@ -9,3 +9,5 @@ aiohttp
 colorama
 nest_asyncio
 psutil
+PyQt6
+qasync

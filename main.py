@@ -16,12 +16,12 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the main function from the actual CLI entry point
-from client.cli import main as cli_main
-from utils.logger import logger # Keep logger for potential top-level errors
-from utils.distiller_exception import UserVisibleError
+from distiller_cm5_python.client.cli import main as cli_main
+from distiller_cm5_python.utils.logger import logger # Keep logger for potential top-level errors
+from distiller_cm5_python.utils.distiller_exception import UserVisibleError
 # Import necessary components for LLM server management
-from client.llm_infra.llama_manager import LlamaCppServerManager
-from utils.config import PROVIDER_TYPE, SERVER_URL, MODEL_NAME
+from distiller_cm5_python.client.llm_infra.llama_manager import LlamaCppServerManager
+from distiller_cm5_python.utils.config import PROVIDER_TYPE, SERVER_URL, MODEL_NAME
 
 async def main():
     """Main entry point that handles optional LLM server startup and delegates to cli.py"""
