@@ -2,6 +2,7 @@
 
 import os
 import json
+from tkinter.constants import ACTIVE
 from typing import Dict, Any
 
 class Config:
@@ -25,7 +26,7 @@ class Config:
     def _load_default_config(self):
         """Load the default configuration from the default_config.json file."""
         default_config_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), 
+            os.path.dirname(os.path.abspath(__file__)),
             'default_config.json'
         )
         
@@ -246,33 +247,6 @@ class Config:
             json.dump(self.config, f, indent=2)
         print(f"Configuration saved to {filepath}")
 
-# Create global configuration instance
-config = Config()
-
-# Expose commonly used configuration values
-SERVER_URL = config.get("llm", "server_url")
-MODEL_NAME = config.get("llm", "model_name")
-PROVIDER_TYPE = config.get("llm", "provider_type")
-API_KEY = config.get("llm", "api_key") 
-TIMEOUT = config.get("llm", "timeout")
-STREAMING_ENABLED = config.get("llm", "streaming")
-STREAMING_CHUNK_SIZE = config.get("llm", "streaming_chunk_size")
-DEFAULT_SYSTEM_PROMPT = config.get("prompts", "default_system_prompt")
-MCP_SERVER_SCRIPT_PATH = config.get("mcp_server", "server_script_path")
-LOGGING_LEVEL = config.get("logging", "level")
-
-# Backwards compatibility aliases
-TEMPERATURE = config.get("llm", "temperature")
-TOP_P = config.get("llm", "top_p")
-TOP_K = config.get("llm", "top_k")
-REPETITION_PENALTY = config.get("llm", "repetition_penalty")
-N_CTX = config.get("llm", "n_ctx")
-MAX_TOKENS = config.get("llm", "max_tokens")
-STOP = config.get("llm", "stop")
-MAX_MESSAGES_LENGTH = config.get("llm", "max_messages_length")
-# Add Llama.cpp specific constant
-LLAMA_CPP_START_WAIT_TIME = config.get("llama_cpp", "start_wait_time", default=30) # Default 3 seconds
-
 # --- Global Configuration Instance ---
 config = Config()
 
@@ -302,6 +276,7 @@ API_KEY = get_active_config("api_key", "") # Default to empty string if missing
 TIMEOUT = get_active_config("timeout", 120) # Provide a sensible default
 STREAMING_ENABLED = get_active_config("streaming", True) # Default to True
 STREAMING_CHUNK_SIZE = get_active_config("streaming_chunk_size", 4) # Default based on old config
+LLAMA_CPP_START_WAIT_TIME = config.get("llama_cpp", "start_wait_time", default=30)
 
 # Other parameters from the active provider (with defaults)
 TEMPERATURE = get_active_config("temperature", 0.7)
@@ -315,5 +290,17 @@ MAX_MESSAGES_LENGTH = get_active_config("max_messages_length", 100) # History le
 
 # Non-LLM specific configurations (remain as before)
 DEFAULT_SYSTEM_PROMPT = config.get("prompts", "default_system_prompt", "You are a helpful assistant.")
-MCP_SERVER_SCRIPT_PATH = config.get("mcp_server", "server_script_path", "mcp_server/wifi_mac_server.py") # Provide default
-LOGGING_LEVEL = config.get("logging", "level", "INFO").upper() # Default to INFO, ensure uppercase
+MCP_SERVERS = config.get("mcpServers",default={})
+ACTIVE_MCP_SERVER = config.get("active_mcp_server", "arxiv-mcp-server")
+LOGGING_LEVEL = config.get("logging", "level", "INFO").upper()
+
+if __name__ == "__main__":
+    print(f"Active LLM Provider: {active_provider_name}")
+    print(f"Server URL: {SERVER_URL}")
+    print(f"Model Name: {MODEL_NAME}")
+    print(f"Provider Type: {PROVIDER_TYPE}")
+    print(f"API Key: {API_KEY}")
+    print(f"Timeout: {TIMEOUT}")
+    print(f"Streaming Enabled: {STREAMING_ENABLED}")
+    print(f"MCP_SERVER: {MCP_SERVERS}")
+    print(f"ACTIVE_MCP_SERVER: {ACTIVE_MCP_SERVER}")

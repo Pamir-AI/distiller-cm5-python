@@ -76,18 +76,15 @@ class MCPClient:
 
         logger.debug("Client initialized with components")
 
-    async def connect_to_server(self, server_script_path: str) -> bool:
+    async def connect_to_server(self, active_mcp_server: str, mcp_servers: dict) -> bool:
         """Connect to an MCP server"""
-        logger.info(f"Connecting to server at {server_script_path}")
-
-        if not server_script_path.endswith('.py'):
-            raise UserVisibleError("Server script must be a .py file")
+        logger.info(f"Connecting to server: {active_mcp_server}")
 
         # use current python interpreter by default
         server_params = StdioServerParameters(
-            command=sys.executable,
-            args=[server_script_path],
-            env=None
+            command=mcp_servers.get(active_mcp_server).get("command", None),
+            args=mcp_servers.get(active_mcp_server).get("args", None),
+            env=mcp_servers.get(active_mcp_server).get("env", None),
         )
 
         try:
