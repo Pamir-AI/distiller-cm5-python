@@ -21,7 +21,9 @@ from utils.logger import logger # Keep logger for potential top-level errors
 from utils.distiller_exception import UserVisibleError
 # Import necessary components for LLM server management
 from client.llm_infra.llama_manager import LlamaCppServerManager
-from utils.config import PROVIDER_TYPE, SERVER_URL, MODEL_NAME
+from utils.config import PROVIDER_TYPE, SERVER_URL, MODEL_NAME,LOGGING_LEVEL
+
+logger.setLevel(LOGGING_LEVEL)
 
 async def main():
     """Main entry point that handles optional LLM server startup and delegates to cli.py"""
