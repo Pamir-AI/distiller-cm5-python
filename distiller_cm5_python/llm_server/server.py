@@ -317,14 +317,14 @@ def main():
     parser = argparse.ArgumentParser(description="LLM Server")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind the server to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind the server to")
-    parser.add_argument("--model_name", type=str, default="qwen2.5-3b-instruct-q4_k_m.gguf", help="Default LLM model to use")
-    parser.add_argument("--n_ctx", type=int, default=4096, help="Default LLM N_CTX")
-    parser.add_argument("--log-level", type=str, default="info", choices=["debug", "info", "warning", "error"],
+    parser.add_argument("--model-name", type=str, default="qwen2.5-3b-instruct-q4_k_m.gguf", help="Default LLM model to use")
+    parser.add_argument("--n-ctx", type=int, default=4096, help="Default LLM N_CTX")
+    parser.add_argument("--logging-level", type=str, default="info", choices=["debug", "info", "warning", "error","DEBUG", "INFO", "WARNING", "ERROR"],
                         help="Log level")
     args = parser.parse_args()
 
     # Set log level
-    log_level = getattr(logging, args.log_level.upper())
+    log_level = getattr(logging, args.logging_level.upper())
     logger.setLevel(log_level)
 
     # Set default model if provided via command line, otherwise use the one from request

@@ -81,8 +81,9 @@ class LlamaCppServerManager:
             self.script_path,
             "--host", host,
             "--port", str(port),
-            "--model_name", self.model_name,
-            "--n_ctx", str(N_CTX)
+            "--model-name", self.model_name,
+            "--n-ctx", str(N_CTX),
+            "--logging-level", str(LOGGING_LEVEL)
         ]
         logger.info(f"Starting llama-cpp server with command: {' '.join(command)}")
 
