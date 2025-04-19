@@ -9,11 +9,15 @@ import os
 import time
 from colorama import Fore, Style, init as colorama_init
 
-from distiller_cm5_python.client.mid_layer.mcp_client import MCPClient
-from distiller_cm5_python.utils.logger import logger
-from distiller_cm5_python.utils.config import (STREAMING_ENABLED, SERVER_URL, PROVIDER_TYPE,
-                          MODEL_NAME, TIMEOUT, LOGGING_LEVEL, MCP_SERVER_SCRIPT_PATH, API_KEY)
-from distiller_cm5_python.utils.distiller_exception import UserVisibleError, LogOnlyError
+# Add project root to sys.path to allow importing 'client' and 'utils'
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+from client.mid_layer.mcp_client import MCPClient
+from utils.logger import logger
+from utils.config import (STREAMING_ENABLED, SERVER_URL, PROVIDER_TYPE,
+                          MODEL_NAME, TIMEOUT, LOGGING_LEVEL, MCP_SERVERS, ACTIVE_MCP_SERVER, API_KEY)
+from utils.distiller_exception import UserVisibleError, LogOnlyError
 from functools import partial # Import partial for asyncio.to_thread
 
 # Try to import whisper, but don't fail if it's not available initially.
@@ -102,7 +106,10 @@ async def chat_loop(client: MCPClient, whisper_instance):
             # SIMPLIFIED: Always iterate over process_query, which handles streaming internally.
             # The generator yields chunks for streaming, or a single block for non-streaming.
             try:
-                await client.process_query(user_input_for_llm, callback=lambda x: print(f"{Fore.CYAN}{x}{Style.RESET_ALL} \n\n", end="", flush=True)) # Pass the correct input
+                async for chunk in client.process_query(user_input_for_llm):
+                    # The streaming response has already been output while receiving the information.
+                    if not STREAMING_ENABLED:
+                        print(f"{Fore.CYAN}{chunk}{Style.RESET_ALL}", end="", flush=True)
                 print() # Ensure newline after the full response/stream is printed
             except LogOnlyError as e:
                  # Handle errors potentially raised from within process_query's streaming
@@ -137,7 +144,7 @@ async def chat_loop(client: MCPClient, whisper_instance):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="MCP Client CLI")
-    parser.add_argument("--server-script", default=MCP_SERVER_SCRIPT_PATH, help="Path to the MCP server script (e.g., ../server/server.py)")
+    parser.add_argument("--active-mcp-server", default=ACTIVE_MCP_SERVER, help="Name of the active MCP server (e.g., wifi_server)")
     parser.add_argument("--stream", action=argparse.BooleanOptionalAction, default=STREAMING_ENABLED, help="Enable/disable streaming response")
     parser.add_argument("--llm-url", default=SERVER_URL, help="URL for the LLM backend")
     parser.add_argument("--provider", default=PROVIDER_TYPE, help="LLM provider type (e.g., llama-cpp, openai)")
@@ -155,14 +162,7 @@ async def main():
     logger.setLevel(args.log_level)
     logger.info(f"Log level set to: {args.log_level}")
 
-    # Make server script path absolute, default to MCP_SERVER_SCRIPT_PATH
-    server_script_path = os.path.abspath(args.server_script) 
-    if not os.path.exists(server_script_path):
-        logger.error(f"Server script not found at: {server_script_path}")
-        print(f"{Fore.RED}Error: Server script not found at '{server_script_path}'. Please provide a valid path.{Style.RESET_ALL}")
-        sys.exit(1)
-
-    logger.info(f"Using server script: {server_script_path}")
+    logger.info(f"Using mcp server: {args.active_mcp_server}")
 
     client = MCPClient(
         streaming=args.stream,
@@ -205,7 +205,7 @@ async def main():
 
     try:
         logger.info("Connecting to MCP server...")
-        connected = await client.connect_to_server(server_script_path)
+        connected = await client.connect_to_server(ACTIVE_MCP_SERVER, MCP_SERVERS)
         if not connected:
             logger.error("Failed to connect to the MCP server.")
             print(f"{Fore.RED}Error: Failed to connect to the MCP server. Check server script and logs.{Style.RESET_ALL}")
