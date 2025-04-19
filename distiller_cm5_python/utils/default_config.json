@@ -1,41 +1,92 @@
 {
-    "llm_providers": {
-        "llama-cpp": {
-            "server_url": "http://localhost:8000",
-            "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
-            "provider_type": "llama-cpp",
-            "api_key": "",
-            "timeout": 150,
-            "temperature": 0.7,
-            "top_p": 0.8,
-            "top_k": 20,
-            "repetition_penalty": 1.0,
-            "n_ctx": 32768,
-            "max_tokens": 4096,
-            "stop": ["\n\n"],
-            "streaming": true,
-            "streaming_chunk_size": 4,
-            "max_messages_length": 100
-        },
-        "openrouter": {
-            "server_url": "https://openrouter.ai/api/v1",
-            "model_name": "google/gemini-2.0-flash-exp:free",
-            "provider_type": "openrouter",
-            "api_key": "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",
-            "timeout": 60,
-            "temperature": 0.7,
-            "streaming": true,
-            "max_tokens": 8192
-        }
+  "llm_providers": {
+    "llama-cpp": {
+      "server_url": "http://localhost:8000",
+      "model_name": "pamir_3B_q4k_m.gguf",
+      "provider_type": "llama-cpp",
+      "api_key": "",
+      "timeout": 150,
+      "temperature": 0.7,
+      "top_p": 0.8,
+      "top_k": 20,
+      "repetition_penalty": 1.0,
+      "n_ctx": 32768,
+      "max_tokens": 4096,
+      "stop": [],
+      "streaming": false,
+      "streaming_chunk_size": 4,
+      "max_messages_length": 100,
+      "start_wait_time": 30
     },
-    "active_llm_provider": "llama-cpp",
-    "logging": {
-        "level": "DEBUG",
-        "file_enabled": false,
-        "file_path": "mcp_client.log"
+    "openrouter": {
+      "server_url": "https://openrouter.ai/api/v1",
+      "model_name": "google/gemini-2.0-flash-exp:free",
+      "provider_type": "openrouter",
+      "api_key": "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",
+      "timeout": 60,
+      "temperature": 0.7,
+      "streaming": true,
+      "max_tokens": 8192
+    }
+  },
+  "active_llm_provider": "llama-cpp",
+  "logging": {
+    "level": "DEBUG",
+    "file_enabled": false,
+    "file_path": "mcp_client.log"
+  },
+  "prompts": {
+    "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."
+  },
+  "active_mcp_server": "arxiv-mcp-server",
+  "mcpServers": {
+    "arxiv-mcp-server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "H:\\projects\\distiller-cm5-python\\mcp_server\\arxiv-mcp-server",
+        "tool",
+        "run",
+        "arxiv-mcp-server",
+        "--storage-path",
+        "H:\\projects\\distiller-cm5-python"
+      ]
     },
-    "prompts": {
-        "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."},
-
-    "mcp_server": {"server_script_path": "distiller_cm5_python/mcp_server/wifi_mac_server.py"}
+    "beep_mcp_server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "H:\\projects\\distiller-cm5-python\\mcp_server\\beep_mcp_server",
+        "run",
+        "beep_server.py"
+      ]
+    },
+    "speaker_mcp_server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "H:\\projects\\distiller-cm5-python\\mcp_server\\speaker_mcp_server",
+        "run",
+        "speaker_server.py"
+      ]
+    },
+    "wifi_mac_mcp_server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "H:\\projects\\distiller-cm5-python\\mcp_server\\wifi_mac_mcp_server",
+        "run",
+        "wifi_mac_server.py"
+      ]
+    },
+    "wifi_mcp_server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "H:\\projects\\distiller-cm5-python\\mcp_server\\wifi_mcp_server",
+        "run",
+        "wifi_server.py"
+      ]
+    }
+  }
 }
