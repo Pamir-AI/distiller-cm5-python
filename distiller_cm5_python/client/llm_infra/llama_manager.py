@@ -12,7 +12,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from distiller_cm5_python.utils.logger import logger
-from distiller_cm5_python.utils.config import N_CTX, LLAMA_CPP_START_WAIT_TIME
+from distiller_cm5_python.utils.config import N_CTX,LLAMA_CPP_START_WAIT_TIME,LOGGING_LEVEL
 from distiller_cm5_python.utils.distiller_exception import UserVisibleError
 
 class LlamaCppServerManager:

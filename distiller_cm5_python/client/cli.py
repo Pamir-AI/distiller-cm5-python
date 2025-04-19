@@ -9,15 +9,11 @@ import os
 import time
 from colorama import Fore, Style, init as colorama_init
 
-# Add project root to sys.path to allow importing 'client' and 'utils'
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
-
-from client.mid_layer.mcp_client import MCPClient
-from utils.logger import logger
-from utils.config import (STREAMING_ENABLED, SERVER_URL, PROVIDER_TYPE,
-                          MODEL_NAME, TIMEOUT, LOGGING_LEVEL, MCP_SERVERS, ACTIVE_MCP_SERVER, API_KEY)
-from utils.distiller_exception import UserVisibleError, LogOnlyError
+from distiller_cm5_python.client.mid_layer.mcp_client import MCPClient
+from distiller_cm5_python.utils.logger import logger
+from distiller_cm5_python.utils.config import (STREAMING_ENABLED, SERVER_URL, PROVIDER_TYPE,
+                          MODEL_NAME, TIMEOUT, LOGGING_LEVEL,  MCP_SERVERS, ACTIVE_MCP_SERVER, API_KEY)
+from distiller_cm5_python.utils.distiller_exception import UserVisibleError, LogOnlyError
 from functools import partial # Import partial for asyncio.to_thread
 
 # Try to import whisper, but don't fail if it's not available initially.
@@ -106,10 +102,7 @@ async def chat_loop(client: MCPClient, whisper_instance):
             # SIMPLIFIED: Always iterate over process_query, which handles streaming internally.
             # The generator yields chunks for streaming, or a single block for non-streaming.
             try:
-                async for chunk in client.process_query(user_input_for_llm):
-                    # The streaming response has already been output while receiving the information.
-                    if not STREAMING_ENABLED:
-                        print(f"{Fore.CYAN}{chunk}{Style.RESET_ALL}", end="", flush=True)
+                await client.process_query(user_input_for_llm, callback=lambda x: print(f"{Fore.CYAN}{x}{Style.RESET_ALL} \n\n", end="", flush=True)) # Pass the correct input
                 print() # Ensure newline after the full response/stream is printed
             except LogOnlyError as e:
                  # Handle errors potentially raised from within process_query's streaming
