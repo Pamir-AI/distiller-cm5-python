@@ -12,7 +12,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from utils.logger import logger
-from utils.config import N_CTX, LLAMA_CPP_START_WAIT_TIME
+from utils.config import N_CTX, LLAMA_CPP_START_WAIT_TIME, LOGGING_LEVEL
 from utils.distiller_exception import UserVisibleError
 
 class LlamaCppServerManager:

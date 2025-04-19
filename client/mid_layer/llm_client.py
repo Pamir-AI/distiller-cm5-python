@@ -6,7 +6,7 @@ import aiohttp
 import time
 import requests # Add requests for sync check
 from typing import Any, Dict, List, Optional, AsyncGenerator, Callable
-
+from colorama import Fore, Style, init as colorama_init
 from utils.logger import logger
 from utils.config import (TEMPERATURE, TOP_P, TOP_K, REPETITION_PENALTY, N_CTX,
                             MAX_TOKENS, STOP) # Removed unused OPENAI_URL, DEEPSEEK_URL
@@ -437,7 +437,7 @@ class LLMClient:
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
-        callback: Optional[Callable[[str], None]] = lambda x: print(f"\033[94m{x}\033[0m")
+        callback: Optional[Callable[[str], None]] = lambda x: print(f"{Fore.CYAN}{x}{Style.RESET_ALL}", end="", flush=True)
     ) -> Dict[str, Any]:
         """Get a streaming response from the /chat/completions endpoint.
            Yields content chunks into the callback function.

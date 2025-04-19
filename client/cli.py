@@ -106,8 +106,10 @@ async def chat_loop(client: MCPClient, whisper_instance):
             # SIMPLIFIED: Always iterate over process_query, which handles streaming internally.
             # The generator yields chunks for streaming, or a single block for non-streaming.
             try:
-                async for chunk in client.process_query(user_input_for_llm): # Pass the correct input
-                    print(f"{Fore.CYAN}{chunk}{Style.RESET_ALL}", end="", flush=True)
+                async for chunk in client.process_query(user_input_for_llm):
+                    # The streaming response has already been output while receiving the information.
+                    if not STREAMING_ENABLED:
+                        print(f"{Fore.CYAN}{chunk}{Style.RESET_ALL}", end="", flush=True)
                 print() # Ensure newline after the full response/stream is printed
             except LogOnlyError as e:
                  # Handle errors potentially raised from within process_query's streaming
