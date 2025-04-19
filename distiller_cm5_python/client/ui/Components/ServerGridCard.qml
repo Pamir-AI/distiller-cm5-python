@@ -2,112 +2,98 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
-Item {
-    id: cardContainer
-
+NavigableItem {
+    id: root
+    
     property string serverName: ""
     property string serverDescription: ""
     property string serverPath: ""
-
+    property bool isEmpty: false
+    
     signal cardClicked(string path)
-
-    width: 200
-    height: 200
-
-    // Add logging for focus state changes
-    onFocusChanged: console.log("--- ServerGridCard [" + serverName + "] focus changed: " + focus)
-    onActiveFocusChanged: console.log("--- ServerGridCard [" + serverName + "] activeFocus changed: " + activeFocus)
-
-    // Handle key presses when the card has focus
-    Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-            cardContainer.cardClicked(cardContainer.serverPath);
-            event.accepted = true; // Accept Select/Enter
-        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
-            // **Important**: Don't accept arrow keys here; let the parent grid handle navigation.
-            event.accepted = false;
-        } else {
-            // Decide how to handle other keys. For now, let them propagate.
-            event.accepted = false; 
+    
+    // Send clicked signal on Enter key press
+    Keys.onReturnPressed: function() {
+        clicked()
+    }
+    
+    onClicked: {
+        if (!isEmpty) {
+            cardClicked(serverPath)
         }
     }
-
-    // Drop shadow effect (subtle for e-ink displays)
+    
     Rectangle {
-        id: shadow
-        anchors.fill: card
-        anchors.margins: -2
-        radius: card.radius + 2
-        color: "transparent"
-        border.color: ThemeManager.subtleColor
-        border.width: 2
-        z: 0
-    }
-
-    // Main card rectangle
-    Rectangle {
-        id: card
+        id: cardBackground
         anchors.fill: parent
-        radius: 12 // More rounded corners
-        color: ThemeManager.backgroundColor
-        // -- Change border based on activeFocus for high contrast --
-        border.color: cardContainer.activeFocus ? ThemeManager.highlightColor : ThemeManager.borderColor
-        border.width: cardContainer.activeFocus ? 4 : ThemeManager.borderWidth // Use thicker border for focus
-        z: 1
-
-        // Card content
-        Item {
-            id: cardContent
+        color: root.visualFocus ? ThemeManager.accentColor : ThemeManager.backgroundColor
+        radius: ThemeManager.borderRadius
+        border.width: root.visualFocus ? 2 : ThemeManager.borderWidth
+        border.color: root.visualFocus ? ThemeManager.accentColor : ThemeManager.borderColor
+        
+        // Inner content layout for the server card
+        Column {
+            id: contentLayout
             anchors.fill: parent
-            anchors.margins: ThemeManager.spacingNormal / 2
-
-            // Center content to ensure server name visibility
-            ColumnLayout {
-                id: contentLayout
-                anchors.fill: parent
-                spacing: 0  // Removed spacing
-
-                // Server name container with guaranteed spacing
-                Rectangle {
-                    id: nameContainer
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.margins: 0  // Removed margins
-                    color: "transparent" // No background
-
-                    // Background rectangle for server name
-                    Rectangle {
-                        id: nameBackground
-                        anchors.fill: parent
-                        color: ThemeManager.darkMode ? ThemeManager.buttonColor : ThemeManager.highlightColor
-                        radius: ThemeManager.borderRadius
-                        border.width: 0
-                    }
-
-                    // Server name text with improved visibility
-                    Text {
-                        id: nameText
-                        anchors.centerIn: parent
-                        width: parent.width - (ThemeManager.spacingSmall * 2) // Reduced margins on sides
-                        height: parent.height - (ThemeManager.spacingSmall * 2) // Allow more vertical space
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        text: cardContainer.serverName.toUpperCase()
-                        font {
-                            pixelSize: FontManager.fontSizeNormal
-                            family: FontManager.primaryFontFamily
-                            weight: FontManager.fontWeightBold
-                        }
-                        color: ThemeManager.textColor
-                        elide: Text.ElideNone // Prevent truncation
-                        maximumLineCount: 5 // Increased max lines for longer names
-                        wrapMode: Text.Wrap // Better handling of long words
-                        // Scale down text if needed
-                        fontSizeMode: Text.Fit // Changed to Fit to scale in both directions
-                        minimumPixelSize: 8 // Slightly lower minimum size to fit more text
-                    }
+            anchors.margins: ThemeManager.spacingNormal
+            spacing: ThemeManager.spacingSmall
+            
+            // Server icon 
+            Rectangle {
+                id: serverIcon
+                width: parent.width * 0.4
+                height: width
+                radius: width / 2
+                color: "transparent"
+                border.width: 1
+                border.color: root.visualFocus ? "white" : ThemeManager.borderColor
+                anchors.horizontalCenter: parent.horizontalCenter
+                
+                // Server initial in the center of the icon
+                Text {
+                    text: serverName.charAt(0).toUpperCase()
+                    anchors.centerIn: parent
+                    font.pixelSize: parent.width * 0.6
+                    font.family: FontManager.primaryFontFamily
+                    color: root.visualFocus ? "white" : ThemeManager.textColor
                 }
             }
+            
+            // Server name
+            Text {
+                text: serverName
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: FontManager.fontSizeNormal
+                font.family: FontManager.primaryFontFamily
+                color: root.visualFocus ? "white" : ThemeManager.textColor
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+            }
+            
+            // Server description (if available)
+            Text {
+                visible: serverDescription
+                text: serverDescription
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: FontManager.fontSizeSmall
+                font.family: FontManager.primaryFontFamily
+                color: root.visualFocus ? "white" : ThemeManager.secondaryTextColor
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+            }
+        }
+    }
+    
+    // Mouse area to handle clicks
+    MouseArea {
+        anchors.fill: parent
+        onClicked: {
+            root.forceActiveFocus()
+            root.clicked()
         }
     }
 }

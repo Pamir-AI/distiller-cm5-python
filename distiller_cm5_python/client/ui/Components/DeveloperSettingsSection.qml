@@ -6,12 +6,29 @@ AppSection {
     id: developerSettingsSection
 
     property alias debugMode: debugModeItem.toggleValue
+    property bool isDirty: false
 
     signal debugModeToggled(bool enabled)
+    signal configChanged()
 
     title: "DEVELOPER SETTINGS"
     compact: true
+    navigable: true
     
+    function updateFromBridge() {
+        if (bridge && bridge.ready) {
+            var loggingLevel = bridge.getConfigValue("logging", "level");
+            debugMode = (loggingLevel === "DEBUG");
+            isDirty = false;
+        }
+    }
+    
+    function getConfig() {
+        return {
+            "level": debugMode ? "DEBUG" : "INFO"
+        };
+    }
+
     ColumnLayout {
         width: parent.width
         spacing: ThemeManager.spacingLarge
@@ -32,8 +49,10 @@ AppSection {
             id: debugModeItem
             label: "DEBUG MODE"
             toggleValue: debugMode
-            onToggleChanged: function(newValue) {
-                developerSettingsSection.debugModeToggled(newValue)
+            onUserToggled: function(newValue) {
+                developerSettingsSection.debugModeToggled(newValue);
+                developerSettingsSection.isDirty = true;
+                developerSettingsSection.configChanged();
             }
         }
     }

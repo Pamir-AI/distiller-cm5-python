@@ -8,6 +8,21 @@ AppSection {
     title: "WI-FI INFORMATION"
     compact: true
     
+    // Connect to bridge ready signal
+    Connections {
+        target: bridge
+        
+        function onBridgeReady() {
+            // Update IP address when bridge is ready
+            if (wifiIpAddress) {
+                var ipAddress = bridge.getWifiIpAddress();
+                wifiIpAddress.ipAddress = ipAddress;
+                wifiIpAddress.text = ipAddress ? ipAddress : "Not available";
+                console.log("WiFi IP Address:", ipAddress);
+            }
+        }
+    }
+    
     ColumnLayout {
         width: parent.width
         spacing: ThemeManager.spacingLarge // Increased spacing for consistency with other sections
@@ -48,9 +63,14 @@ AppSection {
                     property string ipAddress: ""
 
                     Component.onCompleted: {
-                        ipAddress = bridge.getWifiIpAddress();
-                        text = ipAddress ? ipAddress : "Not available";
-                        console.log("WiFi IP Address:", ipAddress);
+                        if (bridge && bridge.ready) {
+                            ipAddress = bridge.getWifiIpAddress();
+                            text = ipAddress ? ipAddress : "Not available";
+                            console.log("WiFi IP Address:", ipAddress);
+                        } else {
+                            text = "Bridge not ready";
+                            console.log("Bridge not ready, waiting for initialization");
+                        }
                     }
 
                     font.pixelSize: FontManager.fontSizeNormal
@@ -77,10 +97,15 @@ AppSection {
                     showBorder: true  // Enable border around the button
 
                     onClicked: {
-                        // Update the IP address display
-                        var newIpAddress = bridge.getWifiIpAddress();
-                        wifiIpAddress.ipAddress = newIpAddress;
-                        wifiIpAddress.text = newIpAddress ? newIpAddress : "Not available";
+                        if (bridge && bridge.ready) {
+                            // Update the IP address display
+                            var newIpAddress = bridge.getWifiIpAddress();
+                            wifiIpAddress.ipAddress = newIpAddress;
+                            wifiIpAddress.text = newIpAddress ? newIpAddress : "Not available";
+                        } else {
+                            wifiIpAddress.text = "Bridge not ready";
+                            console.log("Bridge not ready, cannot refresh WiFi IP address");
+                        }
                     }
                 }
             }

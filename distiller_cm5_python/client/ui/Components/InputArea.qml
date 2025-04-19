@@ -9,11 +9,6 @@ Rectangle {
     // No borders on the main rectangle
 
     id: inputArea
-    objectName: "inputAreaRoot"
-
-    // --- Re-add missing alias --- 
-    property alias voiceButtonAlias: voiceButton
-    // --- End re-add ---
 
     // Dynamic height based on text content with min/max constraints
     property int minHeight: 80
@@ -22,8 +17,29 @@ Rectangle {
     property bool isProcessing: false
     property bool compact: true
 
+    // Expose buttons as properties
+    property alias settingsButton: settingsButton
+    property alias voiceButton: voiceButton
+    property alias sendButton: sendButton
+
     signal textSubmitted(string text)
     signal voiceToggled(bool listening)
+    signal settingsClicked()
+
+    function clearInput() {
+        textInput.clear();
+    }
+
+    function getText() {
+        return textInput.text.trim();
+    }
+
+    // Add a new function to reset all input state
+    function resetState() {
+        isProcessing = false;
+        textInput.readOnly = false;
+        textInput.focus = true;
+    }
 
     color: ThemeManager.backgroundColor
     height: Math.min(maxHeight, Math.max(minHeight, inputLayout.implicitHeight + 20))
@@ -103,6 +119,8 @@ Rectangle {
             border.color: isListening ? "transparent" : ThemeManager.borderColor
             border.width: isListening ? 0 : ThemeManager.borderWidth
             radius: ThemeManager.borderRadius
+            // Visual feedback when disabled
+            opacity: inputArea.isProcessing ? 0.7 : 1.0
 
             // Stack content that switches between text area and visualizer
             Item {
@@ -111,8 +129,6 @@ Rectangle {
                 // Text input scroll view
                 AppScrollView {
                     id: scrollView
-                    objectName: "inputScrollView"
-                    enabled: !inputArea.isListening && !inputArea.isProcessing
 
                     anchors.fill: parent
                     anchors.margins: 0
@@ -131,45 +147,37 @@ Rectangle {
                         placeholderText: "Type your message here..."
                         placeholderTextColor: ThemeManager.secondaryTextColor
                         background: null
+                        readOnly: inputArea.isProcessing || inputArea.isListening
                         // Allow vertical growth but limit it
                         onTextChanged: {
                             // Update implicitHeight when text changes
                             inputArea.implicitHeight = Math.min(inputArea.maxHeight, Math.max(inputArea.minHeight, inputLayout.implicitHeight + 20));
                         }
-                        Keys.onPressed: (event) => {
-                            if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
-                                // Don't let TextArea consume Up/Down arrow keys
+                        Keys.onReturnPressed: function(event) {
+                            if (event.modifiers & Qt.ShiftModifier) {
+                                // Allow shift+return for line breaks
                                 event.accepted = false;
-                            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                 if (event.modifiers & Qt.ShiftModifier) {
-                                     // Allow shift+return for line breaks
-                                     event.accepted = false;
-                                 } else if (text.trim() !== "") {
-                                     sendButton.clicked();
-                                     event.accepted = true;
-                                 } else {
-                                     // Prevent Enter on empty text from doing anything or propagating
-                                     event.accepted = true; 
-                                 }
-                            } else {
-                                 // Let other keys behave normally within the text area
-                                 event.accepted = false;
+                            } else if (text.trim() !== "") {
+                                sendButton.clicked();
+                                event.accepted = true;
                             }
                         }
                     }
+
                 }
 
                 // Audio visualizer component
                 AudioVisualizer {
                     id: audioVisualizer
-                    objectName: "inputAudioVisualizer"
 
                     anchors.fill: parent
                     anchors.margins: 4
                     visible: isListening
                     isActive: isListening
                 }
+
             }
+
         }
 
         // Minimalist button row
@@ -186,24 +194,69 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 8
 
+                // Settings button
+                RoundButton {
+                    id: settingsButton
+
+                    width: 36
+                    height: 36
+                    flat: true
+                    property bool navigable: true
+                    property bool isActiveItem: false
+                    onClicked: inputArea.settingsClicked()
+
+                    background: Rectangle {
+                        color: parent.isActiveItem ? ThemeManager.accentColor : (parent.pressed ? ThemeManager.pressedColor : "transparent")
+                        opacity: parent.isActiveItem ? 0.2 : 1.0
+                        border.width: parent.isActiveItem ? 1 : 0
+                        border.color: ThemeManager.accentColor
+                        radius: width / 2
+                    }
+
+                    contentItem: Text {
+                        text: "⚙"  // Gear icon as text
+                        font: FontManager.heading
+                        color: ThemeManager.textColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        opacity: settingsButton.isActiveItem ? 1.0 : (settingsButton.hovered ? 1 : 0.7)
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 150
+                            }
+                        }
+                    }
+
+                }
+
                 // Voice button
-                AppRoundButton {
+                RoundButton {
                     id: voiceButton
-                    objectName: "inputVoiceButton"
 
                     width: 36
                     height: 36
                     flat: true
                     checkable: true
+                    property bool navigable: true
+                    property bool isActiveItem: false
                     checked: inputArea.isListening
                     onClicked: {
                         inputArea.voiceToggled(checked);
                     }
 
+                    background: Rectangle {
+                        color: parent.isActiveItem ? ThemeManager.accentColor : (parent.checked ? ThemeManager.subtleColor : "transparent")
+                        opacity: parent.isActiveItem ? 0.2 : 1.0
+                        border.width: parent.isActiveItem ? 1 : 0
+                        border.color: ThemeManager.accentColor
+                        radius: width / 2
+                    }
+
                     contentItem: Item {
                         anchors.fill: parent
 
-                        Image {
+                        OptimizedImage {
                             id: micIcon
 
                             source: {
@@ -225,14 +278,14 @@ Rectangle {
                             anchors.centerIn: parent
                             fillMode: Image.PreserveAspectFit
                             opacity: voiceButton.checked ? 1 : (voiceButton.hovered ? 0.9 : 0.7)
+                            fadeInDuration: 150
+                            showPlaceholder: false
 
                             Behavior on opacity {
                                 NumberAnimation {
                                     duration: 150
                                 }
-
                             }
-
                         }
 
                         // Subtle pulse animation for listening state
@@ -313,21 +366,21 @@ Rectangle {
                 width: 36
                 height: 36
                 flat: true
-                enabled: textInput.text.trim() !== "" && !isProcessing
-                
+                property bool navigable: true
+                property bool isActiveItem: false
+                enabled: textInput.text.trim() !== ""
                 onClicked: {
                     if (textInput.text.trim() !== "") {
-                        // Trigger send animation
-                        sendAnimation.start();
-                        
-                        // Small delay before actual submission to see animation
-                        sendTimer.start();
+                        inputArea.textSubmitted(textInput.text.trim());
+                        textInput.clear();
                     }
                 }
 
                 background: Rectangle {
-                    color: !parent.enabled ? "transparent" : (parent.pressed ? ThemeManager.pressedColor : "transparent")
-                    border.width: 0
+                    color: !parent.enabled ? "transparent" : (parent.isActiveItem ? ThemeManager.accentColor : (parent.pressed ? ThemeManager.pressedColor : "transparent"))
+                    opacity: parent.isActiveItem ? 0.2 : 1.0
+                    border.width: parent.isActiveItem ? 1 : 0
+                    border.color: ThemeManager.accentColor
                     radius: width / 2
                 }
 
@@ -342,8 +395,7 @@ Rectangle {
                         opacity: 0.15
                     }
 
-                    Image {
-                        id: sendButtonIcon
+                    OptimizedImage {
                         source: ThemeManager.darkMode ? "../images/icons/dark/arrow_right.svg" : "../images/icons/arrow_right.svg"
                         sourceSize.width: 20
                         sourceSize.height: 20
@@ -352,89 +404,22 @@ Rectangle {
                         anchors.centerIn: parent
                         fillMode: Image.PreserveAspectFit
                         opacity: parent.parent.enabled ? (sendButton.hovered ? 1 : 0.7) : 0.3
-
+                        fadeInDuration: 150
+                        showPlaceholder: false
+                        
                         Behavior on opacity {
                             NumberAnimation {
                                 duration: 150
                             }
                         }
-                        
-                        // Send button animation
-                        SequentialAnimation {
-                            id: sendAnimation
-                            
-                            ParallelAnimation {
-                                NumberAnimation {
-                                    target: sendButtonIcon
-                                    property: "scale"
-                                    from: 1.0
-                                    to: 0.5
-                                    duration: 100
-                                    easing.type: Easing.InQuad
-                                }
-                                
-                                NumberAnimation {
-                                    target: sendButtonIcon
-                                    property: "opacity"
-                                    from: 1.0
-                                    to: 0.5
-                                    duration: 100
-                                    easing.type: Easing.InQuad
-                                }
-                            }
-                            
-                            ParallelAnimation {
-                                NumberAnimation {
-                                    target: sendButtonIcon
-                                    property: "scale"
-                                    from: 0.5
-                                    to: 1.2
-                                    duration: 150
-                                    easing.type: Easing.OutBack
-                                }
-                                
-                                NumberAnimation {
-                                    target: sendButtonIcon
-                                    property: "opacity"
-                                    from: 0.5
-                                    to: 1.0
-                                    duration: 150
-                                    easing.type: Easing.OutQuad
-                                }
-                            }
-                            
-                            PauseAnimation {
-                                duration: 50
-                            }
-                            
-                            NumberAnimation {
-                                target: sendButtonIcon
-                                property: "scale"
-                                from: 1.2
-                                to: 1.0
-                                duration: 100
-                                easing.type: Easing.OutQuad
-                            }
-                        }
                     }
+
                 }
+
             }
 
         }
 
-    }
-
-    // Timer to delay submission slightly to show animation
-    Timer {
-        id: sendTimer
-        interval: 250
-        repeat: false
-        onTriggered: {
-            if (textInput.text.trim() !== "") {
-                inputArea.textSubmitted(textInput.text.trim());
-                textInput.clear();
-            }
-        }
     }
 
     Behavior on height {

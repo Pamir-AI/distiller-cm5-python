@@ -12,26 +12,33 @@ AppSection {
         width: parent.width
         spacing: ThemeManager.spacingNormal
 
-        // App logo/icon (placeholder rectangle, replace with actual logo if available)
-        Rectangle {
-            id: logoPlaceholder
-
+        // App logo image that changes based on theme
+        OptimizedImage {
+            id: logoImage
+            
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 80
-            Layout.preferredHeight: 80
+            Layout.preferredWidth: 100
+            Layout.preferredHeight: 100
             Layout.topMargin: ThemeManager.spacingNormal
             Layout.bottomMargin: ThemeManager.spacingNormal
-            radius: 12
-            color: ThemeManager.accentColor
-            opacity: 0.9
-
-            Text {
-                anchors.centerIn: parent
-                text: "P" // First letter of Pamir
-                font.pixelSize: 40
-                font.bold: true
-                font.family: FontManager.primaryFontFamily
-                color: "white"
+            
+            source: ThemeManager.darkMode ? "../images/pamir_logo_white.webp" : "../images/pamir_logo.webp"
+            fillMode: Image.PreserveAspectFit
+            sourceSize.width: 200
+            sourceSize.height: 200
+            
+            // Set fadeInDuration to match the theme animation duration
+            fadeInDuration: ThemeManager.animationDuration
+            
+            // Add a smooth transition when theme changes
+            Behavior on source {
+                PropertyAnimation {
+                    target: logoImage
+                    property: "opacity"
+                    from: 0.8
+                    to: 1.0
+                    duration: ThemeManager.animationDuration
+                }
             }
         }
 

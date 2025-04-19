@@ -23,6 +23,10 @@ Dialog {
     property string secondaryActionText: "Secondary Action"
     property bool showSecondaryAction: standardButtonTypes & DialogButtonBox.Help
     
+    // Navigation properties
+    property var dialogButtons: []
+    property int currentButtonIndex: -1
+    
     // Style customization
     property color positiveButtonColor: ThemeManager.accentColor
     property color neutralButtonColor: ThemeManager.buttonColor
@@ -48,6 +52,66 @@ Dialog {
     property real customHeaderHeight: headerRect.height
     property real customFooterHeight: buttonLayout.height
     
+    // Function to collect all buttons and register them with FocusManager
+    function collectFocusItems() {
+        console.log("AppDialog: Collecting focusable buttons");
+        dialogButtons = [];
+        
+        // Add buttons based on visibility and if they're defined
+        if (okButton && okButton.visible) {
+            dialogButtons.push(okButton);
+        }
+        
+        if (yesButton && yesButton.visible) {
+            dialogButtons.push(yesButton);
+        }
+        
+        if (cancelButton && cancelButton.visible) {
+            dialogButtons.push(cancelButton);
+        }
+        
+        if (noButton && noButton.visible) {
+            dialogButtons.push(noButton);
+        }
+        
+        if (helpButton && helpButton.visible) {
+            dialogButtons.push(helpButton);
+        }
+        
+        if (resetButton && resetButton.visible) {
+            dialogButtons.push(resetButton);
+        }
+        
+        if (secondaryButton && secondaryButton.visible) {
+            dialogButtons.push(secondaryButton);
+        }
+        
+        // Initialize the focus manager with our buttons
+        if (dialogButtons.length > 0) {
+            console.log("AppDialog: Registering " + dialogButtons.length + " buttons with FocusManager");
+            FocusManager.initializeFocusItems(dialogButtons);
+            
+            // Focus the primary action button by default
+            if (okButton && okButton.visible) {
+                FocusManager.setFocusToItem(okButton);
+            } else if (yesButton && yesButton.visible) {
+                FocusManager.setFocusToItem(yesButton);
+            }
+        }
+    }
+    
+    // Register with the focus manager when opened
+    onOpened: {
+        Qt.callLater(collectFocusItems);
+    }
+    
+    // Reset focus when closing
+    onClosed: {
+        if (FocusManager) {
+            FocusManager.initializeFocusItems([]);
+        }
+    }
+    
     // Default button delegate component using AppButton
     Component {
         id: defaultButtonDelegate
@@ -55,35 +119,24 @@ Dialog {
         AppButton {
             isFlat: false
             
-            // Set color based on button role
-            background: Rectangle {
-                color: {
-                    if (parent.DialogButtonBox.buttonRole === DialogButtonBox.AcceptRole ||
-                        parent.DialogButtonBox.buttonRole === DialogButtonBox.YesRole) {
-                        return parent.down ? Qt.darker(positiveButtonColor, 1.1) : positiveButtonColor
-                    } else {
-                        return parent.down ? ThemeManager.pressedColor : neutralButtonColor
-                    }
+            // Set background color based on button role
+            property color backgroundColor: {
+                if (parent.DialogButtonBox.buttonRole === DialogButtonBox.AcceptRole ||
+                    parent.DialogButtonBox.buttonRole === DialogButtonBox.YesRole) {
+                    return parent.down ? Qt.darker(positiveButtonColor, 1.1) : positiveButtonColor
+                } else {
+                    return parent.down ? ThemeManager.pressedColor : neutralButtonColor
                 }
-                border.color: ThemeManager.borderColor
-                border.width: ThemeManager.borderWidth
-                radius: ThemeManager.borderRadius
             }
             
-            contentItem: Text {
-                text: parent.text
-                font: FontManager.normal
-                color: {
-                    if (parent.DialogButtonBox.buttonRole === DialogButtonBox.AcceptRole ||
-                        parent.DialogButtonBox.buttonRole === DialogButtonBox.YesRole) {
-                        return ThemeManager.backgroundColor
-                    } else {
-                        return ThemeManager.textColor
-                    }
+            // Set text color based on button role
+            property color buttonTextColor: {
+                if (parent.DialogButtonBox.buttonRole === DialogButtonBox.AcceptRole ||
+                    parent.DialogButtonBox.buttonRole === DialogButtonBox.YesRole) {
+                    return ThemeManager.backgroundColor
+                } else {
+                    return ThemeManager.textColor
                 }
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
             }
         }
     }
@@ -122,15 +175,6 @@ Dialog {
                 flat: true
                 Layout.preferredWidth: 32
                 Layout.preferredHeight: 32
-                
-                contentItem: Text {
-                    text: parent.text
-                    font.pixelSize: FontManager.fontSizeLarge
-                    color: ThemeManager.textColor
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                
                 onClicked: root.close()
             }
         }
@@ -208,21 +252,9 @@ Dialog {
                 visible: standardButtonTypes & DialogButtonBox.Ok
                 width: 120
                 height: ThemeManager.buttonHeight
-                
-                background: Rectangle {
-                    color: parent.down ? Qt.darker(positiveButtonColor, 1.1) : positiveButtonColor
-                    border.color: ThemeManager.borderColor
-                    border.width: ThemeManager.borderWidth
-                    radius: ThemeManager.borderRadius
-                }
-                
-                contentItem: Text {
-                    text: parent.text
-                    font: FontManager.normal
-                    color: ThemeManager.backgroundColor
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
+                backgroundColor: parent.down ? Qt.darker(positiveButtonColor, 1.1) : positiveButtonColor
+                textColor: ThemeManager.backgroundColor
+                navigable: true
                 
                 onClicked: {
                     root.close();
@@ -247,21 +279,9 @@ Dialog {
                 text: okButtonText
                 visible: standardButtonTypes & DialogButtonBox.Ok
                 Layout.preferredWidth: 100
-                
-                background: Rectangle {
-                    color: okButton.down ? Qt.darker(positiveButtonColor, 1.1) : positiveButtonColor
-                    border.color: ThemeManager.borderColor
-                    border.width: ThemeManager.borderWidth
-                    radius: ThemeManager.borderRadius
-                }
-                
-                contentItem: Text {
-                    text: okButton.text
-                    font: FontManager.normal
-                    color: ThemeManager.backgroundColor
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
+                backgroundColor: okButton.down ? Qt.darker(positiveButtonColor, 1.1) : positiveButtonColor
+                textColor: ThemeManager.backgroundColor
+                navigable: true
                 
                 onClicked: {
                     root.close();
@@ -276,21 +296,9 @@ Dialog {
                 text: yesButtonText
                 visible: standardButtonTypes & DialogButtonBox.Yes
                 Layout.preferredWidth: 100
-                
-                background: Rectangle {
-                    color: yesButton.down ? Qt.darker(positiveButtonColor, 1.1) : positiveButtonColor
-                    border.color: ThemeManager.borderColor
-                    border.width: ThemeManager.borderWidth
-                    radius: ThemeManager.borderRadius
-                }
-                
-                contentItem: Text {
-                    text: yesButton.text
-                    font: FontManager.normal
-                    color: ThemeManager.backgroundColor
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
+                backgroundColor: yesButton.down ? Qt.darker(positiveButtonColor, 1.1) : positiveButtonColor
+                textColor: ThemeManager.backgroundColor
+                navigable: true
                 
                 onClicked: {
                     root.close();
@@ -305,6 +313,7 @@ Dialog {
                 text: cancelButtonText
                 visible: standardButtonTypes & DialogButtonBox.Cancel
                 Layout.preferredWidth: 100
+                navigable: true
                 
                 onClicked: {
                     root.close();
@@ -318,6 +327,7 @@ Dialog {
                 text: noButtonText
                 visible: standardButtonTypes & DialogButtonBox.No
                 Layout.preferredWidth: 100
+                navigable: true
                 
                 onClicked: {
                     root.close();
@@ -331,6 +341,7 @@ Dialog {
                 text: helpButtonText
                 visible: standardButtonTypes & DialogButtonBox.Help
                 Layout.preferredWidth: 100
+                navigable: true
                 
                 onClicked: {
                     helpButtonClicked();
@@ -343,6 +354,7 @@ Dialog {
                 text: resetButtonText
                 visible: standardButtonTypes & DialogButtonBox.Reset
                 Layout.preferredWidth: 100
+                navigable: true
                 
                 onClicked: {
                     resetButtonClicked();
@@ -355,6 +367,7 @@ Dialog {
                 text: secondaryActionText
                 visible: showSecondaryAction
                 Layout.preferredWidth: 150
+                navigable: true
                 
                 onClicked: {
                     secondaryButtonClicked();

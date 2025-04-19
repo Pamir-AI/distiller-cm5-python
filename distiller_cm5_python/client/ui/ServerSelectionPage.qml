@@ -12,24 +12,84 @@ PageBase {
     property bool isLoading: true
     property real cardSize: 200
     property real gridSpacing: 16
+    property var focusableItems: []
 
     signal serverSelected(string serverPath)
 
-    // Add lifecycle logging
-    onVisibleChanged: console.log("--- ServerSelectionPage visible changed: " + visible)
-    onActiveFocusChanged: console.log("--- ServerSelectionPage activeFocus changed: " + activeFocus)
+    // Collect all focusable items on this page
+    function collectFocusItems() {
+        focusableItems = []
+        console.log("ServerSelectionPage: Collecting focusable items");
+        
+        // Add server grid cards if available
+        if (serverGrid && availableServers.length > 0) {
+            console.log("ServerSelectionPage: Processing server grid with " + serverGrid.children.length + " potential items");
+            for (var i = 0; i < serverGrid.children.length; i++) {
+                var child = serverGrid.children[i]
+                if (child && child.navigable) {
+                    console.log("ServerSelectionPage: Adding server card to focusable items: " + child.serverName);
+                    child.objectName = "ServerCard_" + i; // Add a name for debugging
+                    focusableItems.push(child)
+                }
+            }
+        } else {
+            console.log("ServerSelectionPage: No server cards available");
+        }
+        
+        // Add the refresh button
+        if (refreshButton && refreshButton.navigable) {
+            console.log("ServerSelectionPage: Adding refresh button to focusable items");
+            refreshButton.objectName = "RefreshButton"; // Add a name for debugging
+            focusableItems.push(refreshButton)
+        }
+        
+        console.log("ServerSelectionPage: Total focusable items: " + focusableItems.length);
+        
+        // Initialize focus with our FocusManager, passing the scroll view
+        FocusManager.initializeFocusItems(focusableItems, serverScrollView)
+    }
+
+    // Connect to bridge ready signal
+    Connections {
+        target: bridge
+        
+        function onBridgeReady() {
+            // Request server list when bridge is ready
+            if (serverSelectionPage.visible && serverSelectionPage.width > 0) {
+                serverInitTimer.stop(); // Stop the pending timer if it was running
+                bridge.getAvailableServers();
+            }
+        }
+        
+        function onAvailableServersChanged(servers) {
+            console.log("Received servers: " + servers.length);
+            availableServers = servers;
+            isLoading = false;
+            
+            if (servers.length === 0) {
+                // Show a message to the user when no servers are found
+                messageToast.showMessage("No servers found. Please check your installation.", 4000);
+            } else {
+                // Use a small delay to ensure the Repeater has created all items
+                console.log("ServerSelectionPage: Servers changed, scheduling focus collection");
+                focusCollectionTimer.restart();
+            }
+        }
+        
+        function onErrorOccurred(errorMessage) {
+            console.error("Error in server selection: " + errorMessage);
+            // Only show errors related to server discovery
+            if (errorMessage.toLowerCase().includes("server") || errorMessage.toLowerCase().includes("discover")) {
+                messageToast.showMessage("Error: " + errorMessage, 4000);
+            }
+            isLoading = false;
+        }
+    }
 
     Component.onCompleted: {
-        console.log("--- ServerSelectionPage Component.onCompleted ---"); // Log completion
         // Call parent's onCompleted first
         // Use a small delay to ensure the component is fully constructed before requesting servers
         serverInitTimer.start();
-
-        // Explicitly force focus when the page completes loading
-        forceActiveFocus();
-        console.log("--- ServerSelectionPage attempting forceActiveFocus() onCompleted ---");
-
-        // Initial focus will be handled in onAvailableServersChanged or when page becomes active
     }
     
     // Prevent operations when being destroyed
@@ -40,43 +100,6 @@ PageBase {
             serverInitTimer.stop();
     }
 
-    // Connect to the bridge signals
-    Connections {
-        function onAvailableServersChanged(servers) {
-            console.log("--- ServerSelectionPage onAvailableServersChanged RECEIVED ---"); // Log signal reception
-            console.log("Received servers: " + servers.length);
-            availableServers = servers;
-            isLoading = false;
-
-            // Update focus after servers are loaded, using callLater for safety
-            Qt.callLater(function() {
-                if (serverSelectionPage.visible) { 
-                    if (availableServers.length > 0) { 
-                        console.log("Attempting to set focus on first list item (callLater, visible only)...");
-                        serverListView.currentIndex = 0; // Set current index for ListView
-                        // Ensure item exists and force focus on the list itself
-                        if (serverListView.count > 0) { 
-                           serverListView.forceActiveFocus(); 
-                           positionViewAtIndex(0, ListView.Beginning); // Scroll to top
-                           console.log("Focus hopefully set on ListView, index 0.");
-                        } else {
-                           console.log("ListView count is 0, cannot set focus");
-                           // Fallback to refresh button if list view somehow empty
-                           if (refreshButton.visible) refreshButton.forceActiveFocus();
-                        }
-                    } else if (refreshButton.visible) {
-                        console.log("Attempting to set focus on refresh button (callLater)...");
-                        // If no servers, focus the refresh button
-                        refreshButton.forceActiveFocus();
-                        console.log("Focus hopefully set on refresh button.");
-                    }
-                }
-            });
-        }
-
-        target: bridge
-    }
-
     // Timer to delay server loading to prevent component creation during destruction
     Timer {
         id: serverInitTimer
@@ -85,8 +108,14 @@ PageBase {
         repeat: false
         running: false
         onTriggered: {
-            if (serverSelectionPage.visible && serverSelectionPage.width > 0)
+            if (serverSelectionPage.visible && serverSelectionPage.width > 0 && bridge && bridge.ready) {
+                isLoading = true;
                 bridge.getAvailableServers();
+            } else if (serverSelectionPage.visible && serverSelectionPage.width > 0) {
+                console.error("Bridge not ready, cannot get servers");
+                isLoading = false;
+                messageToast.showMessage("Error: Application not fully initialized. Please restart.", 4000);
+            }
         }
     }
 
@@ -121,9 +150,10 @@ PageBase {
         compact: true
     }
 
-    // Main content column
-    ColumnLayout {
-        id: contentColumn
+    // Use AppScrollView instead of standard ListView for consistent behavior with SettingsPage
+    AppScrollView {
+        id: serverScrollView
+        
         anchors.top: headerArea.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -132,102 +162,99 @@ PageBase {
         anchors.leftMargin: ThemeManager.spacingSmall // Reduced left margin
         anchors.rightMargin: ThemeManager.spacingSmall // Reduced right margin
         anchors.bottomMargin: ThemeManager.spacingSmall
-        spacing: ThemeManager.spacingLarge // Keep spacing between elements
         
-        // Add top padding
-        Item {
-            width: parent.width
-            height: ThemeManager.spacingSmall
+        // Add scrolling animations and behavior from SettingsPage
+        contentHeight: contentColumn.height
+        showScrollIndicator: false
+        visible: !isLoading
+        
+        // Content background for better visual clarity
+        Rectangle {
+            id: contentBackground
+            width: serverScrollView.width
+            height: contentColumn.height
+            color: "transparent"
+            
+            // Light background shading for scrollable area
+            Rectangle {
+                anchors.fill: parent
+                color: Qt.darker(ThemeManager.backgroundColor, 1.02) // Very subtle darkening
+                visible: ThemeManager.darkMode ? false : true
+                opacity: 0.5
+            }
         }
         
-        // Empty state message for no servers
-        MCPPageEmptyState {
-            width: parent.width
-            height: serverListView.height - ThemeManager.spacingLarge * 2
-            visible: !serverSelectionPage.isLoading && availableServers.length === 0
-            title: "NO SERVERS FOUND"
-            message: "Please ensure MCP servers are available\nin the mcp_server directory"
-            compact: true
-        }
-        
-        // --- Add ListView for Servers --- 
-        ListView {
-            id: serverListView
-            Layout.fillWidth: true
-            Layout.fillHeight: true // Fill available vertical space in ColumnLayout
-            visible: availableServers.length > 0
+        // Main content column
+        Column {
+            id: contentColumn
+            width: serverScrollView.width
+            spacing: ThemeManager.spacingLarge
             
-            model: availableServers
-            clip: true // Important for scrolling
-            focus: true // Allow the list itself to receive focus
-            currentIndex: -1 // Keep track of focused item
+            // Add top padding
+            Item {
+                width: parent.width
+                height: ThemeManager.spacingSmall
+            }
             
-            // Configure delegate (the card)
-            delegate: ServerGridCard {
-                width: serverListView.width // Card fills list width
-                height: width * 0.3 // Make cards less tall
-                serverName: modelData.name
-                serverDescription: modelData.description || ""
-                serverPath: modelData.path
+            // Empty state message for no servers
+            MCPPageEmptyState {
+                width: parent.width
+                height: serverScrollView.height - ThemeManager.spacingLarge * 2
+                visible: !serverSelectionPage.isLoading && availableServers.length === 0
+                title: "NO SERVERS FOUND"
+                message: "Please ensure MCP servers are available\nin the mcp_server directory"
+                compact: true
+            }
+            
+            // Server grid container
+            Item {
+                id: gridContainer
+                width: parent.width
+                // Height will be determined by the grid
+                implicitHeight: serverGrid.implicitHeight
+                visible: availableServers.length > 0
                 
-                // Make card focusable within the list context
-                focus: ListView.isCurrentItem
-                // Ensure the list index updates when card gets focus directly (if ever needed)
-                onActiveFocusChanged: {
-                    if (activeFocus) {
-                        serverListView.currentIndex = index;
+                // Calculate optimal number of columns based on width
+                property int optimalColumns: Math.floor((width - ThemeManager.spacingLarge) / (cardSize + gridSpacing))
+                property int columns: Math.max(2, optimalColumns) // Minimum 2 columns
+                property real availableWidth: width - ThemeManager.spacingLarge
+                property real effectiveCardWidth: (availableWidth - (columns - 1) * gridSpacing) / columns
+                
+                // Server grid layout
+                Grid {
+                    id: serverGrid
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: parent.availableWidth
+                    columns: gridContainer.columns
+                    spacing: gridSpacing
+                    
+                    // Server grid cards
+                    Repeater {
+                        model: availableServers
+                        
+                        ServerGridCard {
+                            width: gridContainer.effectiveCardWidth
+                            height: width
+                            serverName: modelData.name
+                            serverDescription: modelData.description || ""
+                            serverPath: modelData.path
+                            navigable: true
+                            
+                            onCardClicked: function(path) {
+                                // Add a delay to allow e-ink display to refresh
+                                clickTimer.serverPath = path
+                                clickTimer.start()
+                            }
+                        }
                     }
-                }
-                
-                onCardClicked: function(path) {
-                    // Add a delay to allow e-ink display to refresh
-                    clickTimer.serverPath = path
-                    clickTimer.start()
                 }
             }
             
-            // Simplified Key Navigation
-            Keys.onPressed: (event) => {
-                console.log("--- serverListView Keys.onPressed received key: ", event.key, " currentIndex: ", currentIndex);
-                if (event.key === Qt.Key_Up) {
-                    if (currentIndex > 0) {
-                        serverListView.decrementCurrentIndex();
-                    } else {
-                        // At first item, wrap around to refresh button
-                        refreshButton.forceActiveFocus();
-                        console.log("Focus moved to Refresh button (from list top - wrap)");
-                    }
-                    event.accepted = true;
-                } else if (event.key === Qt.Key_Down) {
-                    if (currentIndex < count - 1) {
-                        serverListView.incrementCurrentIndex();
-                    } else {
-                        // At last item, move focus to refresh button
-                        refreshButton.forceActiveFocus();
-                        console.log("Focus moved to Refresh button (from list bottom)");
-                    }
-                    event.accepted = true;
-                } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
-                    // Ignore Left/Right on the list itself
-                    event.accepted = true; 
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-                    // Let the focused delegate (card) handle select/enter
-                    event.accepted = false; 
-                } else {
-                    event.accepted = false; // Allow other keys (e.g., PageUp/Down for scrolling)
-                }
-                // Ensure the current item is visible after navigation
-                if (event.accepted && currentIndex !== -1) {
-                    positionViewAtIndex(currentIndex, ListView.Center);
-                }
+            // Add bottom padding
+            Item {
+                width: parent.width
+                height: ThemeManager.spacingSmall
             }
-        }
-        // --- End ListView --- 
-
-        // Add bottom padding
-        Item {
-            width: parent.width
-            height: ThemeManager.spacingSmall
         }
     }
 
@@ -262,79 +289,65 @@ PageBase {
             // Status text
             Text {
                 Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                text: serverSelectionPage.isLoading ? "Loading servers..." : (availableServers.length === 0 ? "No servers found" : "")
+                text: "Tap refresh to check for new servers"
+                font.pixelSize: FontManager.fontSizeSmall
+                font.family: FontManager.primaryFontFamily
                 color: ThemeManager.secondaryTextColor
-                font: FontManager.small
-                visible: serverSelectionPage.isLoading || availableServers.length === 0 // Only show when loading or no servers
+                horizontalAlignment: Text.AlignCenter
             }
             
-            // Refresh button
+            // Refresh button (converted to AppButton)
             AppButton {
                 id: refreshButton
+                text: "Refresh Server List"
+                Layout.preferredWidth: Math.min(parent.width, 200)
                 Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: parent.width / 2
-                Layout.preferredHeight: ThemeManager.buttonHeight * 0.7
-                text: "Refresh"
-                useFixedHeight: false
+                navigable: true
+                
                 onClicked: {
-                    isLoading = true;
-                    bridge.getAvailableServers();
-                }
-                // --- Focus and Key Handling for Button ---
-                focus: true
-                Keys.onPressed: (event) => {
-                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-                        clicked(); // Trigger the button's action
-                        event.accepted = true;
-                    }
-                    // Handle navigation back up to the list
-                    if (event.key === Qt.Key_Up) {
-                         if (serverListView.visible && serverListView.count > 0) {
-                             // Try focusing the last item in the list
-                             let lastIndex = serverListView.count - 1;
-                             serverListView.currentIndex = lastIndex; // Set index
-                             serverListView.forceActiveFocus(); // Focus the list view
-                             positionViewAtIndex(lastIndex, ListView.End); // Scroll to bottom
-                             console.log("Focus moved to ListView index: " + lastIndex + " (from refresh)");
-                             event.accepted = true;
-                         } else {
-                            event.accepted = false; // Allow default if list not available
-                         }
+                    if (bridge && bridge.ready) {
+                        isLoading = true
+                        bridge.getAvailableServers()
                     } else {
-                        // **Handle navigation down (wrap) to the list**
-                        if (event.key === Qt.Key_Down) {
-                            if (serverListView.visible && serverListView.count > 0) {
-                                // Wrap to the first item in the list
-                                serverListView.currentIndex = 0; 
-                                serverListView.forceActiveFocus(); 
-                                serverListView.positionViewAtIndex(0, ListView.Beginning); 
-                                console.log("Focus moved to ListView index: 0 (from refresh - wrap)");
-                                event.accepted = true;
-                            } else {
-                                event.accepted = false; // Allow default if list not available
-                            }
-                        } else {
-                            event.accepted = false; // Allow other keys to propagate if needed
-                        }
+                        messageToast.showMessage("Error: Application not fully initialized.", 3000)
                     }
                 }
-                // --- End Focus and Key Handling --- 
             }
         }
     }
-
-    // Timer to allow e-ink display to refresh before navigation
+    
+    // Click timer to allow e-ink to update before proceeding
     Timer {
         id: clickTimer
-
+        
         property string serverPath: ""
+        
+        interval: 200
+        repeat: false
+        running: false
+        
+        onTriggered: {
+            serverSelectionPage.serverSelected(serverPath)
+        }
+    }
+    
+    // Page-specific toast for messages
+    MessageToast {
+        id: messageToast
+        
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: footerArea.top
+        anchors.bottomMargin: ThemeManager.spacingNormal
+    }
 
-        interval: 300
+    // Timer to collect focus items after server list changes
+    Timer {
+        id: focusCollectionTimer
+        interval: 100
         repeat: false
         onTriggered: {
-            console.log("Server selected: " + serverPath);
-            serverSelected(serverPath);
+            console.log("ServerSelectionPage: Running delayed focus collection");
+            collectFocusItems();
         }
     }
 }
