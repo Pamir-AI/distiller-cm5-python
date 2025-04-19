@@ -1,49 +1,39 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 
-RoundButton {
+NavigableItem {
     id: root
     
     property string iconText: ""
+    property string text: ""
     property real iconOpacity: 0.7
     property real hoverOpacity: 1.0
     property bool useHoverEffect: true
     property bool showBorder: false
+    property bool flat: true
+    property bool checked: false
     
     width: 36
     height: 36
-    flat: true
     
-    // Make focusable
-    focus: true
-    
-    // Add logging for focus state changes
-    onActiveFocusChanged: console.log("--- AppRoundButton [" + objectName + "] activeFocus changed: " + activeFocus) // Use objectName if set, or just log generic message
-    onFocusChanged: console.log("--- AppRoundButton [" + objectName + "] focus changed: " + focus)
-    
-    // Handle Enter/Select key
-    Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-            clicked(); 
-            event.accepted = true;
-        } else {
-            event.accepted = false; // Allow other keys (like arrows) to propagate
-        }
-    }
-    
-    background: Rectangle {
+    Rectangle {
+        id: backgroundRect
+        anchors.fill: parent
         color: root.checked ? ThemeManager.subtleColor 
              : root.pressed ? ThemeManager.pressedColor 
+             : root.visualFocus ? ThemeManager.accentColor
              : "transparent"
-        border.width: root.activeFocus ? 4 : 0
-        border.color: root.activeFocus ? "red" : "transparent"
+        border.width: showBorder || root.visualFocus ? ThemeManager.borderWidth : 0
+        border.color: root.visualFocus ? ThemeManager.accentColor : (showBorder ? ThemeManager.borderColor : "transparent")
         radius: width / 2
     }
     
-    contentItem: Text {
-        text: root.iconText
+    Text {
+        id: textItem
+        text: root.iconText || root.text
         font: FontManager.heading
-        color: ThemeManager.textColor
+        color: root.visualFocus ? "white" : ThemeManager.textColor
+        anchors.centerIn: parent
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         opacity: (useHoverEffect && root.hovered) ? hoverOpacity : iconOpacity
@@ -54,4 +44,33 @@ RoundButton {
             }
         }
     }
+    
+    // Mouse area to handle clicks
+    MouseArea {
+        id: mouseArea
+        anchors.fill: parent
+        hoverEnabled: true
+        
+        property bool pressed: false
+        
+        onClicked: {
+            root.clicked()
+        }
+        
+        onPressed: {
+            pressed = true
+        }
+        
+        onReleased: {
+            pressed = false
+        }
+    }
+    
+    // Add keyboard handling for Enter/Return
+    Keys.onReturnPressed: function() {
+        clicked();
+    }
+    
+    property bool hovered: mouseArea.containsMouse
+    property bool pressed: mouseArea.pressed
 } 

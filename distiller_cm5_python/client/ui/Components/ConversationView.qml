@@ -4,11 +4,6 @@ import QtQuick.Layouts 1.15
 
 ListView {
     id: conversationView
-    objectName: "conversationViewList"
-
-    // Add border to indicate focus/scroll mode
-    border.width: activeFocus ? 2 : 0 // Show border only when focused
-    border.color: ThemeManager.highlightColor // Use highlight color for focus border
 
     // Properties to track user scrolling and state
     property bool userScrolling: false
@@ -16,6 +11,18 @@ ListView {
     property real lastContentY: 0
     property real lastContentHeight: 0
     property bool responseInProgress: false // Track if a response is being generated
+    
+    // Expose scroll animation for FocusManager
+    property alias scrollAnimation: smoothScrollAnimation
+    
+    // Animation for smooth scrolling when used with FocusManager
+    NumberAnimation {
+        id: smoothScrollAnimation
+        target: conversationView
+        property: "contentY"
+        duration: 150
+        easing.type: Easing.OutCubic
+    }
 
     // Update function for external callers
     function setResponseInProgress(inProgress) {
@@ -108,20 +115,4 @@ ListView {
         isLastMessage: index === conversationView.count - 1
         isResponding: conversationView.responseInProgress && index === conversationView.count - 1
     }
-
-    focus: true
-    onActiveFocusChanged: console.log("--- ConversationView activeFocus changed: " + activeFocus)
-    
-    // --- Temporarily comment out key handler to test propagation ---
-    // Keys.onPressed: (event) => {
-    //     if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
-    //         // Ignore Up/Down keys to allow page-level navigation
-    //         console.log("--- ConversationView ignored key: ", event.key);
-    //         event.accepted = false; 
-    //     } else {
-    //         // Allow other keys (like PageUp/Down for default scrolling) to work
-    //         event.accepted = false; 
-    //     }
-    // }
-    // --- End temporary comment out ---
 }
