@@ -1,894 +1,515 @@
-from PyQt6.QtCore import QUrl, pyqtSignal, pyqtSlot, QObject, QTimer
+# pyright: reportArgumentType=false
+from PyQt6.QtCore import QUrl, Qt, QObject, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtQml import QQmlApplicationEngine
 from PyQt6.QtWidgets import QApplication
-
-
+from distiller_cm5_python.client.ui.AppInfoManager import AppInfoManager
+from distiller_cm5_python.client.ui.bridge.MCPClientBridge import MCPClientBridge
 from contextlib import AsyncExitStack
-from datetime import datetime
-from qasync import QEventLoop, asyncSlot
+from qasync import QEventLoop
+from distiller_cm5_python.utils.logger import logger
+from distiller_cm5_sdk.whisper import Whisper # Assuming whisper.py is in this path
 import asyncio
 import os
 import sys
-import importlib.util
-import subprocess
-import re
+from display_config import config
 
-from distiller_cm5_python.client.mid_layer.mcp_client import MCPClient
-from distiller_cm5_python.client.ui.AppInfoManager import AppInfoManager
-from distiller_cm5_python.utils.config import *
-from distiller_cm5_python.utils.logger import logger, setup_logging
 
+if config.get("display").get("eink_enabled"):
+    from distiller_cm5_python.client.ui.bridge.EInkRenderer import EInkRenderer
+    from distiller_cm5_python.client.ui.bridge.EInkRendererBridge import EInkRendererBridge
+    import evdev
 
-class MCPClientBridge(QObject):
-    conversationChanged = pyqtSignal()  # Signal for conversation changes
-    logLevelChanged = pyqtSignal(str)  # Signal for logging level changes
-    statusChanged = pyqtSignal(str)  # Signal for status changes
-    availableServersChanged = pyqtSignal(list)  # Signal for available servers list
-    isConnectedChanged = pyqtSignal(bool)  # Signal for connection status
-    responseStopped = pyqtSignal()  # Signal for when response is stopped
 
-    # Status constants
-    STATUS_INITIALIZING = "Initializing..."
-    STATUS_CONNECTING = "Connecting to server..."
-    STATUS_CONNECTED = "Connected to {server_name}"
-    STATUS_DISCONNECTED = "Disconnected"
-    STATUS_PROCESSING = "Processing query..."
-    STATUS_STREAMING = "Streaming response..."
-    STATUS_IDLE = "Ready"
-    STATUS_ERROR = "Error: {error}"
-    STATUS_CONFIG_APPLIED = "Configuration applied successfully"
-    STATUS_SHUTTING_DOWN = "Shutting down..."
+class App(QObject): # Inherit from QObject to support signals/slots
+    # --- Signals ---
+    transcriptionUpdate = pyqtSignal(str, arguments=['transcription'])
+    transcriptionComplete = pyqtSignal(str, arguments=['full_text'])
+    recordingStateChanged = pyqtSignal(bool, arguments=['is_recording'])
+    # --- End Signals ---
 
-    def __init__(self, parent=None):
-        """MCPClientBridge initializes the MCPClient and manages the conversation state."""
-        super().__init__(parent=parent)
-        self._conversation = []
-        self._status = self.STATUS_INITIALIZING
-        self._current_streaming_message = None
-        self._is_connected = False
-        self._loop = asyncio.get_event_loop()
-        self._stop_requested = False  # Add flag to track stop requests
-        self.config_path = "./"
-        self._current_log_level = (
-            config.get("logging", "level").upper()
-            if config.get("logging", "level")
-            else "DEBUG"
-        )
-        self._available_servers = []
-        self._selected_server_path = None
-        self.client = None  # Will be initialized when a server is selected
-
-    @property
-    def is_connected(self):
-        """Return the connection status"""
-        return self._is_connected
-
-    @is_connected.setter
-    def is_connected(self, value):
-        """Set the connection status and emit the signal"""
-        if self._is_connected != value:
-            self._is_connected = value
-            self.isConnectedChanged.emit(value)
-
-    def _update_status(self, status: str, **kwargs):
-        """Update the status and emit the statusChanged signal"""
-        self._status = status.format(**kwargs)
-        self.statusChanged.emit(self._status)
-        logger.info(f"Status updated: {self._status}")
-
-    async def initialize(self):
-        """Initialize the client and connect to the server"""
-        self._update_status(self.STATUS_INITIALIZING)
-        await self.connect_to_server()
-
-    @pyqtSlot(result=str)
-    def get_status(self):
-        """Return the current status of the client"""
-        return self._status
-
-    @pyqtSlot(result=list)
-    def get_conversation(self):
-        """Return the current conversation as a list of formatted messages"""
-        return self._conversation
-
-    @asyncSlot(str)
-    async def submit_query(self, query: str):
-        """Submit a query to the server and update the conversation"""
-        if not query.strip():
-            return
-        if not self._is_connected:
-            message = {
-                "timestamp": self.get_timestamp(),
-                "content": "ERROR: Not connected",
-            }
-            self._conversation.append(message)
-            self.conversationChanged.emit()
-            logger.error("Query submitted before server connection established")
-            return
-
-        # Add user message
-        user_message = {"timestamp": self.get_timestamp(), "content": f"You: {query}"}
-        self._conversation.append(user_message)
-        logger.info(f"User query added to conversation: {query}")
-        self.conversationChanged.emit()
-        await self.process_query(query)
-
-    @pyqtSlot()
-    def clear_conversation(self):
-        """Clear the conversation history"""
-        self._conversation = []
-        clear_message = {
-            "timestamp": self.get_timestamp(),
-            "content": "Conversation cleared.",
-        }
-        self._conversation.append(clear_message)
-        logger.info("Conversation cleared")
-        self.conversationChanged.emit()
-
-    @pyqtSlot(bool)
-    def toggle_streaming(self, enabled: bool):
-        """Enable or disable streaming mode, streaming here refers to the ability to receive partial responses from the server."""
-        if self.client is None:
-            logger.error("Client is not initialized")
-            return
-        self.client.streaming = enabled
-        self.client.llm_provider.streaming = enabled
-        status = "enabled" if enabled else "disabled"
-        self._status = f"Streaming {status}"
-        self._conversation.append(f"[{self.get_timestamp()}] Streaming {status}")
-        logger.info(f"Streaming {status}")
-        self.conversationChanged.emit()
-
-    @pyqtSlot(str, str, result="QVariant")
-    def getConfigValue(self, section: str, key: str) -> str:
-        """Get a configuration value, always returning a string."""
-        value = config.get(section, key)
-        logger.debug(
-            f"Getting config value for {section}.{key}: {value} (type: {type(value)})"
-        )
-        if value is None:
-            logger.debug(f"Value is None, returning empty string")
-            return ""
-        elif isinstance(value, list):
-            if key == "stop":
-                # For stop sequences, escape special characters for QML
-                return "\n".join(
-                    str(v).encode("unicode_escape").decode("utf-8") for v in value
-                )
-            return ",".join(str(v) for v in value)
-        elif section == "logging" and key == "level":
-            # Return the current log level in uppercase
-            return self._current_log_level
-        result = str(value)
-        logger.debug(f"Final value: {result}")
-        return result
-
-    @pyqtSlot(str, str, "QVariant")
-    def setConfigValue(self, section: str, key: str, value):
-        """Set a configuration value."""
-        if key == "stop" and isinstance(value, str):
-            # For stop sequences, escape special characters for QML
-            value = [
-                v.encode("utf-8").decode("unicode_escape")
-                for v in value.split("\n")
-                if v
-            ]
-        elif key in ["timeout", "top_k", "n_ctx", "max_tokens", "streaming_chunk_size"]:
-            value = int(value) if value != "" else 0
-        elif key in ["temperature", "top_p", "repetition_penalty"]:
-            value = float(value) if value != "" else 0.0
-        elif key == "streaming" or key == "file_enabled":
-            value = bool(value)
-        elif section == "logging" and key == "level":
-            value = value.upper()
-        else:
-            config.set(section, key, value)
-
-    @asyncSlot()
-    async def applyConfig(self):
-        """Apply configuration changes by restarting the client."""
-        try:
-            self._update_status(self.STATUS_INITIALIZING)
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Applying configuration changes..."
-            )
-            self.conversationChanged.emit()
-
-            # Store the current conversation
-            current_conversation = self._conversation.copy()
-
-            # Clean up existing client
-            if self.client:
-                self._conversation.append(
-                    f"[{self.get_timestamp()}] Disconnecting from server..."
-                )
-                self.conversationChanged.emit()
-
-                # First attempt - normal cleanup
-                try:
-                    cleanup_task = asyncio.create_task(self.client.cleanup())
-                    await asyncio.wait_for(cleanup_task, timeout=5.0)
-                    await asyncio.sleep(1)
-                except asyncio.TimeoutError:
-                    self._conversation.append(
-                        f"[{self.get_timestamp()}] Cleanup is taking longer than expected, forcing disconnect..."
-                    )
-                    self.conversationChanged.emit()
-                except Exception as cleanup_error:
-                    logger.error(
-                        f"Error during client cleanup: {cleanup_error}", exc_info=True
-                    )
-                    self._conversation.append(
-                        f"[{self.get_timestamp()}] Cleanup warning: {str(cleanup_error)}"
-                    )
-                    self.conversationChanged.emit()
-
-                # Ensure client is fully reset regardless of cleanup success
-                self.client = None
-                self._is_connected = False
-
-            # Extra delay to ensure all resources are released
-            await asyncio.sleep(1.0)
-
-            # Reload the configuration from file
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Reloading configuration..."
-            )
-            self.conversationChanged.emit()
-            config.reload()
-
-            # Add a small delay after config reload
-            await asyncio.sleep(0.5)
-
-            # Update global variables after config reload
-            global SERVER_URL, MODEL_NAME, PROVIDER_TYPE, API_KEY, TIMEOUT, STREAMING_ENABLED
-            SERVER_URL = config.get("llm", "server_url")
-            MODEL_NAME = config.get("llm", "model_name")
-            PROVIDER_TYPE = config.get("llm", "provider_type")
-            API_KEY = config.get("llm", "api_key")
-            TIMEOUT = config.get("llm", "timeout")
-            STREAMING_ENABLED = config.get("llm", "streaming")
-
-            # Create new client with updated config
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Creating new client with updated configuration..."
-            )
-            self.conversationChanged.emit()
-            self.client = MCPClient(
-                streaming=STREAMING_ENABLED,
-                llm_server_url=SERVER_URL,
-                model=MODEL_NAME,
-                provider_type=PROVIDER_TYPE,
-                api_key=API_KEY,
-                timeout=TIMEOUT,
-            )
-
-            # Restore the conversation
-            self._conversation = current_conversation
-
-            # Add a small delay before connecting to server
-            await asyncio.sleep(1.0)
-
-            # Initialize and connect to the server
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Connecting to server with new configuration..."
-            )
-            self.conversationChanged.emit()
-
-            # Set a longer timeout for connection
-            success = False
-            for attempt in range(2):  # Try up to 2 times
-                try:
-                    connect_task = self.connect_to_server()
-                    await asyncio.wait_for(connect_task, timeout=10)
-                    success = self._is_connected
-                    if success:
-                        break
-                    else:
-                        self._conversation.append(
-                            f"[{self.get_timestamp()}] Connection attempt {attempt+1} failed, retrying..."
-                        )
-                        self.conversationChanged.emit()
-                        await asyncio.sleep(2)
-                except asyncio.TimeoutError:
-                    self._conversation.append(
-                        f"[{self.get_timestamp()}] Connection attempt {attempt+1} timed out, retrying..."
-                    )
-                    self.conversationChanged.emit()
-                    await asyncio.sleep(2)
-                except Exception as e:
-                    self._conversation.append(
-                        f"[{self.get_timestamp()}] Connection error: {str(e)}"
-                    )
-                    self.conversationChanged.emit()
-                    await asyncio.sleep(2)
-
-            # Only update the status if we successfully connected
-            if success:
-                self._update_status(self.STATUS_CONFIG_APPLIED)
-                self._conversation.append(
-                    f"[{self.get_timestamp()}] Client reconnected with new configuration."
-                )
-                self.conversationChanged.emit()
-            else:
-                error_msg = "Failed to connect after multiple attempts"
-                self._update_status(self.STATUS_ERROR, error=error_msg)
-                self._conversation.append(
-                    f"[{self.get_timestamp()}] ERROR: {error_msg}"
-                )
-                self.conversationChanged.emit()
-
-        except Exception as e:
-            self._update_status(self.STATUS_ERROR, error=str(e))
-            logger.error(f"Error applying configuration: {e}", exc_info=True)
-            self._conversation.append(
-                f"[{self.get_timestamp()}] ERROR: Failed to apply configuration: {str(e)}"
-            )
-            self.conversationChanged.emit()
-
-    @pyqtSlot()
-    def saveConfigToFile(self):
-        """Save the current configuration."""
-        config.save_to_file(self.config_path)
-        logger.info(f"Configuration saved to {self.config_path}")
-
-    async def connect_to_server(self):
-        """Connect to the server and update the conversation"""
-
-        # If we have a selected server path, use that instead of config
-        server_script_path = self._selected_server_path
-
-        # Otherwise fall back to config
-        if not server_script_path:
-            server_script_path = MCP_SERVER_SCRIPT_PATH
-
-        if not server_script_path:
-            self._conversation.append(
-                f"[{self.get_timestamp()}] ERROR: No server script path provided."
-            )
-            self.conversationChanged.emit()
-            self._update_status(
-                self.STATUS_ERROR, error="No server script path provided"
-            )
-            return
-
-        # Ensure the server script path is absolute
-        if not os.path.isabs(server_script_path):
-            server_script = os.path.join(
-                os.path.dirname(__file__), "../../", server_script_path
-            )
-        else:
-            server_script = server_script_path
-
-        self._update_status(self.STATUS_CONNECTING)
-        try:
-            success = await self.client.connect_to_server(server_script)
-            if success:
-                # Always use the actual server name from client.server_name
-                actual_server_name = self.client.server_name if hasattr(self.client, 'server_name') else "Unknown"
-
-                self._conversation.append(
-                    f"[{self.get_timestamp()}] Connected to server successfully."
-                )
-                # Use the actual name in the status message
-                self._update_status(
-                    self.STATUS_CONNECTED, server_name=actual_server_name
-                )
-                self._is_connected = True
-                self.is_connected = True  # Use property setter for signal emission
-                logger.info(f"Connected to server: {actual_server_name}")
-            else:
-                self._conversation.append(
-                    f"[{self.get_timestamp()}] Failed to connect to server."
-                )
-                self._update_status(self.STATUS_ERROR, error="Connection failed")
-                self.is_connected = False
-        except Exception as e:
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Failed to connect to server: {str(e)}"
-            )
-            self._update_status(self.STATUS_ERROR, error=str(e))
-            self.is_connected = False
-        self.conversationChanged.emit()
-
-    async def process_query(self, query: str):
-        """Process the query and update the conversation"""
-        if not self._is_connected:
-            self._update_status(self.STATUS_ERROR, error="Not connected to server")
-            return
-
-        self._update_status(self.STATUS_PROCESSING)
-        # Reset stop flag at the beginning of a new query
-        self._stop_requested = False
-
-        if self.client is None:
-            logger.error("Client is not initialized")
-            self._update_status(self.STATUS_ERROR, error="Client is not initialized")
-            return
-
-        try:
-            # Add user message to conversation
-            timestamp = self.get_timestamp()
-            self._conversation.append(f"[{timestamp}] You: {query}")
-            self.conversationChanged.emit()
-
-            # Create stream handler
-            if self.client.streaming:
-                # Initialize streaming message
-                timestamp = self.get_timestamp()
-                stream_index = len(self._conversation)
-                self._conversation.append(f"[{timestamp}] Assistant: ")
-                self.conversationChanged.emit()
-                self._update_status(self.STATUS_STREAMING)
-
-                # Define streaming chunk handler
-                def on_stream_chunk(chunk):
-                    # Skip updating the UI if stop was requested
-                    if self._stop_requested:
-                        logger.debug(f"Ignoring streaming chunk after stop: {chunk[:20]}...")
-                        return
-
-                    if stream_index < len(self._conversation):
-                        # Append chunk to existing message
-                        self._conversation[stream_index] += chunk
-                        # Signal the model has changed
-                        self.conversationChanged.emit()
-                        logger.debug(f"Streaming chunk received: {chunk[:20]}...")
-
-                # Process query with streaming
-                await self.client.process_query(query, on_stream_chunk)
-            else:
-                # Define non-streaming handler
-                def on_response(response):
-                    timestamp = self.get_timestamp()
-                    self._conversation.append(f"[{timestamp}] Assistant: {response}")
-                    self.conversationChanged.emit()
-                    logger.debug(f"Full response received: {response[:50]}...")
-
-                # Process query without streaming
-                await self.client.process_query(query, on_response)
-
-            self._update_status(self.STATUS_IDLE)
-            
-        except Exception as e:
-            logger.error(f"Error processing query: {e}")
-            self._update_status(self.STATUS_ERROR, error=str(e))
-            self._conversation.append(f"[{self.get_timestamp()}] Error: {str(e)}")
-            self.conversationChanged.emit()
-
-    def get_timestamp(self) -> str:
-        """Get the current timestamp formatted as a string"""
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    async def cleanup(self):
-        """Cleanup the client and close the connection"""
-        try:
-            self._update_status(self.STATUS_SHUTTING_DOWN)
-            if hasattr(self, "bridge") and self.bridge is not None:
-                self.conversationChanged.emit()
-
-            if self.client:
-                # Ensure cleanup is called in the same task
-                # check if there is any running loop
-                await self.client.cleanup()
-                self.client = None
-
-            logger.debug("Cleanup completed successfully")
-        except Exception as e:
-            self._update_status(self.STATUS_ERROR, error=str(e))
-
-    @pyqtSlot()
-    def reset_status(self):
-        """Reset the status to the default idle state"""
-        self._update_status(self.STATUS_IDLE)
-
-    @pyqtSlot()
-    def shutdown(self):
-        """Gracefully shut down the application"""
-        logger.info("Application shutdown requested")
-        self._update_status(self.STATUS_SHUTTING_DOWN)
-        self._conversation.append(f"[{self.get_timestamp()}] Shutting down...")
-        self.conversationChanged.emit()
-
-        # Set application state to prevent new operations from starting
-        self._is_connected = False
-
-        # Schedule the async cleanup in a separate task - don't wait for the result
-        cleanup_task = asyncio.create_task(self._do_shutdown_cleanup())
-
-        # Disconnect any signals that could cause issues during shutdown
-        if hasattr(self, "_disconnect_signals"):
-            self._disconnect_signals()
-
-        # Give a short delay to allow the cleanup task to start
-        # Then quit the application - use a longer timer to give cleanup more time
-        QTimer.singleShot(1500, self._force_quit)
-
-    def _force_quit(self):
-        """Force quit the application after timeout"""
-        logger.info("Forcing application quit")
-        QApplication.quit()
-
-    async def _do_shutdown_cleanup(self):
-        """Perform the actual cleanup work during shutdown"""
-        # Clean up client with timeout
-        if self.client:
-            try:
-                # Don't use a task here to avoid task cancellation issues
-                try:
-                    # Give slightly longer timeout during final shutdown
-                    await asyncio.wait_for(self.client.cleanup(), timeout=4.0)
-                    logger.info("Application cleanup complete")
-                except asyncio.TimeoutError:
-                    logger.warning("Shutdown cleanup timed out, forcing exit")
-            except Exception as e:
-                logger.error(f"Error during shutdown cleanup: {e}")
-
-        # Clear any references that might prevent proper garbage collection
-        self.client = None
-
-    @pyqtSlot()
-    def getAvailableServers(self):
-        """Get the available MCP servers and emit the availableServersChanged signal"""
-        # Get the list of MCP servers
-        servers = self._discover_mcp_servers()
-        self._available_servers = servers
-        self.availableServersChanged.emit(servers)
-
-    def _discover_mcp_servers(self):
-        """Discover available MCP servers in the mcp_server directory"""
-        # Get the absolute path to the mcp_server directory
-        mcp_server_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "../../mcp_server")
-        )
-
-        # Ensure mcp_server directory is in the Python path
-        parent_dir = os.path.dirname(mcp_server_dir)
-        if parent_dir not in sys.path:
-            sys.path.insert(0, parent_dir)
-
-        servers = []
-
-        try:
-            for file in os.listdir(mcp_server_dir):
-                if file.endswith("_server.py") and not file.startswith("__"):
-                    server_path = os.path.join(mcp_server_dir, file)
-                    server_name = file.replace("_server.py", "").title()
-                    server_description = f"Control your {server_name} devices"
-
-                    # Try reading the file directly to extract metadata without importing
-                    try:
-                        # Simple direct file read to get variables, safer than importing
-                        with open(server_path, 'r') as f:
-                            for line in f:
-                                line = line.strip()
-                                if line.startswith('SERVER_NAME ='):
-                                    server_name = line.split('=', 1)[1].strip().strip('"\'')
-                                elif line.startswith('SERVER_DESCRIPTION ='):
-                                    server_description = line.split('=', 1)[1].strip().strip('"\'')
-
-                        logger.debug(f"Successfully loaded metadata from {file}")
-                    except Exception as e:
-                        logger.warning(f"Error reading metadata from {file}: {e}")
-
-                    servers.append(
-                        {
-                            "name": server_name,
-                            "path": server_path,
-                            "description": server_description,
-                        }
-                    )
-
-            logger.info(f"Discovered {len(servers)} MCP servers")
-            return servers
-        except Exception as e:
-            logger.error(f"Error discovering MCP servers: {e}")
-            return []
-
-    @pyqtSlot(str)
-    def setServerPath(self, server_path):
-        """Set the selected server path"""
-        self._selected_server_path = server_path
-        logger.info(f"Selected server: {server_path}")
-
-    @pyqtSlot(result=str)
-    def connectToServer(self):
-        """Connect to the selected server"""
-        if not self._selected_server_path:
-            logger.error("No server selected")
-            return "Unknown Server"
-
-        # Initialize the client with the selected server
-        self._update_status(self.STATUS_INITIALIZING)
-
-        # Extract server name from path
-        server_name = (
-            os.path.basename(self._selected_server_path)
-            .replace("_server.py", "")
-            .title()
-        )
-
-        # Initialize the client with streaming enabled
-        self.client = MCPClient(
-            streaming=STREAMING_ENABLED,
-            llm_server_url=SERVER_URL,
-            model=MODEL_NAME,
-            provider_type=PROVIDER_TYPE,
-            api_key=API_KEY,
-            timeout=TIMEOUT,
-        )
-
-        # Schedule connection to happen in the event loop
-        asyncio.create_task(self._connect_to_selected_server(server_name))
-
-        return server_name
-
-    async def _connect_to_selected_server(self, server_name):
-        """Connect to the selected server in the background"""
-        try:
-            self._update_status(self.STATUS_CONNECTING)
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Connecting to server..."
-            )
-            self.conversationChanged.emit()
-
-            # Set environment variable for server selection
-            os.environ["MCP_SERVER_PATH"] = self._selected_server_path
-
-            # Connect to the server
-            await self.connect_to_server()
-
-            # The connect_to_server method will have already updated the status
-            # with the correct server name, so we don't need to do it again here
-            self.conversationChanged.emit()
-        except Exception as e:
-            logger.error(f"Error connecting to server: {e}")
-            self._update_status(self.STATUS_ERROR, error=str(e))
-            self._conversation.append(f"[{self.get_timestamp()}] Error: {str(e)}")
-            self.conversationChanged.emit()
-
-    @pyqtSlot(result=bool)
-    def isConnected(self):
-        """Return the connection status of the client"""
-        return self._is_connected
-
-    @pyqtSlot()
-    def startListening(self):
-        """Start listening for voice input"""
-        logger.info("Voice listening requested - not implemented")
-        self._conversation.append(
-            f"[{self.get_timestamp()}] Voice recognition is not yet available. Please use text input."
-        )
-        self.conversationChanged.emit()
-        # Schedule stopping after 3 seconds to indicate not implemented
-        QTimer.singleShot(3000, self.stopListening)
-
-    @pyqtSlot()
-    def stopListening(self):
-        """Stop listening for voice input"""
-        logger.info("Voice listening stopped")
-        # This will be picked up by the QML interface via the isListening property binding
-
-    @pyqtSlot()
-    def disconnectFromServer(self):
-        """Disconnect from the current server."""
-        if not self._is_connected:
-            return
-
-        if self.client:
-            self._update_status(self.STATUS_DISCONNECTED)
-            # Schedule the cleanup asynchronously
-            asyncio.create_task(self.cleanup())
-            self.is_connected = False
-            logger.info("Disconnected from server")
-            return True
-        else:
-            logger.warning("Not connected to any server")
-            return False
-
-    @pyqtSlot()
-    def stop_response(self):
-        """Stop the current response processing."""
-        logger.info("Stopping response")
-        # Set the stop flag immediately to prevent further UI updates
-        self._stop_requested = True
-
-        if self._is_connected and self.client:
-            # Execute the stop operation in the background
-            self._loop.create_task(self._stop_response())
-            # Add immediate UI feedback
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Stopping response..."
-            )
-            self.conversationChanged.emit()
-
-            # Immediately update the UI state to show that response is stopping
-            self._update_status(self.STATUS_IDLE)
-            # Emit the signal immediately to ensure UI updates right away
-            self.responseStopped.emit()
-
-    async def _stop_response(self):
-        """Internal method to stop the response processing."""
-        if not self.client:
-            logger.warning("Client is not initialized, cannot stop response")
-            return
-
-        try:
-            # Call the client's stop_response method
-            success = await self.client.stop_response()
-
-            # Update UI and emit signal regardless of success
-            logger.info(f"Response stop {'successful' if success else 'attempted'}")
-            self._update_status(self.STATUS_IDLE)
-
-            # Add a message to the conversation
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Response stopped"
-            )
-            self.conversationChanged.emit()
-
-            # We've already emitted the signal in stop_response() for immediate UI feedback
-            # But emit it again in case the previous emission was missed
-            self.responseStopped.emit()
-        except Exception as e:
-            logger.error(f"Error stopping response: {e}")
-            self._update_status(self.STATUS_ERROR, error=str(e))
-            self._conversation.append(
-                f"[{self.get_timestamp()}] Error stopping response: {str(e)}"
-            )
-            self.conversationChanged.emit()
-
-    @pyqtSlot(result=str)
-    def getWifiIpAddress(self):
-        """Get the IP address of the WiFi interface.
-
-        Returns:
-            A string with the WiFi IP address or an empty string if not available.
-        """
-        try:
-            # Run ip addr command to get network interfaces
-            result = subprocess.run(["ip", "addr"], capture_output=True, text=True)
-            if result.returncode != 0:
-                logger.error(f"Failed to get network interfaces: {result.stderr}")
-                return ""
-
-            # Parse the output to find WiFi interfaces (typically wlan0, wlp2s0, etc.)
-            wifi_ip_addresses = []
-            current_interface = None
-
-            for line in result.stdout.splitlines():
-                # Check for interface line
-                if line.startswith(" ") and current_interface:
-                    # Look for inet (IPv4) address line for current interface
-                    if "inet " in line:
-                        # Extract the IP address using regex
-                        match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
-                        if match:
-                            ip_address = match.group(1)
-                            # Skip localhost
-                            if not ip_address.startswith("127."):
-                                wifi_ip_addresses.append(
-                                    f"{current_interface}: {ip_address}"
-                                )
-                else:
-                    # New interface - check if it's a WiFi interface
-                    current_interface = None
-                    # Look for wireless interfaces (wlan0, wlp2s0, etc.)
-                    if any(
-                        x in line for x in ["wlan", "wlp", "wifi", "wls", "wlx", "wlo"]
-                    ):
-                        match = re.search(r"\d+: ([^:]+):", line)
-                        if match:
-                            current_interface = match.group(1)
-
-            # Return the list of WiFi IP addresses, or empty string if none found
-            return "\n".join(wifi_ip_addresses) if wifi_ip_addresses else ""
-
-        except Exception as e:
-            logger.error(f"Error getting WiFi IP address: {e}")
-            return ""
-
-
-class App:
     def __init__(self):
-        """App initializes the QML application and engine."""
+        QObject.__init__(self)
+        """Initialize the Qt application and QML engine."""
+        
+        if config.get("display").get("eink_enabled"):
+            # Import E-Ink Renderer and Bridge
+            os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
         self.app = QApplication(sys.argv)
-        self.engine = QQmlApplicationEngine()
-        self.bridge = MCPClientBridge()
-        self.app_info = AppInfoManager()
-        self.loop = None
+        self.app.setApplicationName("PamirAI Assistant")
+        self.app.setOrganizationName("PamirAI Inc")
 
-    async def initialize(self):
-        """Initialize the application and set up the QML engine."""
-        # Create the QML engine and expose the bridge
-        rc = self.engine.rootContext()
-        if rc is None:
-            logger.error("Failed to get root context from QML engine")
-            return False
-        rc.setContextProperty("bridge", self.bridge)
-
-        # Register the QML module directory
-        ui_dir = os.path.dirname(os.path.abspath(__file__))
-        components_dir = os.path.join(ui_dir, "Components")
-
-        # Make sure Components directory exists
-        os.makedirs(components_dir, exist_ok=True)
-
-        # Add import paths
-        logger.info(f"Adding QML import path: {ui_dir}")
-        self.engine.addImportPath(ui_dir)
-
-        # Set up the QML document
-        qml_file = os.path.join(ui_dir, "main.qml")
-        logger.info(f"Loading QML file: {qml_file}")
-        logger.info(f"QML engine import paths: {self.engine.importPathList()}")
-
-        self.engine.load(QUrl.fromLocalFile(qml_file))
-
-        # Ensure the engine loaded successfully
-        if not self.engine.rootObjects():
-            logger.error("Failed to load QML engine")
-            return False
-        logger.info("QML engine loaded successfully")
-
-        # Return success
-        logger.info(f"Starting {self.app_info.appName} {self.app_info.fullVersion}")
-        return True
-
-    async def run(self):
-        """Run the application and enter the event loop."""
-        # Setup logging
-        setup_logging(log_level=LOGGING_LEVEL)
-        logger.info("Starting application")
-
-        # Set up event loop
+        # Set up the event loop
         self.loop = QEventLoop(self.app)
         asyncio.set_event_loop(self.loop)
 
-        # Initialize the application
-        success = await self.initialize()
-        if not success:
-            logger.error("Failed to initialize application")
-            return 1
+        # Create QML engine
+        self.engine = QQmlApplicationEngine()
 
-        # Get root object and connect quit handler
-        self.root_object = self.engine.rootObjects()[0]
+        # Create the MCP client bridge and app info manager
+        self.bridge = MCPClientBridge()
+        self.app_info = AppInfoManager()
+
+        # E-Ink Initialization
+        self.eink_renderer = None
+        self.eink_bridge = None
+        self._eink_initialized = False
+        self._input_monitor_task = None # Task handle for input monitoring
+
+        # Connect signal to handle application quit
         self.app.aboutToQuit.connect(self.handle_quit)
-        
-        # Ensure clean engine shutdown by explicitly clearing all objects on quit
-        self.app.aboutToQuit.connect(self.engine.clearComponentCache)
-        self.app.aboutToQuit.connect(self.engine.collectGarbage)
 
-        # Enter the main event loop
-        logger.info("Entering main event loop")
-        return self.loop.run_forever()
+        # --- Whisper Initialization ---
+        # TODO: Load model path/size from config if needed
+        self.whisper = Whisper() 
+        self._is_actively_recording = False # Separate state for UI feedback
+        self._transcription_task = None
+        # --- End Whisper Initialization ---
+
+    async def initialize(self):
+        """Initialize the application."""
+        # Register the bridge object with QML
+        root_context = self.engine.rootContext()
+        if root_context is None:
+            logger.error("Failed to get QML root context")
+            raise RuntimeError("Failed to get QML root context")
+
+        # Initialize the bridge first
+        logger.info("Initializing bridge...")
+        await self.bridge.initialize()
+        logger.info("Bridge initialized successfully")
+
+        # Now register the initialized bridge with QML
+        root_context.setContextProperty("bridge", self.bridge)
+        root_context.setContextProperty("AppInfo", self.app_info)
+        # Expose App instance to QML for signals/slots
+        root_context.setContextProperty("AppController", self) 
+
+        # Set display dimensions from config
+        self._set_display_dimensions()
+
+        # Get the directory containing the QML files
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Set import paths for QML modules
+        qml_path = os.path.join(current_dir)
+        self.engine.addImportPath(qml_path)
+
+        # Find the main.qml file
+        qml_file = os.path.join(current_dir, "main.qml")
+
+        if not os.path.exists(qml_file):
+            logger.error(f"QML file not found: {qml_file}")
+            raise FileNotFoundError(f"QML file not found: {qml_file}")
+
+        # Make sure Qt can find its resources
+        qt_conf_path = os.path.join(current_dir, "qt.conf")
+        if not os.path.exists(qt_conf_path):
+            # Create a minimal qt.conf if it doesn't exist
+            with open(qt_conf_path, "w") as f:
+                f.write("[Paths]\nPrefix=.\n")
+
+        # Signal to QML that the bridge is ready
+        self.bridge.setReady(True)
+        
+        # Load the QML file
+        url = QUrl.fromLocalFile(qml_file)
+        self.engine.load(url)
+
+        # Wait for the QML to load
+        await asyncio.sleep(0.1)
+
+        # Check if the QML was loaded successfully
+        if not self.engine.rootObjects():
+            logger.error("Failed to load QML")
+            raise RuntimeError("Failed to load QML")
+
+
+        if config.get("display").get("eink_enabled"):
+            # Apply fixed size constraints to the root window after loading
+            self._apply_window_constraints()
+            # E-Ink Initialization Call
+            self._init_eink_renderer()
+            self._eink_initialized = True
+
+            # Start monitoring input device
+            root_objects = self.engine.rootObjects()
+            if root_objects:
+                main_window = root_objects[0]
+                input_device_path = '/dev/input/event5' # TODO: Make this configurable?
+                logger.info(f"Starting input device monitor for {input_device_path}...")
+                self._input_monitor_task = self.loop.create_task(self.monitor_input_device(input_device_path, main_window))
+            else:
+                logger.error("Cannot start input monitor: No root QML object found.")
+
+        logger.info("Application initialized successfully")
+
+
+    async def monitor_input_device(self, device_path, target_widget):
+        """Monitor the specified input device for key presses and post Qt events."""
+        try:
+            dev = evdev.InputDevice(device_path)
+            logger.info(f"Monitoring input device: {dev.path} ({dev.name})")
+        except FileNotFoundError:
+            logger.error(f"Input device not found: {device_path}. Is the button script running?")
+            return
+        except PermissionError:
+            logger.error(f"Permission denied for input device: {device_path}. Check user permissions.")
+            return
+        except Exception as e:
+            logger.error(f"Failed to open input device {device_path}: {e}", exc_info=True)
+            return
+
+        try:
+            async for event in dev.async_read_loop():
+                if event.type == evdev.ecodes.EV_KEY and event.value == 1: # Key press events
+                    key_to_post = None
+                    if event.code == evdev.ecodes.KEY_ENTER:
+                        key_to_post = Qt.Key.Key_Enter
+                        logger.debug("Detected ENTER key press")
+                    elif event.code == evdev.ecodes.KEY_UP:
+                        key_to_post = Qt.Key.Key_Up
+                        logger.debug("Detected UP key press")
+                    elif event.code == evdev.ecodes.KEY_DOWN:
+                        key_to_post = Qt.Key.Key_Down
+                        logger.debug("Detected DOWN key press")
+                    
+                    if key_to_post and target_widget:
+                        press_event = QKeyEvent(QKeyEvent.Type.KeyPress, key_to_post, Qt.KeyboardModifier.NoModifier)
+                        release_event = QKeyEvent(QKeyEvent.Type.KeyRelease, key_to_post, Qt.KeyboardModifier.NoModifier)
+                        QApplication.postEvent(target_widget, press_event)
+                        # Optionally post release event immediately or based on event.value == 0 if needed
+                        QApplication.postEvent(target_widget, release_event) 
+                        logger.debug(f"Posted {key_to_post} event to {target_widget}")
+
+        except OSError as e:
+             logger.error(f"Error reading from input device {device_path}: {e}. Device might have been disconnected.", exc_info=True)
+        except Exception as e:
+             logger.error(f"Unexpected error in input monitoring loop for {device_path}: {e}", exc_info=True)
+        finally:
+            logger.info(f"Stopped monitoring input device: {device_path}")
+            dev.close() # Ensure device is closed
+
+        self._input_monitor_task = None
+
+        # --- Whisper Cleanup ---
+        if hasattr(self, "whisper") and self.whisper:
+            self.whisper.cleanup()
+            logger.info("Whisper resources cleaned up.")
+        # --- End Whisper Cleanup ---
+
+        # Clean up asyncio loop resources if necessary
+        # Example: await self.loop.shutdown_asyncgens()
+
+        logger.info("Resource cleanup complete")
+
+    async def run(self):
+        """Run the application with async event loop."""
+        try:
+            # Initialize the application
+            await self.initialize()
+
+            # Use AsyncExitStack for resource management
+            async with AsyncExitStack() as exit_stack:
+                # Register cleanup callbacks if needed
+                exit_stack.push_async_callback(self._cleanup_resources)
+
+                # Schedule application execution
+                run_app_task = asyncio.create_task(self.loop.run_forever())
+
+                # Wait for the application to exit
+                try:
+                    await run_app_task
+                except asyncio.CancelledError:
+                    logger.info("Application task cancelled")
+
+                # The AsyncExitStack's context manager will handle cleanup
+        except Exception as e:
+            logger.error(f"Error running application: {e}", exc_info=True)
+            raise
+        finally:
+            # Ensure we exit cleanly
+            if hasattr(self, "app") and self.app:
+                self.app.quit()
+
+            # Return exit code
+            logger.info("Application exited")
+            return 0
+
+    def _cleanup_eink(self):
+        """Cleanup E-Ink resources."""
+        try:
+            if self.eink_renderer:
+                self.eink_renderer.stop()
+                self.eink_renderer = None
+
+            if self.eink_bridge:
+                self.eink_bridge.cleanup()
+                self.eink_bridge = None
+
+            self._eink_initialized = False
+        except Exception as e:
+            logger.error(f"Error during E-Ink cleanup: {e}", exc_info=True)
+
+    async def _cleanup_resources(self):
+        """Cleanup resources registered with exit_stack."""
+        logger.info("Cleaning up resources from exit stack")
+        try:
+            # Ensure the bridge is cleaned up
+            if hasattr(self, "bridge") and self.bridge:
+                await self.bridge.cleanup()
+
+            if config.get("display").get("eink_enabled"):
+                self._cleanup_eink()
+            
+            # Cancel the input monitoring task if running
+            if self._input_monitor_task and not self._input_monitor_task.done():
+                logger.info("Cancelling input monitor task...")
+                self._input_monitor_task.cancel()
+                try:
+                    # Give the task a moment to cancel
+                    await asyncio.wait_for(self._input_monitor_task, timeout=1.0) 
+                except asyncio.CancelledError:
+                    logger.info("Input monitor task successfully cancelled.")
+                except asyncio.TimeoutError:
+                     logger.warning("Input monitor task did not cancel within timeout.")
+                except Exception as e:
+                    logger.error(f"Error during input monitor task cancellation: {e}", exc_info=True)
+            self._input_monitor_task = None
+
+            # --- Whisper Cleanup ---
+            if hasattr(self, "whisper") and self.whisper:
+                self.whisper.cleanup()
+                logger.info("Whisper resources cleaned up.")
+            # --- End Whisper Cleanup ---
+
+        except Exception as e:
+            logger.error(f"Error during resource cleanup: {e}", exc_info=True)
+        finally:
+            # Close the event loop if it exists and is open
+            if hasattr(self, "loop") and self.loop and not self.loop.is_closed():
+                self.loop.close()
 
     def handle_quit(self):
         """Handle application quit signal."""
-        logger.info("Application quit signal received")
-
-        # First stop any pending async operations
-        if self.bridge:
-            asyncio.create_task(self.bridge.cleanup())
-
-        # Explicitly release QML engine references
-        for obj in self.engine.rootObjects():
-            if obj:
-                obj.setParent(None)
-                
-        # Explicitly clear the engine cache
-        self.engine.clearComponentCache()
-        self.engine.collectGarbage()
-
-        # Clean up the QML engine
-        self.engine.deleteLater()
-
-        # End the event loop if it's running
-        if self.loop and self.loop.is_running():
+        logger.info("Application quit requested")
+        # Stop the asyncio event loop when the Qt application quits
+        if hasattr(self, "loop") and self.loop.is_running():
             self.loop.stop()
 
-        logger.info("Application shutdown complete")
+        # Stop the E-Ink renderer if active
+        if self.eink_renderer:
+            self.eink_renderer.stop()
+            self.eink_renderer = None
+            
+        # Clean up e-ink bridge if active
+        if self.eink_bridge:
+            self.eink_bridge.cleanup()
+            self.eink_bridge = None
 
+        # Schedule bridge shutdown
+        try:
+            self.bridge.shutdown()
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}", exc_info=True)
+
+    def _set_display_dimensions(self):
+        """Set display dimensions from the config file as context properties for QML."""
+        # Get width and height from config or use defaults
+        width = int(config.get("display").get("width") or 240)
+        height = int(config.get("display").get("height") or 416)
+        
+        # Set as context properties for QML
+        rc = self.engine.rootContext()
+        rc.setContextProperty("configWidth", width)
+        rc.setContextProperty("configHeight", height)
+        logger.info(f"Set display dimensions from config: {width}x{height}")
+
+
+    def _apply_window_constraints(self):
+        """Apply fixed size constraints to the main window after QML is loaded."""
+        # Get display dimensions from config
+        width = int(config.get("display").get("width") or 240)
+        height = int(config.get("display").get("height") or 416)
+        
+        # Find the root window object
+        root_objects = self.engine.rootObjects()
+        if not root_objects:
+            logger.error("No root objects found to apply size constraints")
+            return
+
+        main_window = root_objects[0]
+        
+        try:
+            # Set fixed size - use QML properties for ApplicationWindow
+            main_window.setProperty("width", width)
+            main_window.setProperty("height", height)
+            
+            # These may or may not be available, depending on the window type
+            try:
+                main_window.setProperty("minimumWidth", width)
+                main_window.setProperty("maximumWidth", width)
+                main_window.setProperty("minimumHeight", height)
+                main_window.setProperty("maximumHeight", height)
+                
+                # For ApplicationWindow, we set the flag in QML directly
+                # So we don't need to do main_window.setFlags() here
+            except Exception as e:
+                logger.warning(f"Could not set all window constraints: {e}")
+                
+            logger.info(f"Applied fixed size constraints: {width}x{height}")
+        except Exception as e:
+            logger.error(f"Error applying window constraints: {e}", exc_info=True)
+    
+
+    # E-Ink Methods
+    def _init_eink_renderer(self):
+        """Initialize the E-Ink renderer."""
+        logger.info(f"config: {config}")
+
+
+        if not config.get("display").get("eink_enabled"):
+            logger.warning("E-Ink display mode disabled in configuration")
+            return 
+
+        # Check if e-ink mode is enabled in config
+        eink_enabled = config.get("display").get("eink_enabled")
+        
+        if not eink_enabled:
+            logger.warning("E-Ink display mode disabled in configuration")
+            return
+
+        logger.info("E-Ink display mode enabled")
+
+        # Get configuration for e-ink renderer
+        capture_interval = config.get("display").get("eink_refresh_interval")
+        buffer_size = config.get("display").get("eink_buffer_size") 
+        dithering_enabled = config.get("display").get("eink_dithering_enabled")
+
+        try:
+            # First initialize the e-ink bridge that connects to the hardware
+            self.eink_bridge = EInkRendererBridge(parent=self.app)
+            init_success = self.eink_bridge.initialize()
+
+            if not init_success:
+                logger.error("Failed to initialize e-ink bridge")
+                self.eink_bridge = None
+                return False
+
+            # Configure dithering
+            self.eink_bridge.set_dithering(dithering_enabled)
+
+            # Create the renderer instance
+            self.eink_renderer = EInkRenderer(
+                parent=self.app,
+                capture_interval=capture_interval,
+                buffer_size=buffer_size
+            )
+
+            # Create a lambda function to handle the signal instead of direct method connection
+            # This avoids the null pointer issue
+            self.eink_renderer.frameReady.connect(
+                lambda data, w, h: self._handle_eink_frame(data, w, h)
+            )
+            
+            # Start capturing frames
+            self.eink_renderer.start()
+            logger.info(f"E-Ink renderer initialized with {capture_interval}ms interval")
+
+            self._eink_initialized = True
+            return True
+
+        except Exception as e:
+            logger.error(f"Error initializing E-Ink renderer: {e}", exc_info=True)
+            # Clean up resources on failure
+            if self.eink_bridge:
+                self.eink_bridge.cleanup()
+                self.eink_bridge = None
+            self.eink_renderer = None
+            return False
+
+
+    def _handle_eink_frame(self, frame_data, width, height):
+        """
+        Handle a new frame from the E-Ink renderer.
+        This method forwards the frame to the e-ink bridge for display.
+        
+        Args:
+            frame_data: The binary data for the frame
+            width: The width of the frame
+            height: The height of the frame
+        """
+        logger.debug(f"E-Ink frame ready: {width}x{height}, {len(frame_data)} bytes")
+        
+        # Forward the frame to the e-ink bridge if available
+        if self.eink_bridge and self.eink_bridge.initialized:
+            self.eink_bridge.handle_frame(frame_data, width, height)
+        else:
+            logger.warning("E-Ink bridge not available or not initialized")
+
+    # --- Whisper Slots ---
+    @pyqtSlot()
+    def startRecording(self):
+        if self._is_actively_recording:
+            logger.warning("Already recording.")
+            return
+        if self.whisper.start_recording():
+            self._is_actively_recording = True
+            self.recordingStateChanged.emit(True)
+            logger.info("UI Recording Started")
+        else:
+            logger.error("Failed to start Whisper recording")
+
+    @pyqtSlot()
+    def stopAndTranscribe(self):
+        if not self._is_actively_recording:
+            logger.warning("Not recording.")
+            return
+        
+        audio_data = self.whisper.stop_recording()
+        self._is_actively_recording = False
+        self.recordingStateChanged.emit(False)
+        logger.info("UI Recording Stopped")
+
+        if audio_data:
+            logger.info("Scheduling transcription...")
+            # Run transcription in a separate thread to avoid blocking UI
+            if self._transcription_task and not self._transcription_task.done():
+                 logger.warning("Previous transcription task still running. Skipping new one.")
+                 return
+
+            self._transcription_task = asyncio.create_task(self._transcribe_audio_async(audio_data))
+        else:
+            logger.warning("No audio data captured to transcribe.")
+            self.transcriptionComplete.emit("") # Emit empty string if no audio
+
+    async def _transcribe_audio_async(self, audio_data):
+        """Run transcription in a separate thread and emit signals."""
+        try:
+            logger.info("Transcription task started.")
+            # Use asyncio.to_thread for blocking I/O or CPU-bound tasks
+            transcription_generator = await asyncio.to_thread(
+                self.whisper.transcribe_buffer, audio_data
+            )
+            
+            full_transcription = []
+            for segment in transcription_generator:
+                self.transcriptionUpdate.emit(segment)
+                full_transcription.append(segment)
+                await asyncio.sleep(0) # Yield control briefly
+
+            complete_text = " ".join(full_transcription)
+            self.transcriptionComplete.emit(complete_text)
+            logger.info(f"Transcription task finished. Full text: {complete_text}")
+
+        except Exception as e:
+            logger.error(f"Error during transcription: {e}", exc_info=True)
+            self.transcriptionComplete.emit("[Transcription Error]") # Notify UI of error
+        finally:
+            self._transcription_task = None # Clear task handle
+
+    # --- End Whisper Slots ---
 
 
 if __name__ == "__main__":

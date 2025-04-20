@@ -11,8 +11,9 @@ Rectangle {
         fadeTimer.restart();
     }
 
-    width: messageText.width + ThemeManager.spacingLarge * 2
-    height: messageText.height + ThemeManager.spacingLarge
+    // Fixed width based on parent only, breaking the binding loop
+    width: parent.width * 0.8
+    height: messageText.implicitHeight + ThemeManager.spacingNormal
     radius: ThemeManager.borderRadius
     color: ThemeManager.backgroundColor
     border.color: ThemeManager.borderColor
@@ -24,9 +25,13 @@ Rectangle {
         id: messageText
 
         anchors.centerIn: parent
-        font: FontManager.normal
+        font.pixelSize: FontManager.fontSizeSmall
+        font.family: FontManager.primaryFontFamily
         color: ThemeManager.textColor
         text: ""
+        width: parent.width - ThemeManager.spacingNormal * 2
+        wrapMode: Text.WordWrap
+        horizontalAlignment: Text.AlignCenter
     }
 
     NumberAnimation {

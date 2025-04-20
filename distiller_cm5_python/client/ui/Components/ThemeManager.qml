@@ -34,6 +34,31 @@ QtObject {
     readonly property color highlightColor: darkMode ? "#333333" : "#F0F0F0"
     // Highlight: Dark gray/Light gray
     readonly property color subtleColor: darkMode ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(0, 0, 0, 0.05)
+    
+    // Additional color properties for focus states and button variants
+    readonly property color focusBackgroundColor: darkMode ? "#CCCCCC" : "#333333"
+    // Background for focused items: Light gray/Dark gray
+    readonly property color focusBorderColor: darkMode ? "#000000" : "#FFFFFF"
+    // Border for focused items: Black/White
+    readonly property color focusTextColor: darkMode ? "#000000" : "#FFFFFF"
+    // Text for focused items: Black/White
+    readonly property color textOnAccentColor: darkMode ? "#000000" : "#FFFFFF"
+    // Text on accent background: Black/White
+    
+    // Transparent and utility colors
+    readonly property color transparentColor: "transparent"
+    // Transparent color for backgrounds
+    readonly property color shadowColor: Qt.rgba(0, 0, 0, 0.1)
+    // Shadow color for subtle effects
+    readonly property color borderShadowColor: Qt.rgba(0, 0, 0, 0.05)
+    // Very subtle shadow for borders
+    readonly property color lightShadeColor: Qt.darker(backgroundColor, 1.02)
+    // Slight shade for background variation
+    readonly property color darkAccentColor: Qt.darker(accentColor, 1.3)
+    // Darker version of accent color
+    readonly property color lightAccentColor: Qt.lighter(accentColor, 1.5)
+    // Lighter version of accent color
+    
     // Sizes and metrics
     readonly property real borderRadius: 6
     // Border radius for rectangles

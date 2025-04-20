@@ -14,104 +14,179 @@ PageBase {
     property bool isListening: false
     property bool isProcessing: false
     property string statusText: "Ready"
-    
+    property string inputBuffer: ""
+    property var focusableItems: []
+    property var previousFocusedItem: null
+    // Add a property to store the full transcription result
+    property string lastTranscription: ""
+
     signal selectNewServer()
 
     onServerNameChanged: {
         _serverName = serverName;
     }
-
-    // === Focus Navigation Order ===
-    // 1. header.backButton
-    // 2. conversationView
-    // 3. inputArea.voiceButton
-    // (Wraps around)
-    property list<Item> focusOrder: [header.backButtonAlias, conversationView, inputArea.voiceButtonAlias]
-    property int currentFocusItemIndex: -1
-
-    // --- Function to handle focus cycling --- 
-    function cycleFocus(direction) {
-        if (focusOrder.length > 0) {
-            let nextIndex = (currentFocusItemIndex + direction + focusOrder.length) % focusOrder.length;
-            if (focusOrder[nextIndex] && typeof focusOrder[nextIndex].forceActiveFocus === 'function') { 
-                focusOrder[nextIndex].forceActiveFocus();
-                currentFocusItemIndex = nextIndex;
-                console.log("VoiceAssistantPage: Focus cycled to item index", currentFocusItemIndex);
-            } else {
-                console.warn("VoiceAssistantPage: Could not cycle focus, target item invalid at index", nextIndex);
+    
+    // Collect all focusable items on this page
+    function collectFocusItems() {
+        console.log("VoiceAssistantPage: Collecting focusable items");
+        focusableItems = []
+        
+        // Add buttons from InputArea
+        if (inputArea) {
+            console.log("InputArea found, adding buttons");
+            
+            // Access buttons through the exposed properties
+            if (inputArea.settingsButton && inputArea.settingsButton.navigable) {
+                console.log("Adding settings button to focusable items");
+                focusableItems.push(inputArea.settingsButton)
+            }
+            
+            if (inputArea.voiceButton && inputArea.voiceButton.navigable) {
+                console.log("Adding voice button to focusable items");
+                focusableItems.push(inputArea.voiceButton)
+            }
+            
+            // Send Button removed from focus list
+            // if (inputArea.sendButton && inputArea.sendButton.navigable) {
+            //     console.log("Adding send button to focusable items");
+            //     focusableItems.push(inputArea.sendButton)
+            // }
+        } else {
+            console.log("InputArea not found or not fully initialized yet");
+        }
+        
+        // Add server select button in header if present
+        if (header && header.serverSelectButton && header.serverSelectButton.navigable) {
+            console.log("Adding server select button to focusable items");
+            focusableItems.push(header.serverSelectButton)
+        }
+        
+        console.log("Total focusable items: " + focusableItems.length);
+        
+        // Initialize focus manager with conversation view for scrolling
+        FocusManager.initializeFocusItems(focusableItems, conversationView)
+    }
+    
+    // Function to ensure input area buttons are focused if nothing else is
+    function ensureFocusableItemsHaveFocus() {
+        console.log("Ensuring something has focus");
+        // If no focus or focus index is -1, reset focus to input area
+        if (FocusManager.currentFocusIndex < 0 || FocusManager.currentFocusItems.length === 0) {
+            console.log("Focus needs to be reset");
+            // Re-collect focus items to ensure they're registered
+            collectFocusItems();
+            
+            // Set focus to one of the input buttons
+            if (inputArea && inputArea.voiceButton && inputArea.voiceButton.navigable) {
+                console.log("Setting focus to voice button");
+                FocusManager.setFocusToItem(inputArea.voiceButton);
+            } else if (inputArea && inputArea.settingsButton && inputArea.settingsButton.navigable) {
+                console.log("Setting focus to settings button");
+                FocusManager.setFocusToItem(inputArea.settingsButton);
+            } else if (focusableItems.length > 0) {
+                console.log("Setting focus to first item in list");
+                FocusManager.setFocusToItem(focusableItems[0]);
             }
         }
     }
 
     Component.onCompleted: {
-        // Set initial focus (e.g., on the voice button - now index 2)
-        if (focusOrder.length > 2) { // Check if items exist
-            currentFocusItemIndex = 2; // Start on voiceButton (index 2)
-            Qt.callLater(function() { // Use callLater for safety
-                 if (focusOrder[currentFocusItemIndex]) {
-                    focusOrder[currentFocusItemIndex].forceActiveFocus();
-                    console.log("VoiceAssistantPage: Initial focus set on item index", currentFocusItemIndex);
+        // Collect focusable items after component is fully loaded
+        console.log("VoiceAssistantPage completed, scheduling focus collection");
+        Qt.callLater(collectFocusItems);
+    }
+
+    // Add a timer to ensure focus items are collected after everything is fully loaded
+    Timer {
+        id: focusInitTimer
+        interval: 500
+        running: true
+        repeat: false
+        onTriggered: {
+            console.log("Focus init timer triggered");
+            collectFocusItems();
+            
+            // Set initial focus to voice button
+            if (inputArea && inputArea.voiceButton && inputArea.voiceButton.navigable) {
+                FocusManager.setFocusToItem(inputArea.voiceButton);
+            }
+        }
+    }
+
+    // Connect to bridge ready signal
+    Connections {
+        target: bridge
+        
+        function onBridgeReady() {
+            // Initialize conversation when bridge is ready
+            if (conversationView) {
+                conversationView.updateModel(bridge.get_conversation());
+            }
+        }
+    }
+
+    // --- Connect to AppController for Whisper Signals/Slots ---
+    Connections {
+        target: AppController
+        ignoreUnknownSignals: true // Good practice
+
+        function onRecordingStateChanged(is_recording) {
+            console.log("QML received recordingStateChanged:", is_recording)
+            isListening = is_recording
+            statusText = is_recording ? "Listening..." : "Ready"
+            // Update voice button visual state (might need adjustment based on actual button implementation)
+            if (inputArea && inputArea.voiceButton) {
+                inputArea.voiceButton.checked = is_recording
+                // Optionally change icon or style here too based on is_recording
+                // e.g., inputArea.voiceButton.icon.source = is_recording ? "..." : "..."
+            }
+            if (is_recording) {
+                // Clear previous transcription when starting new recording
+                lastTranscription = ""
+                inputBuffer = "" // Clear text input field when starting voice
+            } else {
+                 statusText = "Processing..." // Show processing after recording stops
+            }
+        }
+
+        function onTranscriptionUpdate(transcription) {
+            // console.log("QML received transcriptionUpdate:", transcription)
+            // Append segment to the input buffer in real-time (optional)
+            // inputBuffer = inputBuffer + transcription + " " 
+            // Alternatively, update status or a dedicated field
+            // statusText = "Transcribing: " + transcription
+        }
+
+        function onTranscriptionComplete(full_text) {
+            console.log("QML received transcriptionComplete:", full_text)
+            if (full_text === "[Transcription Error]") {
+                 statusText = "Error during transcription."
+                 // Show an error message to the user, e.g., using MessageToast
+                 messageToast.showMessage("Transcription Failed", 2000)
+                 inputBuffer = "" // Clear potentially partial input
+            } else if (full_text.trim() !== "") {
+                 lastTranscription = full_text
+                 // inputBuffer = full_text // Don't put text in removed input field
+                 statusText = "Sending..." 
+                 // Optional: Automatically send the transcribed text
+                 if (bridge && bridge.ready) {
+                     console.log("Sending transcribed text:", full_text)
+                     bridge.submit_query(full_text)
+                 } else {
+                     console.error("Bridge not ready, cannot send transcription")
+                     statusText = "Error: Not Connected" // Update status
+                     messageToast.showMessage("Error: Not connected", 2000)
                  }
-            });
+                 // Note: isProcessing state will be reset by onMessageReceived from bridge
+                 // or potentially after a timeout if send fails or no response comes.
+            } else {
+                 statusText = "Ready (No speech detected)" // Or just "Ready"
+                 // inputBuffer = "" // No input buffer to clear
+            }
+             isProcessing = false // Ensure processing state is reset
         }
     }
-
-    // --- Restore page-level Keys.onPressed handler --- 
-    Keys.onPressed: (event) => {
-        let handled = false;
-        let direction = 0;
-        let currentItem = focusOrder.length > 0 && currentFocusItemIndex >= 0 ? focusOrder[currentFocusItemIndex] : null;
-
-        // --- Determine action based on key and focused item --- 
-        if (event.key === Qt.Key_Up) {
-            direction = -1;
-            if (currentItem === conversationView) {
-                // Scroll Up
-                conversationView.contentY = Math.max(0, conversationView.contentY - 50); // Scroll by 50 pixels
-                console.log("VoiceAssistantPage: Scrolled ConversationView UP");
-                handled = true;
-            } else {
-                // Cycle focus
-                cycleFocus(direction);
-                handled = true;
-            }
-        } else if (event.key === Qt.Key_Down) {
-            direction = 1;
-            if (currentItem === conversationView) {
-                // Scroll Down
-                conversationView.contentY = Math.min(conversationView.contentHeight - conversationView.height, conversationView.contentY + 50); // Scroll by 50 pixels
-                console.log("VoiceAssistantPage: Scrolled ConversationView DOWN");
-                handled = true;
-            } else {
-                 // Cycle focus
-                cycleFocus(direction);
-                handled = true;
-            }
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Select) {
-            if (currentItem && currentItem !== conversationView && typeof currentItem.clicked === 'function') {
-                // Activate Button
-                console.log("VoiceAssistantPage: Activating item index", currentFocusItemIndex);
-                currentItem.clicked();
-                handled = true;
-            } else if (currentItem === conversationView) {
-                 // Do nothing when Select is pressed on ConversationView
-                console.log("VoiceAssistantPage: Select ignored on ConversationView");
-                handled = true; 
-            } else {
-                console.log("VoiceAssistantPage: Select key ignored, no valid button focused.");
-                // Optional: Add feedback if Select is pressed with no valid target?
-                handled = false;
-            }
-        }
-
-        // --- Original focus cycling logic (now within Up/Down handling or unused) ---
-        // if (handled) {
-        //     cycleFocus(direction); // Use the helper function
-        // }
-
-        event.accepted = handled;
-    }
-    // --- End Restore --- 
+    // --- End AppController Connections ---
 
     // Header area with server name and status
     VoiceAssistantPageHeader {
@@ -123,8 +198,11 @@ PageBase {
         height: 70 // Increased height to accommodate wrapping status text
         serverName: _serverName
         statusText: voiceAssistantPage.statusText
-        isConnected: bridge.isConnected
+        isConnected: bridge && bridge.ready ? bridge.isConnected : false
+        
         onServerSelectClicked: {
+            // Store the currently focused item before showing dialog
+            previousFocusedItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
             confirmServerChangeDialog.open();
         }
     }
@@ -143,17 +221,29 @@ PageBase {
         yesButtonText: "Proceed"
         noButtonText: "Cancel"
         
-        // Hide secondary action
-        showSecondaryAction: false
-        
         // Use accent color for the positive button
-        positiveButtonColor: ThemeManager.accentColor
+        acceptButtonColor: ThemeManager.accentColor
         
         onAccepted: {
             // Disconnect from current server
-            bridge.disconnectFromServer();
+            if (bridge && bridge.ready) {
+                bridge.disconnectFromServer();
+            }
             // Go back to server selection
             voiceAssistantPage.selectNewServer();
+        }
+        
+        onRejected: {
+            // Restore focus to the previously focused item when canceling
+            restoreFocusTimer.start();
+        }
+        
+        // Handle dialog closure
+        onClosed: {
+            // If dialog is rejected (Cancel pressed), restore focus
+            if (!visible && !accepted) {
+                restoreFocusTimer.start();
+            }
         }
     }
 
@@ -167,16 +257,77 @@ PageBase {
         anchors.bottom: inputArea.top
         anchors.bottomMargin: 4 // Add a gap between conversation and input area
         anchors.margins: ThemeManager.spacingNormal
-        // Simple model using direct string array
-        model: bridge.get_conversation()
 
         // Force model refresh when conversation changes
+        Component.onCompleted: {
+            if (bridge && bridge.ready) {
+                updateModel(bridge.get_conversation());
+            } else {
+                updateModel([]);
+            }
+        }
+
         Connections {
+            target: bridge && bridge.ready ? bridge : null
+            
             function onConversationChanged() {
                 conversationView.updateModel(bridge.get_conversation());
             }
-
-            target: bridge
+            
+            function onMessageReceived(message, timestamp) {
+                isProcessing = false;
+                isListening = false;
+                statusText = "Ready";
+                
+                // Explicitly clear and reset the input area
+                inputBuffer = "";
+                
+                // Delay turning off response mode slightly to ensure the final message is rendered
+                responseEndTimer.start();
+            }
+            
+            function onListeningStarted() {
+                isListening = true;
+                statusText = "Listening...";
+                messageToast.showMessage("Listening...", 1500);
+            }
+            
+            function onListeningStopped() {
+                isListening = false;
+                statusText = "Processing...";
+                isProcessing = true;
+                // Set response in progress to lock scrolling
+                conversationView.setResponseInProgress(true);
+            }
+            
+            function onErrorOccurred(errorMessage) {
+                // Log the error to console for developer debugging
+                console.error("Error occurred in bridge: " + errorMessage);
+                
+                // Show error toast with appropriate duration based on message length
+                var displayDuration = Math.max(3000, Math.min(errorMessage.length * 75, 8000));
+                messageToast.showMessage("Error: " + errorMessage, displayDuration);
+                
+                // Update UI state
+                isProcessing = false;
+                isListening = false;
+                statusText = "Ready";
+                
+                // Enable scrolling on error
+                conversationView.setResponseInProgress(false);
+                
+                // If error is related to connection, suggest reconnecting
+                if (errorMessage.toLowerCase().includes("connect") || 
+                    errorMessage.toLowerCase().includes("server") ||
+                    errorMessage.toLowerCase().includes("timeout")) {
+                    // Show reconnection dialog after a brief delay
+                    reconnectionTimer.start();
+                }
+            }
+            
+            function onStatusChanged(newStatus) {
+                statusText = newStatus;
+            }
         }
     }
 
@@ -189,109 +340,107 @@ PageBase {
         anchors.bottomMargin: ThemeManager.spacingNormal
     }
 
-    // Input area
+    // Full input area with buttons row
     InputArea {
         id: inputArea
-
+        
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 8
-        z: 2 // Ensure input area is above other elements
+        anchors.margins: 8
+        
         isListening: voiceAssistantPage.isListening
         isProcessing: voiceAssistantPage.isProcessing
-        compact: false
-        onTextSubmitted: function(messageText) {
-            statusText = "Processing...";
-            isProcessing = true;
-            // Set response in progress to lock scrolling
-            conversationView.setResponseInProgress(true);
-            bridge.submit_query(messageText);
-        }
-        onVoiceToggled: function(listening) {
-            if (listening) {
-                isListening = true;
-                statusText = "Listening...";
-                bridge.start_listening();
-            } else {
-                isListening = false;
-                statusText = "Processing...";
-                isProcessing = true;
-                // Set response in progress to lock scrolling
-                conversationView.setResponseInProgress(true);
-                bridge.stop_listening();
+        
+        onSettingsClicked: {
+            // Navigate to the settings page using the application-defined function
+            if (mainWindow && typeof mainWindow.pushSettingsPage === "function") {
+                mainWindow.pushSettingsPage();
             }
         }
-    }
 
-    // Connect to bridge signals
-    Connections {
-        target: bridge
-        
-        function onMessageReceived(message, timestamp) {
-            isProcessing = false;
-            isListening = false;
-            statusText = "Ready";
-            // Delay turning off response mode slightly to ensure the final message is rendered
-            responseEndTimer.start();
+        // Connect the new InputArea signals to AppController slots
+        onVoicePressed: {
+            console.log("InputArea voicePressed signal received by page.")
+            AppController.startRecording()
         }
-
-        function onListeningStarted() {
-            isListening = true;
-            statusText = "Listening...";
-            messageToast.showMessage("Listening...", 1500);
-        }
-
-        function onListeningStopped() {
-            isListening = false;
-            statusText = "Processing...";
-            isProcessing = true;
-            // Set response in progress to lock scrolling
-            conversationView.setResponseInProgress(true);
-        }
-        
-        function onResponseStopped() {
-            isProcessing = false;
-            statusText = "Ready";
-            // Enable scrolling when response is stopped
-            conversationView.setResponseInProgress(false);
-            
-            // Force update the input area to ensure it's usable
-            inputArea.isProcessing = false;
-            
-            messageToast.showMessage("Response stopped", 1500);
-        }
-
-        function onErrorOccurred(errorMessage) {
-            messageToast.showMessage("Error: " + errorMessage, 3000);
-            isProcessing = false;
-            isListening = false;
-            statusText = "Ready";
-            // Enable scrolling on error
-            conversationView.setResponseInProgress(false);
-        }
-
-        function onStatusChanged(newStatus) {
-            statusText = newStatus;
-            // Update isProcessing based on status
-            // Consider processing/streaming as 'processing' states
-            isProcessing = (newStatus === "Processing query..." || newStatus === "Streaming response...");
-            // Ensure scrolling is enabled if we transition out of processing/streaming
-            if (!isProcessing) {
-                conversationView.setResponseInProgress(false);
-            }
+        onVoiceReleased: {
+            console.log("InputArea voiceReleased signal received by page.")
+            AppController.stopAndTranscribe()
         }
     }
-
-    // Timer to delay disabling response mode to ensure UI is updated
+    
+    // Reconnection suggestion timer
+    Timer {
+        id: reconnectionTimer
+        
+        interval: 500
+        repeat: false
+        running: false
+        
+        onTriggered: {
+            // Save the current focus before showing dialog
+            previousFocusedItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
+            // Show reconnection dialog
+            confirmServerChangeDialog.open();
+        }
+    }
+    
+    // Response end timer to delay turning off response in progress mode
     Timer {
         id: responseEndTimer
-
-        interval: 500 // Half-second delay
+        
+        interval: 300
         repeat: false
+        running: false
+        
         onTriggered: {
-            // Response complete, enable scrolling again
+            // Turn off response in progress mode
             conversationView.setResponseInProgress(false);
         }
     }
+
+    // Timer to restore focus after dialog is closed
+    Timer {
+        id: restoreFocusTimer
+        interval: 50 // Short delay to ensure focus is set after dialog closes
+        repeat: false
+        running: false
+        onTriggered: {
+            if (previousFocusedItem) {
+                FocusManager.setFocusToItem(previousFocusedItem);
+            } else {
+                // Fallback if previous item is lost
+                ensureFocusableItemsHaveFocus(); 
+            }
+            previousFocusedItem = null; // Clear stored item
+        }
+    }
+
+    // --- Key Handling ---
+    focus: true // Ensure the page receives key events
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+            let currentItem = FocusManager.getCurrentFocusItem();
+            if (currentItem === inputArea.voiceButton) {
+                console.log("Enter pressed on voiceButton, intercepting default activation.");
+                // We don't want Enter to toggle the voice button via FocusManager activation.
+                // If keyboard push-to-talk is desired, logic would go here.
+                // For now, just consume the event.
+                event.accepted = true;
+                // DO NOT CALL FocusManager.handleKeyPress(event) here
+            } else {
+                // Allow Enter to proceed for other elements (e.g., send button, future text inputs)
+                // and let FocusManager handle standard activation if needed.
+                console.log("Enter pressed on other item, allowing default handling.");
+                event.accepted = false; // Explicitly allow propagation
+                FocusManager.handleKeyPress(event); // Allow FocusManager to handle activation
+            }
+        } else {
+            // Let FocusManager handle Up/Down/Other keys
+            FocusManager.handleKeyPress(event);
+        }
+    }
+    // --- End Key Handling ---
 }
+

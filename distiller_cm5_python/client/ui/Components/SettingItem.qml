@@ -9,9 +9,9 @@ RowLayout {
     property bool showToggle: true
     property bool toggleValue: false
     property real rowHeight: 48
+    property alias toggle: toggleSwitch // Expose the toggle directly
     
-    // Rename signal to avoid conflict with auto-generated toggleValueChanged signal
-    signal toggleChanged(bool newValue)
+    signal userToggled(bool newValue)
     
     Layout.fillWidth: true
     Layout.preferredHeight: rowHeight
@@ -30,11 +30,17 @@ RowLayout {
     
     // Toggle switch (visible only when showToggle is true)
     AppToggleSwitch {
+        id: toggleSwitch
         visible: showToggle
         value: toggleValue
         onValueToggled: function(newValue) {
-            root.toggleChanged(newValue)
+            root.userToggled(newValue)
         }
+    }
+    
+    // Function to get the toggle for external access
+    function getToggle() {
+        return toggleSwitch;
     }
     
     // Default property alias to allow inserting custom content

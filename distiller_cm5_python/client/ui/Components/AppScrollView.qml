@@ -10,7 +10,13 @@ ScrollView {
     property int touchScrollSensitivity: 1
     property int keyNavigationSpeed: 40
     
+    // Expose the scroll animation for external use
+    property alias scrollAnimation: scrollAnimation
+    
     clip: true
+    
+    // Disable the internal keyboard handling since we'll handle it through FocusManager
+    Keys.enabled: false
     
     ScrollBar.horizontal: ScrollBar {
         policy: ScrollBar.AlwaysOff
@@ -77,7 +83,7 @@ ScrollView {
         background: Rectangle {
             implicitWidth: 6
             radius: width / 2
-            color: Qt.rgba(0, 0, 0, 0.1)
+            color: ThemeManager.shadowColor
             opacity: 0.3
         }
     }
@@ -85,7 +91,6 @@ ScrollView {
     // Keyboard navigation support
     Keys.onPressed: function(event) {
         var contentItem = root.contentItem;
-        let handled = false;
         
         if (event.key === Qt.Key_PageDown) {
             var newY = Math.min(contentItem.contentY + root.height * 0.9, contentItem.contentHeight - root.height);
@@ -93,37 +98,41 @@ ScrollView {
             scrollAnimation.from = contentItem.contentY;
             scrollAnimation.to = newY;
             scrollAnimation.start();
-            handled = true;
+            event.accepted = true;
         } else if (event.key === Qt.Key_PageUp) {
             var newY = Math.max(contentItem.contentY - root.height * 0.9, 0);
             scrollAnimation.stop();
             scrollAnimation.from = contentItem.contentY;
             scrollAnimation.to = newY;
             scrollAnimation.start();
-            handled = true;
+            event.accepted = true;
         } else if (event.key === Qt.Key_Home) {
             scrollAnimation.stop();
             scrollAnimation.from = contentItem.contentY;
             scrollAnimation.to = 0;
             scrollAnimation.start();
-            handled = true;
+            event.accepted = true;
         } else if (event.key === Qt.Key_End) {
             scrollAnimation.stop();
             scrollAnimation.from = contentItem.contentY;
             scrollAnimation.to = contentItem.contentHeight - root.height;
             scrollAnimation.start();
-            handled = true;
+            event.accepted = true;
         } else if (event.key === Qt.Key_Down) {
-            // --- Let Down key propagate for page navigation --- 
-            console.log("--- AppScrollView ignoring Key_Down ---");
-            handled = false; 
+            var newY = Math.min(contentItem.contentY + keyNavigationSpeed, contentItem.contentHeight - root.height);
+            scrollAnimation.stop();
+            scrollAnimation.from = contentItem.contentY;
+            scrollAnimation.to = newY;
+            scrollAnimation.start();
+            event.accepted = true;
         } else if (event.key === Qt.Key_Up) {
-            // --- Let Up key propagate for page navigation --- 
-            console.log("--- AppScrollView ignoring Key_Up ---");
-            handled = false; 
+            var newY = Math.max(contentItem.contentY - keyNavigationSpeed, 0);
+            scrollAnimation.stop();
+            scrollAnimation.from = contentItem.contentY;
+            scrollAnimation.to = newY;
+            scrollAnimation.start();
+            event.accepted = true;
         }
-        
-        event.accepted = handled;
     }
     
     // Visual feedback for edge bounces
@@ -186,7 +195,7 @@ ScrollView {
         Text {
             anchors.centerIn: parent
             text: Math.round((root.contentItem.contentY / (root.contentItem.contentHeight - root.height)) * 100) + "%"
-            color: "white"
+            color: ThemeManager.textOnAccentColor
             font.pixelSize: 12
             font.bold: true
             visible: root.contentItem.contentHeight > root.height

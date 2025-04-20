@@ -2,7 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
-Item {
+NavigableItem {
     id: root
 
     property string title: "Section"
@@ -17,13 +17,25 @@ Item {
 
     height: headerContainer.height + (collapsed ? 0 : contentArea.height) + bottomMargin
     implicitHeight: height
+    
+    // Visual feedback for focused state
+    Rectangle {
+        anchors.fill: parent
+        color: ThemeManager.transparentColor
+        border.width: root.visualFocus ? 2 : 0
+        border.color: ThemeManager.accentColor
+        visible: root.visualFocus
+        opacity: 0.8
+        radius: ThemeManager.borderRadius
+        z: 1
+    }
 
     // Background rectangle for entire section
     Rectangle {
         id: sectionBackground
         anchors.fill: parent
         anchors.bottomMargin: bottomMargin
-        color: "transparent"
+        color: ThemeManager.transparentColor
 
         // Add subtle shadow for better visual separation (optional)
         Rectangle {
@@ -33,8 +45,8 @@ Item {
             anchors.leftMargin: -1
             anchors.rightMargin: -1
             anchors.bottomMargin: 2
-            color: "transparent"
-            border.color: Qt.rgba(0, 0, 0, 0.05)
+            color: ThemeManager.transparentColor
+            border.color: ThemeManager.borderShadowColor
             border.width: 1
             radius: ThemeManager.borderRadius + 1
             z: -1
@@ -48,8 +60,8 @@ Item {
 
         width: parent.width
         height: headerRow.height + (compact ? ThemeManager.spacingNormal * 1.25 : ThemeManager.spacingNormal * 1.5)
-        color: ThemeManager.headerColor // Use a slightly different color for headers
-        border.color: showBorder ? ThemeManager.borderColor : "transparent"
+        color: root.visualFocus ? ThemeManager.lightAccentColor : ThemeManager.headerColor
+        border.color: showBorder ? ThemeManager.borderColor : ThemeManager.transparentColor
         border.width: showBorder ? ThemeManager.borderWidth : 0
         radius: ThemeManager.borderRadius
 
@@ -74,6 +86,7 @@ Item {
                 font.family: FontManager.primaryFontFamily
                 font.bold: true
                 elide: Text.ElideRight
+                opacity: root.visualFocus ? 1.0 : 0.9
             }
 
             Text {
@@ -163,6 +176,25 @@ Item {
             height: childrenRect.height
 
             // Child items are placed here with the default layout
+        }
+    }
+    
+    // Function to get navigable controls - to be implemented by children
+    function getNavigableControls() {
+        return [];
+    }
+    
+    // Handle activating this section
+    onClicked: {
+        console.log("AppSection: " + title + " clicked");
+        
+        // Try to focus the first control in this section
+        var controls = getNavigableControls();
+        if (controls.length > 0) {
+            console.log("AppSection: Focusing first control in " + title);
+            controls[0].forceActiveFocus();
+        } else if (collapsible) {
+            collapsed = !collapsed;
         }
     }
 
