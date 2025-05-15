@@ -29,7 +29,7 @@ elif _ROCK:
 
 class EinkDriver:
     def __init__(self) -> None:
-        self.LUT_ALL: List[int] = [
+        self.LUT_4G: List[int] = [
             0x01,
             0x05,
             0x20,
@@ -249,6 +249,51 @@ class EinkDriver:
         ]
         self.emptyImage: List[int] = [0xFF] * 24960
         self.oldData: List[int] = [0] * 12480
+        
+        self.lut_vcom = [
+        0x01,0x0a,0x0a,0x0a,0x0a,0x01,0x01,
+        0x02,0x0f,0x01,0x0f,0x01,0x01,0x01,
+        0x01,0x0a,0x00,0x0a,0x00,0x01,0x01,
+        0x01,0x00,0x00,0x00,0x00,0x01,0x01,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,				
+        ];
+
+        self.lut_ww = [
+        0x01,0x4a,0x4a,0x0a,0x0a,0x01,0x01,
+        0x02,0x8f,0x01,0x4f,0x01,0x01,0x01,
+        0x01,0x8a,0x00,0x8a,0x00,0x01,0x01,
+        0x01,0x80,0x00,0x80,0x00,0x01,0x01,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        ];
+
+        self.lut_bw = [
+        0x01,0x4a,0x4a,0x0a,0x0a,0x01,0x01,
+        0x02,0x8f,0x01,0x4f,0x01,0x01,0x01,
+        0x01,0x8a,0x00,0x8a,0x00,0x01,0x01,
+        0x01,0x80,0x00,0x80,0x00,0x01,0x01,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        ];
+
+        self.lut_wb = [
+        0x01,0x0a,0x0a,0x8a,0x8a,0x01,0x01,
+        0x02,0x8f,0x01,0x4f,0x01,0x01,0x01,
+        0x01,0x4a,0x00,0x4a,0x00,0x01,0x01,
+        0x01,0x40,0x00,0x40,0x00,0x01,0x01,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        ];
+
+        self.lut_bb = [
+        0x01,0x0a,0x0a,0x8a,0x8a,0x01,0x01,
+        0x02,0x8f,0x01,0x4f,0x01,0x01,0x01,
+        0x01,0x4a,0x00,0x4a,0x00,0x01,0x01,
+        0x01,0x40,0x00,0x40,0x00,0x01,0x01,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        ];
 
         # Pin Def
         if _ROCK:
@@ -429,27 +474,27 @@ class EinkDriver:
         self.epd_w21_write_cmd(0x02)
         self.lcd_chkstatus()
 
-    def write_full_lut(self) -> None:
+    def write_4g_lut(self) -> None:
         # Write the full LUT to the display
         self.epd_w21_write_cmd(0x20)  # Write VCOM register
         for i in range(42):
-            self.epd_w21_write_data(self.LUT_ALL[i])
+            self.epd_w21_write_data(self.LUT_4G[i])
 
         self.epd_w21_write_cmd(0x21)  # Write LUTWW register
         for i in range(42, 84):
-            self.epd_w21_write_data(self.LUT_ALL[i])
+            self.epd_w21_write_data(self.LUT_4G[i])
 
         self.epd_w21_write_cmd(0x22)  # Write LUTR register
         for i in range(84, 126):
-            self.epd_w21_write_data(self.LUT_ALL[i])
+            self.epd_w21_write_data(self.LUT_4G[i])
 
         self.epd_w21_write_cmd(0x23)  # Write LUTW register
         for i in range(126, 168):
-            self.epd_w21_write_data(self.LUT_ALL[i])
+            self.epd_w21_write_data(self.LUT_4G[i])
 
         self.epd_w21_write_cmd(0x24)  # Write LUTB register
         for i in range(168, 210):
-            self.epd_w21_write_data(self.LUT_ALL[i])
+            self.epd_w21_write_data(self.LUT_4G[i])
 
     def epd_w21_init_4g(self) -> None:
         # Initialize the 4-gray e-paper display
@@ -463,10 +508,10 @@ class EinkDriver:
         # Power Setting
         self.epd_w21_write_cmd(0x01)
         self.epd_w21_write_data(0x03)  # Enable internal VSH, VSL, VGH, VGL
-        self.epd_w21_write_data(self.LUT_ALL[211])  # VGH=20V, VGL=-20V
-        self.epd_w21_write_data(self.LUT_ALL[212])  # VSH=15V
-        self.epd_w21_write_data(self.LUT_ALL[213])  # VSL=-15V
-        self.epd_w21_write_data(self.LUT_ALL[214])  # VSHR
+        self.epd_w21_write_data(self.LUT_4G[211])  # VGH=20V, VGL=-20V
+        self.epd_w21_write_data(self.LUT_4G[212])  # VSH=15V
+        self.epd_w21_write_data(self.LUT_4G[213])  # VSL=-15V
+        self.epd_w21_write_data(self.LUT_4G[214])  # VSHR
 
         # Booster Soft Start
         self.epd_w21_write_cmd(0x06)
@@ -476,7 +521,7 @@ class EinkDriver:
 
         # PLL Control - Frame Rate
         self.epd_w21_write_cmd(0x30)
-        self.epd_w21_write_data(self.LUT_ALL[210])  # PLL
+        self.epd_w21_write_data(self.LUT_4G[210])  # PLL
 
         # CDI Setting
         self.epd_w21_write_cmd(0x50)
@@ -498,14 +543,14 @@ class EinkDriver:
 
         # VCOM_DC Setting
         self.epd_w21_write_cmd(0x82)
-        self.epd_w21_write_data(self.LUT_ALL[215])  # -2.0V
+        self.epd_w21_write_data(self.LUT_4G[215])  # -2.0V
 
         # Power Saving Register
         self.epd_w21_write_cmd(0xE3)
         self.epd_w21_write_data(0x88)  # VCOM_W[3:0], SD_W[3:0]
 
         # LUT Setting
-        self.write_full_lut()
+        self.write_4g_lut()
 
         # Power ON
         self.epd_w21_write_cmd(0x04)
@@ -585,6 +630,76 @@ class EinkDriver:
         self.delay_xms(1)  # Necessary delay for the display refresh
         self.lcd_chkstatus()  # Check if the display is ready
 
+    def epd_lut(self):
+        self.epd_w21_write_cmd(0x20)  # 写入VCOM LUT
+        for value in self.lut_vcom:
+            self.epd_w21_write_data(value)
+
+        self.epd_w21_write_cmd(0x21)  # 写入WW LUT
+        for value in self.lut_ww:
+            self.epd_w21_write_data(value)
+
+        self.epd_w21_write_cmd(0x22)  # 写入BW LUT
+        for value in self.lut_bw:
+            self.epd_w21_write_data(value)
+
+        self.epd_w21_write_cmd(0x23)  # 写入WB LUT
+        for value in self.lut_wb:
+            self.epd_w21_write_data(value)
+
+        self.epd_w21_write_cmd(0x24)  # 写入BB LUT
+        for value in self.lut_bb:
+            self.epd_w21_write_data(value)          
+            
+    def epd_init_lut(self):
+        lgpio.gpio_write(self.lgpio_handle, self.RST_PIN, 0)
+        self.delay_xms(10)
+        lgpio.gpio_write(self.lgpio_handle, self.RST_PIN, 1)
+        self.delay_xms(10)
+        
+        self.epd_w21_write_cmd(0x04)    # 开启电源
+        self.lcd_chkstatus()            # 等待屏幕空闲
+        
+        self.epd_w21_write_cmd(0x00)    # 面板设置
+        self.epd_w21_write_data(0xF7)
+        
+        self.epd_w21_write_cmd(0x09)    # 取消波形默认设置
+        
+        self.epd_w21_write_cmd(0x01)    # 电源设置
+        self.epd_w21_write_data(0x03)
+        self.epd_w21_write_data(0x10)
+        self.epd_w21_write_data(0x3F)
+        self.epd_w21_write_data(0x3F)
+        self.epd_w21_write_data(0x3F)
+        
+        self.epd_w21_write_cmd(0x06)    # Booster soft start设置
+        self.epd_w21_write_data(0xD7)
+        self.epd_w21_write_data(0xD7)
+        self.epd_w21_write_data(0x33)
+        
+        self.epd_w21_write_cmd(0x30)    # PLL控制（频率设置）
+        self.epd_w21_write_data(0x09)
+        
+        self.epd_w21_write_cmd(0x50)    # VCOM和数据间隔设置
+        self.epd_w21_write_data(0xD7)
+        
+        self.epd_w21_write_cmd(0x61)    # 分辨率设置
+        self.epd_w21_write_data(0xF0)   # 水平方向分辨率（HRES）
+        self.epd_w21_write_data(0x01)   # 垂直方向分辨率高8位
+        self.epd_w21_write_data(0xA0)   # 垂直方向分辨率低8位
+
+        self.epd_w21_write_cmd(0x2A)    # Gate/Source起始位置设置
+        self.epd_w21_write_data(0x80)
+        self.epd_w21_write_data(0x00)
+        self.epd_w21_write_data(0x00)
+        self.epd_w21_write_data(0xFF)
+        self.epd_w21_write_data(0x00)
+
+        self.epd_w21_write_cmd(0x82)    # VCOM直流电压设置
+        self.epd_w21_write_data(0x0F)
+
+        self.epd_lut()                  # 写入LUT波形表
+    
     def pic_display_clear(self, poweroff: bool = False) -> None:
         # Clear the display by setting all pixels to white (0xFF)
         # Transfer old data
