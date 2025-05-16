@@ -1,7 +1,5 @@
-import QtQuick 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
-import "."  // Import our local components
+import QtQuick
+import QtQuick.Layouts
 
 Rectangle {
     id: messageItem
@@ -104,6 +102,7 @@ Rectangle {
                         }
                     }
                 }
+
             }
 
             // Display timestamp at the bottom right
@@ -115,6 +114,9 @@ Rectangle {
                 Layout.fillWidth: true
                 visible: timestamp !== ""
             }
+
         }
+
     }
+
 }

@@ -1,12 +1,11 @@
+import QtQuick
 pragma Singleton
-import QtQuick 2.15
 
 QtObject {
     id: fontManager
 
     // Font family - property is readwrite so it can be updated when a custom font is loaded
     property string primaryFontFamily: "Monorama Nerd Font Medium"
-
     // Font sizes from configuration if available, otherwise fallback to defaults
     // Tiny text
     readonly property real fontSizeTiny: 8
@@ -20,7 +19,6 @@ QtObject {
     readonly property real fontSizeLarge: 18
     // Extra large text
     readonly property real fontSizeXLarge: 20
-
     // Font weights
     readonly property int fontWeightNormal: Font.Normal
     readonly property int fontWeightBold: Font.Bold

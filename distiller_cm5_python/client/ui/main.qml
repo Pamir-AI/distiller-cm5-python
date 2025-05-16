@@ -1,7 +1,7 @@
 import Components 1.0
-import QtQuick 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Window 2.15
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Window
 
 ApplicationWindow {
     id: mainWindow
@@ -15,7 +15,8 @@ ApplicationWindow {
     height: 416
     title: AppInfo.appName
     font: FontManager.normal
-    
+    flags: Qt.Window | Qt.MaximizeUsingFullscreenGeometryHint
+
     // Update the FontManager primaryFontFamily when the app loads
     Component.onCompleted: {
         // Use the configured font in the components
@@ -25,13 +26,11 @@ ApplicationWindow {
         } else {
             console.log("Using fallback font as primary font couldn't be loaded");
         }
-
         // Set initial focus to key handler
         keyHandler.forceActiveFocus();
     }
-    
     // Handle application shutdown
-    onClosing: function(closeEvent) {
+    onClosing: function (closeEvent) {
         // No bridge available or not ready, just accept the close event
         closeEvent.accepted = false;
         if (bridge && bridge.ready)
@@ -55,10 +54,9 @@ ApplicationWindow {
         Item {
             anchors.fill: parent
             focus: true
-            Keys.onPressed: function(event) {
+            Keys.onPressed: function (event) {
                 // Log the currently focused item
                 console.log("Key Pressed:", event.key, " | Current Focus:", FocusManager.currentItem ? FocusManager.currentItem.objectName : "None", " | Scroll Mode:", FocusManager.scrollModeActive);
-                
                 // Only handle navigation keys - UP, DOWN, and ENTER
                 if (event.key === Qt.Key_Down) {
                     event.accepted = true;
@@ -137,18 +135,16 @@ ApplicationWindow {
         property string fontPath: {
             if (bridge && bridge.ready) {
                 var path = bridge.getPrimaryFontPath();
-                
                 // Check if path is relative and convert if needed
-                if (path && !path.startsWith("/") && !path.startsWith("file:///") && !path.startsWith("qrc:///")) {
+                if (path && !path.startsWith("/") && !path.startsWith("file:///") && !path.startsWith("qrc:///"))
                     return path;
-                }
+
                 return path;
             }
             return "fonts/MonoramaNerdFont-Medium.ttf";
         }
-        
+
         source: fontPath
-        
         onStatusChanged: {
             if (status == FontLoader.Ready)
                 console.log("Font loaded successfully:", source);
@@ -173,18 +169,16 @@ ApplicationWindow {
     // Main content - single VoiceAssistantPage
     VoiceAssistantPage {
         id: voiceAssistantPage
+
         anchors.fill: parent
-        
         Component.onCompleted: {
             if (typeof collectFocusItems === "function")
                 collectFocusItems();
-                
+
             // Ensure key handler has focus
             keyHandler.forceActiveFocus();
         }
     }
-
-
 
     // Global toast message for application-wide errors
     MessageToast {
@@ -210,27 +204,29 @@ ApplicationWindow {
     // Place the background image as the first child so it is always at the back
     OptimizedImage {
         id: backgroundImage
+
         source: "images/idle-frame.png"
         anchors.fill: parent
         fillMode: Image.Stretch
-        opacity: 1.0  // Full opacity, no transparency
+        opacity: 1 // Full opacity, no transparency
         z: -1
+
         onStatusChanged: {
-            console.log("Background image status:", status, "source:", source)
+            console.log("Background image status:", status, "source:", source);
         }
     }
 
-    // Header area - solid black or white with border
+    // Header area 
     Rectangle {
         id: headerAreaOverlay
+
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: 50  // Cover the header area
+        height: 50
         color: ThemeManager.backgroundColor
-        opacity: 1.0
+        opacity: 1
         z: -0.5
-        
         // Add border around the entire rectangle
         border.width: ThemeManager.borderWidth
         border.color: ThemeManager.black

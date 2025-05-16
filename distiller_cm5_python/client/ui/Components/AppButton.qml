@@ -1,5 +1,4 @@
-import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick
 
 NavigableItem {
     id: root
@@ -18,13 +17,14 @@ NavigableItem {
     width: parent ? parent.width : implicitWidth
     height: useFixedHeight ? ThemeManager.buttonHeight : implicitHeight
     // Add keyboard handling for Enter/Return
-    Keys.onReturnPressed: function () {
+    Keys.onReturnPressed: function() {
         clicked();
     }
 
     // Style properties
     Rectangle {
         id: backgroundRect
+
         anchors.fill: parent
         color: root.backgroundColor
         border.color: ThemeManager.black
@@ -41,4 +41,5 @@ NavigableItem {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
     }
+
 }

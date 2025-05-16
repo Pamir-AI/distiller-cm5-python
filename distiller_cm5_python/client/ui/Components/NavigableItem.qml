@@ -1,4 +1,4 @@
-import QtQuick 2.15
+import QtQuick
 
 // Base component for items that can be navigated with Up/Down/Enter keys
 Item {
@@ -10,15 +10,14 @@ Item {
     //         console.log("NavigableItem: Initialized with navigable=true");
     //     }
     // }
+    // console.log("NavigableItem: Forcing focus");
 
     id: navigableItem
 
     // Navigation properties
     property bool navigable: true
     // Whether this item can be navigated to
-    property bool isActiveItem: false
-    // Whether this is the currently active item
-    property bool visualFocus: activeFocus || isActiveItem
+    property bool visualFocus: activeFocus
     // Visual state
     property bool highlighted: visualFocus
     property color backgroundColor: highlighted ? ThemeManager.textColor : ThemeManager.backgroundColor
@@ -53,20 +52,14 @@ Item {
         }
     }
     // Handle property changes
-    onIsActiveItemChanged: {
-        // console.log("NavigableItem: Forcing focus");
-
-        // console.log("NavigableItem: isActiveItem changed to: " + isActiveItem + " for " + (parent ? parent.objectName || "unnamed" : "no parent"));
-        if (isActiveItem)
+    onVisualFocusChanged: {
+        // console.log("NavigableItem: visualFocus changed to: " + visualFocus + " for " + (parent ? parent.objectName || "unnamed" : "no parent"));
+        if (visualFocus)
             forceActiveFocus();
-
     }
     // Handle focused state
     onActiveFocusChanged: {
         // console.log("NavigableItem: activeFocus changed to: " + activeFocus + " for " + (parent ? parent.objectName || "unnamed" : "no parent"));
-        if (activeFocus && !isActiveItem)
-            isActiveItem = true;
-
     }
 
     // Static focus indicator optimized for e-ink

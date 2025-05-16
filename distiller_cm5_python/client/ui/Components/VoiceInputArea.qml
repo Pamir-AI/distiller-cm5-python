@@ -1,7 +1,4 @@
-import Components 1.0
-import QtQuick 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
+import QtQuick
 
 Rectangle {
     // Dynamic hint text based on state
@@ -27,9 +24,9 @@ Rectangle {
 
     // Signals
     signal voiceToggled(bool listening)
-    signal voicePressed
-    signal voiceReleased
-    signal resetClicked // New signal for reset button
+    signal voicePressed()
+    signal voiceReleased()
+    signal resetClicked() // New signal for reset button
     signal appStateUpdated(string newState) // Renamed signal to avoid conflict with appStateChanged
 
     // Get appropriate hint text for current state
@@ -60,14 +57,10 @@ Rectangle {
     // Set the app state and emit signal
     function setAppState(newState) {
         // Block state changes from restoring_cache to anything other than idle or error
-        if (appState === "restoring_cache" && 
-            newState !== "idle" && 
-            newState !== "error" && 
-            newState !== "restoring_cache") {
+        if (appState === "restoring_cache" && newState !== "idle" && newState !== "error" && newState !== "restoring_cache") {
             console.log("VoiceInputArea: Blocked state change from restoring_cache to " + newState);
-            return;
+            return ;
         }
-        
         if (appState !== newState) {
             console.log("VoiceInputArea: State changing from " + appState + " to " + newState);
             appState = newState;
@@ -75,7 +68,6 @@ Rectangle {
             // Update legacy state properties for backward compatibility
             isListening = (newState === "listening");
             isProcessing = (newState === "processing" || newState === "thinking" || newState === "executing_tool" || newState === "restoring_cache");
-
             // If transitioning to idle, ensure button is enabled
             if (newState === "idle" && voiceButton) {
                 voiceButton.enabled = isConnected;
@@ -88,17 +80,16 @@ Rectangle {
             } else if (newState === "processing" || newState === "thinking" || newState === "executing_tool") {
                 if (voiceButton) {
                     voiceButton.checked = false;
-                    voiceButton.enabled = false;  // Disable during any processing state
+                    voiceButton.enabled = false; // Disable during any processing state
                 }
                 resetButton.enabled = false;
             } else if (newState === "restoring_cache") {
                 // Special handling for cache restoration - disable ALL buttons
                 if (voiceButton) {
                     voiceButton.checked = false;
-                    voiceButton.enabled = false;  // Explicitly disable during cache restoration
+                    voiceButton.enabled = false; // Explicitly disable during cache restoration
                 }
                 resetButton.enabled = false;
-                
                 // Show appropriate hint text with stronger visibility
                 stateHint = "Restoring cache...";
             } else if (newState === "error") {
@@ -150,22 +141,10 @@ Rectangle {
     onAppStateChanged: {
         console.log("App state changed to: " + appState);
     }
-    
     // Set the main container properties
     color: ThemeManager.backgroundColor
     height: transcribedText.trim().length > 0 ? 100 : 70
     z: 10 // Ensure this is always on top
-    
-    // Straight rectangle to fill the rest of the area without rounded bottom
-    Rectangle {
-        id: bottomFill
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        color: ThemeManager.backgroundColor
-    }
-
     // Watch for changes to legacy properties and update state accordingly (for backward compatibility)
     onIsListeningChanged: {
         if (isListening && appState !== "listening")
@@ -179,29 +158,37 @@ Rectangle {
         else if (!isProcessing && (appState === "processing" || appState === "thinking" || appState === "executing_tool"))
             setAppState("idle");
     }
-    onVoiceReleased: function () {
+    onVoiceReleased: function() {
         // Double-check cache restoration state
         if (appState === "restoring_cache") {
             console.log("Voice release blocked - cache is being restored");
-            return;
+            return ;
         }
-        
         if (bridge && bridge.ready && bridge.isConnected && isListening) {
             // First set state to processing explicitly
             setAppState("processing");
-
             // Trigger e-ink update *after* state changes are applied but before the blocking call
             if (typeof AppController !== 'undefined' && AppController.triggerEinkUpdate) {
                 console.log("VoiceInputArea: Forcing e-ink update after setAppState('processing')");
                 AppController.triggerEinkUpdate();
             }
-
             // Then call the bridge method after a minimal delay to allow UI event processing (including e-ink)
             Qt.callLater(function() {
                 console.log("VoiceInputArea.onVoiceReleased: Calling bridge.stopAndTranscribe() after delay");
                 bridge.stopAndTranscribe();
             });
         }
+    }
+
+    // Straight rectangle to fill the rest of the area without rounded bottom
+    Rectangle {
+        id: bottomFill
+
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        color: ThemeManager.backgroundColor
     }
 
     // Timer to automatically reset from error state to idle
@@ -221,17 +208,16 @@ Rectangle {
         id: staticHintText
 
         anchors.top: parent.top
-        anchors.topMargin: 8// Reduced top margin
+        anchors.topMargin: 8 // Reduced top margin
         anchors.horizontalCenter: parent.horizontalCenter
         text: {
             // Dynamic text based on which button has focus
-            if (voiceButton.isActiveItem) {
+            if (voiceButton.visualFocus)
                 return voiceInputArea.stateHint;
-            } else if (resetButton.isActiveItem) {
+            else if (resetButton.visualFocus)
                 return "Reset App";
-            } else {
+            else
                 return "";
-            }
         }
         font.pixelSize: FontManager.fontSizeSmall
         font.family: FontManager.primaryFontFamily
@@ -239,7 +225,7 @@ Rectangle {
         horizontalAlignment: Text.AlignHCenter
         z: 20 // Make sure it appears above everything
         // Show hint text whenever the app is not idle, or if a button has focus (and hint is enabled)
-        visible: showStatusHint && (appState !== "idle" || (voiceButton.isActiveItem || resetButton.isActiveItem))
+        visible: showStatusHint && (appState !== "idle" || (voiceButton.visualFocus || resetButton.visualFocus))
     }
 
     // Transcribed text display
@@ -272,6 +258,7 @@ Rectangle {
             elide: Text.ElideRight
             maximumLineCount: 1
         }
+
     }
 
     // Button layout
@@ -300,7 +287,7 @@ Rectangle {
                 id: voiceButton
 
                 property bool navigable: isConnected // Only navigable when connected
-                property bool isActiveItem: false
+                property bool visualFocus: false
                 property bool checked: voiceInputArea.isListening
 
                 // Activate when Enter is pressed via FocusManager
@@ -308,13 +295,14 @@ Rectangle {
                     // Block activation during cache restoration
                     if (voiceInputArea.appState === "restoring_cache") {
                         console.log("VoiceButton.activate(): Blocked during cache restoration");
-                        if (checked) checked = false;
-                        return;
+                        if (checked)
+                            checked = false;
+
+                        return ;
                     }
-                    
                     // Only allow activation when connected and not processing
                     if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool")
-                        return;
+                        return ;
 
                     // When activating with Enter key
                     if (!isListening) {
@@ -335,22 +323,19 @@ Rectangle {
                 isFlat: true
                 // Disable button when not connected or when processing/thinking/executing/restoring cache
                 enabled: (isConnected && voiceInputArea.appState !== "processing" && voiceInputArea.appState !== "thinking" && voiceInputArea.appState !== "executing_tool") || voiceInputArea.appState !== "restoring_cache"
-
                 onClicked: {
                     if (voiceInputArea.appState === "restoring_cache") {
                         console.log("Voice button clicked during cache restoration - ignoring");
                         checked = false; // Ensure unchecked state
                         enabled = false; // Explicitly disable
-                        return;
+                        return ;
                     }
-
                     // Only allow interaction when connected and not in any processing state
                     if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool" || voiceInputArea.appState === "restoring_cache")
-                        return;
+                        return ;
 
                     // Toggle listening state
                     console.log("VoiceButton.onClicked(), current state: " + checked);
-
                     if (!isListening) {
                         // Start listening
                         voiceInputArea.voicePressed();
@@ -361,15 +346,13 @@ Rectangle {
                         setAppState("processing");
                     }
                 }
-
                 // Handle key press/release for Enter/Return
-                Keys.onPressed: function (event) {
+                Keys.onPressed: function(event) {
                     // Check if we're processing before handling key
                     if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool") {
                         event.accepted = true;
-                        return;
+                        return ;
                     }
-
                     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                         event.accepted = true;
                         if (!isListening) {
@@ -379,14 +362,12 @@ Rectangle {
                         }
                     }
                 }
-
-                Keys.onReleased: function (event) {
+                Keys.onReleased: function(event) {
                     // Check if we're processing before handling key
                     if (!isConnected || (voiceInputArea.appState !== "listening" && voiceInputArea.appState !== "idle")) {
                         event.accepted = true;
-                        return;
+                        return ;
                     }
-
                     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                         if (isListening) {
                             // Stop listening
@@ -395,7 +376,6 @@ Rectangle {
                         }
                     }
                 }
-
                 backgroundColor: ThemeManager.backgroundColor // Solid color based on theme
                 buttonRadius: width / 2
 
@@ -408,21 +388,24 @@ Rectangle {
 
                     // High contrast highlight for e-ink when focused
                     Rectangle {
-                        visible: voiceButton.isActiveItem || voiceButton.pressed || true  // Always visible
+                        visible: voiceButton.visualFocus || voiceButton.pressed || true // Always visible
                         anchors.fill: parent
                         radius: width / 2
-                        color: voiceButton.isActiveItem ? ThemeManager.textColor : ThemeManager.backgroundColor
+                        color: voiceButton.visualFocus ? ThemeManager.textColor : ThemeManager.backgroundColor
                         border.width: ThemeManager.borderWidth
                         border.color: ThemeManager.black
                         antialiasing: true
                     }
 
                     Text {
+                        // Disabled microphone icon
+
                         id: micIcon
+
                         text: {
                             // If not connected, show "disabled" icon
                             if (!isConnected)
-                                return "󱙱"; // Disabled microphone icon
+                                return "󱙱";
 
                             // Use the new state system for determining icon
                             switch (voiceInputArea.appState) {
@@ -442,15 +425,16 @@ Rectangle {
                             }
                         }
                         rightPadding: (!isConnected || voiceInputArea.appState === "restoring_cache") ? 4 : 0
-
                         anchors.centerIn: parent
                         font.pixelSize: parent.width * 0.45 // Slightly smaller for cleaner look
                         // Color based on connection state and focus state
-                        color: voiceButton.isActiveItem ? ThemeManager.backgroundColor : ThemeManager.textColor
+                        color: voiceButton.visualFocus ? ThemeManager.backgroundColor : ThemeManager.textColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
+
                 }
+
             }
 
             // 2nd button: Reset button
@@ -458,7 +442,7 @@ Rectangle {
                 id: resetButton
 
                 property bool navigable: true
-                property bool isActiveItem: false
+                property bool visualFocus: false
 
                 objectName: "resetButton"
                 width: ThemeManager.buttonHeight
@@ -476,10 +460,10 @@ Rectangle {
 
                     // High contrast highlight for e-ink when focused
                     Rectangle {
-                        visible: resetButton.isActiveItem || resetButton.pressed || true  // Always visible
+                        visible: resetButton.visualFocus || resetButton.pressed || true // Always visible
                         anchors.fill: parent
                         radius: width / 2
-                        color: resetButton.isActiveItem ? ThemeManager.textColor : ThemeManager.backgroundColor
+                        color: resetButton.visualFocus ? ThemeManager.textColor : ThemeManager.backgroundColor
                         border.width: ThemeManager.borderWidth
                         border.color: ThemeManager.black
                         antialiasing: true
@@ -489,19 +473,25 @@ Rectangle {
                         text: "↻" // Reset icon as text
                         font.pixelSize: parent.width * 0.5
                         font.family: FontManager.primaryFontFamily
-                        color: resetButton.isActiveItem ? ThemeManager.backgroundColor : ThemeManager.textColor
+                        color: resetButton.visualFocus ? ThemeManager.backgroundColor : ThemeManager.textColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         anchors.centerIn: parent
                     }
+
                 }
+
             }
+
         }
+
     }
 
     Behavior on height {
         NumberAnimation {
             duration: 100
         }
+
     }
+
 }
