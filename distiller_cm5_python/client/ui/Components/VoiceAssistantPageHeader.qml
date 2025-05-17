@@ -17,7 +17,6 @@ Rectangle {
     property alias closeButton: closeBtn
     property alias statusButton: statusBtn
     // System stats properties
-    property bool showSystemStats: bridge && bridge.ready ? bridge.getShowSystemStats() : true
     property var systemStats: {
         "cpu": "N/A",
         "ram": "N/A",
@@ -51,7 +50,7 @@ Rectangle {
 
     // Update system stats from bridge
     function updateSystemStats() {
-        if (bridge && bridge.ready && showSystemStats) {
+        if (bridge && bridge.ready) {
             systemStats = bridge.getSystemStats();
             // Also update WiFi status when updating stats
             updateWifiStatus();

@@ -584,20 +584,6 @@ PageBase {
             transcriptionInProgress = false;
         }
 
-        // Handler for SSH information events
-        function onSshInfoReceived(content, eventId, timestamp) {
-            console.log("SSH Info received: " + content);
-            // Add to conversation if not empty
-            if (content && content.trim().length > 0) {
-                // Update the UI to show SSH connection info
-                if (conversationView)
-                    conversationView.updateModel(bridge.get_conversation());
-
-                // Show a toast notification for the SSH info
-                messageToast.showMessage("SSH Connection Info: " + content, 5000);
-            }
-        }
-
         // Handler for function events
         function onFunctionReceived(content, eventId, timestamp) {
             console.log("Function info received: " + content);
@@ -1120,7 +1106,7 @@ PageBase {
         dialogTitle: "Server Connection"
         message: "Server connection lost. Do you want to reconnect?"
         standardButtonTypes: DialogButtonBox.Yes | DialogButtonBox.No
-        yesButtonText: "Reconnect"
+        yesButtonText: "Sure"
         noButtonText: "Cancel"
         acceptButtonColor: ThemeManager.backgroundColor
         onAccepted: {

@@ -83,7 +83,6 @@ Rectangle {
                         switch (messageType.toLowerCase()) {
                         case "error":
                         case "warning":
-                        case "ssh info":
                             return Font.Bold;
                         default:
                             return Font.Normal;
