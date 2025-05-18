@@ -51,6 +51,12 @@ ListView {
     spacing: ThemeManager.spacingSmall
     interactive: true
     boundsBehavior: Flickable.StopAtBounds
+
+    // scroll to bottom with boundary enforcement
+    function positionViewAtEnd() {
+        contentY = Math.max(0, contentHeight - height);
+    }
+
     // Use ListView's built-in positioning features
     onContentHeightChanged: {
         if (responseInProgress || atYEnd)
@@ -64,20 +70,26 @@ ListView {
 
     }
     // Simplified scroll mode handling
+    function safeScroll(direction) {
+        var amount = direction * 50; // 50 pixels per key press
+        var newY = contentY + amount;
+        var maxY = Math.max(0, contentHeight - height);
+        
+        // Apply with bounds check
+        contentY = Math.min(Math.max(0, newY), maxY);
+    }
+
     onScrollModeActiveChanged: {
         activeScrollModeInstructions.visible = scrollModeActive;
     }
     // Add keyboard handling for scroll mode
     Keys.onPressed: function(event) {
         if (scrollModeActive) {
-            var scrollAmount = 50; // Pixels to scroll per key press
             if (event.key === Qt.Key_Down) {
-                // Simplified scrolling down with bounds protection
-                contentY = Math.min(contentY + scrollAmount, Math.max(0, contentHeight - height));
+                safeScroll(1); // Scroll down
                 event.accepted = true;
             } else if (event.key === Qt.Key_Up) {
-                // Simplified scrolling up with bounds protection
-                contentY = Math.max(contentY - scrollAmount, 0);
+                safeScroll(-1); // Scroll up
                 event.accepted = true;
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 // Exit scroll mode
