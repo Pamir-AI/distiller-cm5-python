@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 
 ListView {
     id: conversationView
@@ -124,8 +125,8 @@ ListView {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: ThemeManager.spacingNormal
-        height: scrollModeText.height + ThemeManager.spacingLarge
-        width: scrollModeText.width + ThemeManager.spacingSmall * 3
+        width: parent.width
+        height: scrollInstructionLayout.height + ThemeManager.spacingLarge
         color: ThemeManager.textColor
         border.width: ThemeManager.borderWidth
         border.color: ThemeManager.textColor
@@ -133,13 +134,24 @@ ListView {
         visible: visualFocus && !scrollModeActive && conversationView.contentHeight > conversationView.height
         z: 2
 
-        Text {
-            id: scrollModeText
-
+        ColumnLayout {
+            id: scrollInstructionLayout
             anchors.centerIn: parent
-            text: "Press Enter to enable scroll mode"
-            color: ThemeManager.backgroundColor
-            font: FontManager.small
+            width: parent.width - ThemeManager.spacingNormal * 2
+            spacing: 0
+            
+            Text {
+            	id: scrollModeText
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+            	text: "Press Enter to enable scroll mode"
+            	color: ThemeManager.backgroundColor
+            	font: FontManager.small
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideNone
+                maximumLineCount: 2
+            }
         }
 
     }
@@ -151,22 +163,33 @@ ListView {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: ThemeManager.spacingNormal
-        height: activeScrollModeText.height + ThemeManager.spacingLarge
-        width: activeScrollModeText.width + ThemeManager.spacingSmall * 3
+        width: parent.width
+        height: activescrollInstructionLayout.height + ThemeManager.spacingLarge
         color: ThemeManager.textColor
         border.width: ThemeManager.borderWidth
         border.color: ThemeManager.textColor
         radius: ThemeManager.borderRadius
         visible: scrollModeActive
         z: 2
-
-        Text {
-            id: activeScrollModeText
-
+        
+        ColumnLayout {
+            id: activescrollInstructionLayout
             anchors.centerIn: parent
-            text: "Use ↑/↓ to scroll, Enter to exit"
-            color: ThemeManager.backgroundColor
-            font: FontManager.small
+            width: parent.width - ThemeManager.spacingNormal * 2
+            spacing: 0
+            
+            Text {
+                id: activeScrollModeText
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+                text: "Use ↑/↓ to scroll, Enter to exit"
+                color: ThemeManager.backgroundColor
+                font: FontManager.small
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideNone
+                maximumLineCount: 2
+            }
         }
 
     }

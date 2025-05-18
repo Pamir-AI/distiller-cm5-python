@@ -14,7 +14,7 @@ PageBase {
     property bool isListening: state === "listening"
     property bool isProcessing: ["processing", "thinking", "toolExecution", "cacheRestoring"].includes(state)
     property bool isServerConnected: bridge && bridge.ready ? bridge.isConnected : false
-    property string statusText: conversationView && conversationView.scrollModeActive ? "Scroll Mode (↑↓ to scroll)" : _statusText
+    property string statusText: conversationView && conversationView.scrollModeActive ? "Scroll Mode" : _statusText
     property string _statusText: getStatusTextForState(state)
     property var focusableItems: []
     property var previousFocusedItem: null
@@ -757,7 +757,7 @@ PageBase {
         serverName: _serverName
         statusText: voiceAssistantPage.statusText
         isConnected: bridge && bridge.ready ? bridge.isConnected : false
-        showStatusText: true
+        
         Component.onCompleted: {
             // Add high contrast border for visibility
             var headerRect = findChild(header, "headerBackground");
