@@ -338,3 +338,5 @@ MCP_SERVER_SCRIPT_PATH = config.get(
 LOGGING_LEVEL = config.get(
     "logging", "level", "INFO"
 ).upper()  # Default to INFO, ensure uppercase
+
+AUTO_RECOGNIZE = config.get("auto_recognize", default=True)

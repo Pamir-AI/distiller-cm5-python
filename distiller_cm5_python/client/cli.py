@@ -26,7 +26,9 @@ from distiller_cm5_python.utils.config import (
     LOGGING_LEVEL,
     MCP_SERVER_SCRIPT_PATH,
     API_KEY,
+    AUTO_RECOGNIZE
 )
+print(AUTO_RECOGNIZE)
 from distiller_cm5_python.utils.distiller_exception import (
     UserVisibleError,
     LogOnlyError,
@@ -36,9 +38,9 @@ from functools import partial  # Import partial for asyncio.to_thread
 # Try to import whisper, but don't fail if it's not available initially.
 # We'll handle the actual import attempt later based on args.
 try:
-    from distiller_cm5_sdk import whisper
+    from distiller_cm5_sdk import parakeet
 except ImportError:
-    whisper = None  # Placeholder if the SDK isn't installed
+    parakeet = None  # Placeholder if the SDK isn't installed
 
 # Get logger for this module after setup
 logger = logging.getLogger(__name__)
@@ -106,14 +108,18 @@ class CLIEventHandler:
             logger.debug(f"CLIEventHandler received unhandled event type: {evt.type}")
 
 
-async def chat_loop(client: MCPClient, whisper_instance):
+async def chat_loop(client: MCPClient, parakeet_instance,auto_recognize):
     """Start an interactive chat loop with the user, supporting text and audio input."""
     colorama_init()  # Initialize colorama
 
-    if whisper_instance:
+    if  auto_recognize and parakeet_instance:
+        print(f"{Style.BRIGHT}Auto recognition enabled.{Style.RESET_ALL}")
+
+    elif parakeet_instance:
         print(
             f"{Style.BRIGHT}Chat session started. Type '/mic' to record audio, 'exit' or 'quit' to end.{Style.RESET_ALL}\n"
         )
+
     else:
         print(
             f"{Style.BRIGHT}Chat session started (Audio disabled). Type 'exit' or 'quit' to end.{Style.RESET_ALL}\n"
@@ -134,8 +140,16 @@ async def chat_loop(client: MCPClient, whisper_instance):
                 break
 
             # Check for audio input command
-            if user_input_text.lower() == "/mic":
-                if whisper_instance is None:
+            if auto_recognize and parakeet_instance:
+                logging.info(
+                    f"{Fore.YELLOW}Starting vad audio input... {Style.RESET_ALL}"
+                )
+                for text in parakeet_instance.auto_record_and_transcribe():
+                    user_input_for_llm = text
+                    logging.info(f"{Fore.YELLOW}Transcribed text: {text}{Style.RESET_ALL}")
+
+            elif user_input_text.lower() == "/mic":
+                if parakeet_instance is None:
                     print(
                         f"{Fore.YELLOW}Audio input is disabled (SDK not found or --disable-audio used).{Style.RESET_ALL}"
                     )
@@ -146,13 +160,13 @@ async def chat_loop(client: MCPClient, whisper_instance):
                 )
                 await asyncio.to_thread(input)  # Wait for Enter press
 
-                if await asyncio.to_thread(whisper_instance.start_recording):
+                if await asyncio.to_thread(parakeet_instance.start_recording):
                     print(
                         f"{Fore.YELLOW}Recording... Press Enter to stop.{Style.RESET_ALL}"
                     )
                     await asyncio.to_thread(input)  # Wait for Enter press to stop
                     audio_data = await asyncio.to_thread(
-                        whisper_instance.stop_recording
+                        parakeet_instance.stop_recording
                     )
 
                     if audio_data:
@@ -162,7 +176,7 @@ async def chat_loop(client: MCPClient, whisper_instance):
                         try:
                             # Use a wrapper function for the generator in to_thread
                             def get_transcription_sync(data):
-                                return list(whisper_instance.transcribe_buffer(data))
+                                return list(parakeet_instance.transcribe_buffer(data))
 
                             transcribed_segments = await asyncio.to_thread(
                                 get_transcription_sync, audio_data
@@ -196,6 +210,7 @@ async def chat_loop(client: MCPClient, whisper_instance):
                 else:
                     print(f"{Fore.RED}Failed to start recording.{Style.RESET_ALL}")
                     continue  # Go back to the start of the loop
+
             else:
                 user_input_for_llm = user_input_text  # Use text input
 
@@ -273,6 +288,13 @@ def parse_arguments():
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set logging level",
     )
+
+    parser.add_argument(
+        "--auto_recognize",
+        default=AUTO_RECOGNIZE,
+        help="Disable audio input features (requires distiller_cm5_sdk)",
+    )
+
     parser.add_argument(
         "--disable-audio",
         action="store_true",
@@ -316,21 +338,21 @@ async def main():
         dispatcher=event_dispatcher,
     )
 
-    # Instantiate Whisper only if SDK is available and not disabled
-    whisper_module = None
-    whisper_instance = None
+    # Instantiate parakeetAsr only if SDK is available and not disabled
+    parakeet_module = None
+    parakeet_instance = None
     if not args.disable_audio:
         try:
             # Dynamically import whisper if not already done or if it was None
-            global whisper
-            if whisper is None:
-                from distiller_cm5_sdk import whisper as sdk_whisper
+            global parakeet
+            if parakeet is None:
+                from distiller_cm5_sdk import parakeet as sdk_parakeet
 
-                whisper = sdk_whisper  # Assign to the global placeholder
+                parakeet = sdk_parakeet  # Assign to the global placeholder
 
-            if whisper:  # Check if import succeeded
-                whisper_instance = whisper.Whisper()
-                logger.info("Whisper SDK loaded and instance created.")
+            if parakeet:  # Check if import succeeded
+                parakeet_instance = parakeet.Parakeet(vad_silence_duration=0.5)
+                logger.info("Parakeet SDK loaded and instance created.")
             else:
                 logger.warning("Audio input disabled: distiller_cm5_sdk not found.")
                 print(
@@ -341,15 +363,15 @@ async def main():
             print(
                 f"{Fore.YELLOW}Warning: Failed to import distiller_cm5_sdk. Audio input will be disabled.{Style.RESET_ALL}"
             )
-            whisper = None  # Ensure whisper is None if import fails here
+            parakeet = None  # Ensure whisper is None if import fails here
         except Exception as e:
-            logger.error(f"Error initializing Whisper: {e}", exc_info=True)
+            logger.error(f"Error initializing Parakeet: {e}", exc_info=True)
             print(f"{Fore.RED}Error initializing audio input: {e}{Style.RESET_ALL}")
-            whisper_instance = None  # Ensure instance is None on error
-            whisper = None  # Ensure whisper module ref is None
+            parakeet_instance = None  # Ensure instance is None on error
+            parakeet = None  # Ensure parakeet module ref is None
     else:
         logger.info("Audio input explicitly disabled via --disable-audio flag.")
-        whisper = None  # Ensure whisper is None if disabled by flag
+        parakeet = None  # Ensure parakeet is None if disabled by flag
 
     try:
         logger.info("Connecting to MCP server...")
@@ -362,7 +384,7 @@ async def main():
             sys.exit(1)
 
         logger.info("Connection successful. Starting chat loop.")
-        await chat_loop(client, whisper_instance)  # Pass whisper instance
+        await chat_loop(client, parakeet_instance, args.auto_recognize)  # Pass whisper instance
 
     except UserVisibleError as e:
         logger.error(f"Initialization Error: {e}")
@@ -374,8 +396,8 @@ async def main():
         logger.info("Cleaning up client resources...")
         await client.cleanup()
         logger.info("Cleaning up Whisper resources...")
-        if whisper_instance:
-            whisper_instance.cleanup()  # Cleanup Whisper resources only if it exists
+        if parakeet_instance:
+            parakeet_instance.cleanup()  # Cleanup Whisper resources only if it exists
         else:
             logger.info("Whisper resources cleanup skipped (instance not created).")
         logger.info("Cleaning up event dispatcher...")

@@ -41,9 +41,10 @@
     "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user. /no_think"
   },
   "mcp_server": {
-    "server_script_path": "distiller_cm5_python/mcp_server/tts-use_server.py"
+    "server_script_path": "distiller_cm5_python/mcp_server/beep_server.py"
   },
   "display": {
     "dark_mode": "false"
-  }
+  },
+  "audio_auto_recognize": true
 }
