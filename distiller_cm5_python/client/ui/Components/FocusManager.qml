@@ -34,7 +34,7 @@ QtObject {
     property int currentFocusIndex: -1
     // Current scroll view - can be set by pages to enable scroll support
     property var currentScrollView: null
-    // Scroll step size
+    // Scroll step size - this is now used only for non-ConversationView scrolling
     property int scrollStep: 40
     // Track scroll mode specifically for ConversationView
     property bool scrollModeActive: false
@@ -182,10 +182,16 @@ QtObject {
     // Enter scroll mode for ConversationView
     function enterScrollMode(item) {
         if (!item)
-            return ;
+            return;
 
         scrollModeActive = true;
         scrollTargetItem = item;
+        
+        // Initialize current message index if it's ConversationView
+        if (item.objectName === "conversationView" && item.currentMessageIndex === -1 && item.count > 0) {
+            item.currentMessageIndex = item.count - 1;
+            item.positionViewAtIndex(item.currentMessageIndex, 0);
+        }
     }
 
     // Exit scroll mode
@@ -203,7 +209,6 @@ QtObject {
             // Force one more update as a failsafe
             if (oldTarget)
                 oldTarget.scrollModeActive = false;
-
         }
         scrollModeActive = false;
     }
@@ -212,21 +217,24 @@ QtObject {
     function moveFocusUp() {
         // If in scroll mode, scroll the target view instead of changing focus
         if (scrollModeActive && scrollTargetItem) {
-            if (scrollTargetItem.contentY !== undefined) {
+            if (scrollTargetItem.objectName === "conversationView") {
+                // Use the ConversationView's custom navigation for messages
+                scrollTargetItem.navigateUp();
+            } else if (scrollTargetItem.contentY !== undefined) {
+                // Standard scrolling for other types of scroll views
                 var newY = Math.max(0, scrollTargetItem.contentY - scrollStep);
                 scrollTargetItem.contentY = newY;
                 if (scrollTargetItem.checkIfAtBottom)
                     scrollTargetItem.checkIfAtBottom();
-
             }
-            return ;
+            return;
         }
         if (currentMode === sliderMode) {
             // In slider mode, increase the value
             if (currentFocusItems[currentFocusIndex] && currentFocusItems[currentFocusIndex].increaseValue)
                 currentFocusItems[currentFocusIndex].increaseValue();
 
-            return ;
+            return;
         }
         // Make sure we have focusable items before proceeding
         if (currentFocusItems.length === 0) {
@@ -235,18 +243,18 @@ QtObject {
             if (currentScrollView)
                 scrollUp();
 
-            return ;
+            return;
         }
         // Priority #1: Navigate to previous item first (if not at first item)
         if (currentFocusIndex > 0) {
             currentFocusIndex--;
             setFocusToItem(currentFocusItems[currentFocusIndex]);
-            return ;
+            return;
         }
         // Priority #2: If at first item, try to scroll if not at top
         if (currentScrollView && currentScrollView.contentItem.contentY > 0) {
             scrollUp();
-            return ;
+            return;
         }
         // Priority #3: If at first item and top of scroll, wrap to last item
         currentFocusIndex = currentFocusItems.length - 1;
@@ -256,7 +264,7 @@ QtObject {
     // Helper function to scroll up
     function scrollUp() {
         if (!currentScrollView)
-            return ;
+            return;
 
         var newY = Math.max(0, currentScrollView.contentItem.contentY - scrollStep);
         if (currentScrollView.scrollAnimation) {
@@ -273,22 +281,25 @@ QtObject {
     function moveFocusDown() {
         // If in scroll mode, scroll the target view instead of changing focus
         if (scrollModeActive && scrollTargetItem) {
-            if (scrollTargetItem.contentY !== undefined) {
+            if (scrollTargetItem.objectName === "conversationView") {
+                // Use the ConversationView's custom navigation for messages
+                scrollTargetItem.navigateDown();
+            } else if (scrollTargetItem.contentY !== undefined) {
+                // Standard scrolling for other types of scroll views
                 var maxY = Math.max(0, scrollTargetItem.contentHeight - scrollTargetItem.height);
                 var newY = Math.min(maxY, scrollTargetItem.contentY + scrollStep);
                 scrollTargetItem.contentY = newY;
                 if (scrollTargetItem.checkIfAtBottom)
                     scrollTargetItem.checkIfAtBottom();
-
             }
-            return ;
+            return;
         }
         if (currentMode === sliderMode) {
             // In slider mode, decrease the value
             if (currentFocusItems[currentFocusIndex] && currentFocusItems[currentFocusIndex].decreaseValue)
                 currentFocusItems[currentFocusIndex].decreaseValue();
 
-            return ;
+            return;
         }
         // Make sure we have focusable items before proceeding
         if (currentFocusItems.length === 0) {
@@ -297,20 +308,20 @@ QtObject {
             if (currentScrollView)
                 scrollDown();
 
-            return ;
+            return;
         }
         // Priority #1: Navigate to next item first (if not at last item)
         if (currentFocusIndex < currentFocusItems.length - 1) {
             currentFocusIndex++;
             setFocusToItem(currentFocusItems[currentFocusIndex]);
-            return ;
+            return;
         }
         // Priority #2: If at last item, try to scroll if not at bottom
         if (currentScrollView) {
             var maxY = Math.max(0, currentScrollView.contentItem.contentHeight - currentScrollView.height);
             if (currentScrollView.contentItem.contentY < maxY) {
                 scrollDown();
-                return ;
+                return;
             }
         }
         // Priority #3: If at last item and bottom of scroll, wrap to first item

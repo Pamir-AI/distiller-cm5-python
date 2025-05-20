@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 
-Rectangle {
+NavigableItem {
     id: messageItem
 
     property string messageText: ""
@@ -18,12 +18,18 @@ Rectangle {
 
     width: parent.width
     height: messageLayout.implicitHeight + ThemeManager.spacingNormal
-    radius: ThemeManager.borderRadius
-    color: ThemeManager.backgroundColor
-    border.color: ThemeManager.black // Always black border for contrast
-    border.width: ThemeManager.borderWidth
     // Don't show the message if it's empty or only contains timestamp brackets
     visible: messageText !== "" && content.trim() !== ""
+
+    // Background rectangle for message
+    Rectangle {
+        id: messageBackground
+        anchors.fill: parent
+        radius: ThemeManager.borderRadius
+        color: messageItem.backgroundColor
+        border.color: ThemeManager.black // Always black border for contrast
+        border.width: ThemeManager.borderWidth
+    }
 
     // Subtle highlight effect for the latest message during response generation
     // Only applied to the actual message rectangle, not extending beyond it
@@ -31,7 +37,7 @@ Rectangle {
         id: highlightEffect
 
         anchors.fill: parent
-        radius: parent.radius
+        radius: messageBackground.radius
         color: isLastMessage && isResponding ? ThemeManager.black : ThemeManager.transparentColor // Solid black highlight instead of subtle color
         visible: isLastMessage && isResponding
         z: -1 // Behind text content
@@ -49,7 +55,7 @@ Rectangle {
         Text {
             text: sender
             font: FontManager.small
-            color: ThemeManager.textColor
+            color: messageItem.textColor
             Layout.fillWidth: true
             visible: sender !== ""
         }
@@ -58,7 +64,7 @@ Rectangle {
         MarkdownText {
             markdownText: content
             textFont: FontManager.normal
-            textColor: ThemeManager.textColor
+            textColor: messageItem.textColor
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
         }
@@ -70,7 +76,7 @@ Rectangle {
             // Display the message type at the bottom left
             Text {
                 text: messageType
-                color: ThemeManager.textColor
+                color: messageItem.textColor
                 horizontalAlignment: Text.AlignLeft
                 Layout.fillWidth: true
                 visible: messageType !== ""
@@ -108,7 +114,7 @@ Rectangle {
             Text {
                 text: timestamp
                 font: FontManager.small
-                color: ThemeManager.textColor
+                color: messageItem.textColor
                 horizontalAlignment: Text.AlignRight
                 Layout.fillWidth: true
                 visible: timestamp !== ""

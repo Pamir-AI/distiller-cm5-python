@@ -4,48 +4,106 @@ import QtQuick.Layouts
 ListView {
     id: conversationView
 
-    // Properties for state tracking - simplified
+    // Core properties
     property bool responseInProgress: false
-    // Track if a response is being generated
     property bool navigable: true
-    // Make focusable for keyboard navigation
     property bool visualFocus: false
-    // For focus management
     property bool scrollModeActive: false
-    // Track if scroll mode is active
-    // Expose scrolling animation for FocusManager
     property alias scrollAnimation: smoothScrollAnimation
+    property int currentMessageIndex: -1
+    property var messagePaginationInfo: ({})
+    property int currentPaginationPage: 0
 
-    // Signal to notify when scroll mode changes
+    // Signal for scroll mode changes
     signal scrollModeChanged(bool active)
 
-    // Update function for external callers
+    // Set response progress and scroll to bottom when needed
     function setResponseInProgress(inProgress) {
-        // Force scroll to bottom when response starts
-
         responseInProgress = inProgress;
         if (inProgress)
             positionViewAtEnd();
-
     }
 
-    // Force scroll to bottom immediately
+    // Force scroll to bottom
     function scrollToBottom() {
         positionViewAtEnd();
     }
 
-    // Method to update the model and scroll to bottom conditionally
+    // Update model and handle scrolling
     function updateModel(newModel) {
-        // Record current position state
         var wasAtEnd = atYEnd;
-        // Update model
         model = newModel;
-        // Position view based on context
         if (responseInProgress || wasAtEnd)
             positionViewAtEnd();
-
+        // Reset pagination info
+        messagePaginationInfo = {};
+        currentPaginationPage = 0;
     }
 
+    // Calculate pagination for large messages
+    function calculateMessagePagination() {
+        messagePaginationInfo = {};
+        for (var i = 0; i < count; i++) {
+            var item = itemAtIndex(i);
+            if (item && item.height > height * 0.8) {
+                // If message is larger than 80% of visible area
+                var pages = Math.ceil(item.height / (height * 0.8));
+                messagePaginationInfo[i] = pages;
+            }
+        }
+    }
+
+    // Navigate to next message or page
+    function navigateDown() {
+        // Already at the last message and page, do nothing
+        if (currentMessageIndex >= count - 1 && currentPaginationPage >= (messagePaginationInfo[currentMessageIndex] || 0) - 1) {
+            return;
+        }
+
+        // Has pagination and not at last page
+        if (messagePaginationInfo[currentMessageIndex] && currentPaginationPage < messagePaginationInfo[currentMessageIndex] - 1) {
+            // Next page within same message
+            currentPaginationPage++;
+            var item = itemAtIndex(currentMessageIndex);
+            if (item) {
+                var pageSize = height * 0.8;
+                var targetY = item.y + (currentPaginationPage * pageSize);
+                contentY = Math.min(targetY, contentHeight - height);
+            }
+        } else {
+            // Next message
+            currentPaginationPage = 0;
+            currentMessageIndex = Math.min(currentMessageIndex + 1, count - 1);
+            positionViewAtIndex(currentMessageIndex, 0);
+        }
+    }
+
+    // Navigate to previous message or page
+    function navigateUp() {
+        // Already at first message and page, do nothing
+        if (currentMessageIndex <= 0 && currentPaginationPage <= 0) {
+            return;
+        }
+
+        // On a paginated message and not at first page
+        if (currentPaginationPage > 0) {
+            // Previous page within same message
+            currentPaginationPage--;
+            var item = itemAtIndex(currentMessageIndex);
+            if (item) {
+                var pageSize = height * 0.8;
+                var targetY = item.y + (currentPaginationPage * pageSize);
+                contentY = Math.min(targetY, contentHeight - height);
+            }
+        } else {
+            // Previous message
+            currentMessageIndex = Math.max(currentMessageIndex - 1, 0);
+            currentPaginationPage = 0;
+            positionViewAtIndex(currentMessageIndex, 0);
+        }
+    }
+
+    // ListView configuration
     objectName: "conversationView"
     focus: visualFocus
     clip: true
@@ -53,44 +111,42 @@ ListView {
     interactive: true
     boundsBehavior: Flickable.StopAtBounds
 
-    // scroll to bottom with boundary enforcement
-    function positionViewAtEnd() {
-        contentY = Math.max(0, contentHeight - height);
-    }
-
-    // Use ListView's built-in positioning features
+    // Auto-scroll handling
     onContentHeightChanged: {
         if (responseInProgress || atYEnd)
             positionViewAtEnd();
-
+        Qt.callLater(calculateMessagePagination);
     }
-    // Automatically scroll to the end when model changes during a response
+
     onModelChanged: {
         if (responseInProgress || atYEnd || count === 0)
             positionViewAtEnd();
-
-    }
-    // Simplified scroll mode handling
-    function safeScroll(direction) {
-        var amount = direction * 50; // 50 pixels per key press
-        var newY = contentY + amount;
-        var maxY = Math.max(0, contentHeight - height);
-        
-        // Apply with bounds check
-        contentY = Math.min(Math.max(0, newY), maxY);
+        currentMessageIndex = -1;
+        currentPaginationPage = 0;
     }
 
+    // Scroll mode handling
     onScrollModeActiveChanged: {
         activeScrollModeInstructions.visible = scrollModeActive;
+        if (scrollModeActive && currentMessageIndex === -1 && count > 0) {
+            // Initialize to last message
+            currentMessageIndex = count - 1;
+            positionViewAtIndex(currentMessageIndex, 0);
+        } else if (!scrollModeActive) {
+            // Reset when exiting
+            currentMessageIndex = -1;
+            currentPaginationPage = 0;
+        }
     }
-    // Add keyboard handling for scroll mode
-    Keys.onPressed: function(event) {
+
+    // Key navigation handling
+    Keys.onPressed: function (event) {
         if (scrollModeActive) {
             if (event.key === Qt.Key_Down) {
-                safeScroll(1); // Scroll down
+                navigateDown();
                 event.accepted = true;
             } else if (event.key === Qt.Key_Up) {
-                safeScroll(-1); // Scroll up
+                navigateUp();
                 event.accepted = true;
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 // Exit scroll mode
@@ -99,7 +155,7 @@ ListView {
                 event.accepted = true;
             }
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            // Enter scroll mode if there's content to scroll
+            // Enter scroll mode if needed
             if (contentHeight > height) {
                 FocusManager.enterScrollMode();
                 scrollModeChanged(true);
@@ -108,20 +164,18 @@ ListView {
         }
     }
 
-    // Animation with zero duration for compatibility with code expecting the animation
+    // Zero-duration animation for compatibility
     NumberAnimation {
         id: smoothScrollAnimation
-
         target: conversationView
         property: "contentY"
         duration: 0 // No animation for e-ink
         easing.type: Easing.Linear
     }
 
-    // Visual instruction when in focus but not in scroll mode
+    // Entry scroll instruction
     Rectangle {
         id: scrollModeInstructions
-
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: ThemeManager.spacingNormal
@@ -139,27 +193,25 @@ ListView {
             anchors.centerIn: parent
             width: parent.width - ThemeManager.spacingNormal * 2
             spacing: 0
-            
+
             Text {
-            	id: scrollModeText
+                id: scrollModeText
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-            	text: "Press Enter to enable scroll mode"
-            	color: ThemeManager.backgroundColor
-            	font: FontManager.small
+                text: "Press Enter to enable scroll mode"
+                color: ThemeManager.backgroundColor
+                font: FontManager.small
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideNone
                 maximumLineCount: 2
             }
         }
-
     }
 
-    // Visual instruction when in scroll mode
+    // Active scroll instruction
     Rectangle {
         id: activeScrollModeInstructions
-
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: ThemeManager.spacingNormal
@@ -171,18 +223,24 @@ ListView {
         radius: ThemeManager.borderRadius
         visible: scrollModeActive
         z: 2
-        
+
         ColumnLayout {
             id: activescrollInstructionLayout
             anchors.centerIn: parent
             width: parent.width - ThemeManager.spacingNormal * 2
             spacing: 0
-            
+
             Text {
                 id: activeScrollModeText
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-                text: "Use ↑/↓ to scroll, Enter to exit"
+                text: {
+                    if (messagePaginationInfo[currentMessageIndex] && messagePaginationInfo[currentMessageIndex] > 1) {
+                        return "Message " + (currentMessageIndex + 1) + "/" + count + " (Page " + (currentPaginationPage + 1) + "/" + messagePaginationInfo[currentMessageIndex] + "), Enter to exit";
+                    } else {
+                        return "Message " + (currentMessageIndex + 1) + "/" + count + ", Enter to exit";
+                    }
+                }
                 color: ThemeManager.backgroundColor
                 font: FontManager.small
                 wrapMode: Text.WordWrap
@@ -191,15 +249,35 @@ ListView {
                 maximumLineCount: 2
             }
         }
-
     }
 
-    // Delegate for message items
+    // Message item delegate
     delegate: MessageItem {
+        id: delegateItem
         width: ListView.view.width
         messageText: typeof modelData === "string" ? modelData : ""
         isLastMessage: index === conversationView.count - 1
         isResponding: conversationView.responseInProgress && index === conversationView.count - 1
+        navigable: !conversationView.scrollModeActive
+
+        // Current message highlight
+        Rectangle {
+            anchors.fill: parent
+            visible: conversationView.scrollModeActive && conversationView.currentMessageIndex === index
+            color: ThemeManager.transparentColor
+            border.color: ThemeManager.textColor
+            border.width: 2
+            radius: ThemeManager.borderRadius
+        }
+
+        onClicked: {
+            if (!conversationView.scrollModeActive) {
+                conversationView.positionViewAtIndex(index, 0);
+            }
+        }
     }
 
+    Component.onCompleted: {
+        Qt.callLater(calculateMessagePagination);
+    }
 }
