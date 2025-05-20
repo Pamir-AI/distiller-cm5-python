@@ -339,4 +339,8 @@ LOGGING_LEVEL = config.get(
     "logging", "level", "INFO"
 ).upper()  # Default to INFO, ensure uppercase
 
-AUTO_RECOGNIZE = config.get("auto_recognize", default=True)
+AUTO_RECOGNIZE = config.get("audio_recognize", "activate",default=True)
+WAKE_WORD = config.get("audio_recognize", "wake_word",default=True)
+
+
+
