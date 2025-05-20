@@ -28,6 +28,7 @@ config = {
             "font_size_large": 18,
             "font_size_xlarge": 20,
         },
+        "Full_Refresh_LUT_MODE": False,
     }
 }
 

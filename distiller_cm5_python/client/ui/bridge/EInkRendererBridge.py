@@ -93,7 +93,10 @@ class EInkRendererBridge(QObject):
                     return
 
                 # Proper initialization sequence
-                self.eink_driver.epd_init_fast()  # Initial hardware setup
+                if config["display"]["Full_Refresh_LUT_MODE"]:
+                    self.eink_driver.epd_init_lut()
+                else:
+                    self.eink_driver.epd_init_fast()  # Initial hardware setup
 
                 self.initialized = True
                 self._first_frame = True
@@ -156,6 +159,8 @@ class EInkRendererBridge(QObject):
                 # Send the data to the display
                 try:
                     self.eink_driver.pic_display(display_data)
+                    if config["display"]["Full_Refresh_LUT_MODE"]: 
+                        time.sleep(1.3)
                 except Exception as e:
                     logger.error(f"Error displaying frame: {e}")
 
@@ -171,7 +176,12 @@ class EInkRendererBridge(QObject):
             self._frame_count = 1
         elif self._frame_count >= self._full_refresh_interval:
             # Time for a full refresh
-            self.eink_driver.epd_init_fast()
+            if config["display"]["Full_Refresh_LUT_MODE"]:
+                self.eink_driver.epd_init_lut()
+                logger.info("FULL REFRESH LUT MODE")
+            else:
+                self.eink_driver.epd_init_fast()
+                logger.info("FULL REFRESH FAST MODE")
             self._frame_count = 1  # Reset counter
         else:
             # Normal partial update
@@ -230,7 +240,10 @@ class EInkRendererBridge(QObject):
             try:
                 with self.driver_lock:
                     # Clear the display before shutting down
+                    
                     self.eink_driver.pic_display_clear(poweroff=True)
+                    if config["display"]["Full_Refresh_LUT_MODE"]: 
+                        time.sleep(1.3)
                     self.eink_driver.cleanup()
                     logger.info("E-ink display cleaned up")
             except Exception as e:
