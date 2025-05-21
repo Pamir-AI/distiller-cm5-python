@@ -3,6 +3,7 @@ import asyncio
 from typing import Optional, List, Dict, Any
 import json
 import logging
+import json5
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client

@@ -4,6 +4,7 @@ Utility functions for parsing LLM responses and related strings.
 
 import re
 import json
+import json5
 import logging
 from typing import Optional, List, Dict, Any
 
@@ -80,13 +81,13 @@ def normalize_tool_call_json(tool_call_str: str) -> str:
             ].strip()  # Strip any whitespace after removing braces
             logger.debug(f"Attempting to parse inner content: '{inner_content}'")
             logger.debug(f"Attempting to parse inner content (repr): {repr(inner_content)}")
-            json.loads(inner_content)
+            json5.loads(inner_content)
             # If inner parse succeeds, assume the outer braces were extra
             tool_call_str = inner_content
             logger.debug(
                 f"Successfully normalized double curly braces: '{tool_call_str}'"
             )
-        except json.JSONDecodeError as e:
+        except ValueError as e:
             logger.warning(f"JSONDecodeError for inner_content: {e}. Inner content was (repr): {repr(inner_content)}")
             # If inner parse fails, try removing both sets of braces
             if tool_call_str.count("{") == 2 and tool_call_str.count("}") == 2:
@@ -94,12 +95,12 @@ def normalize_tool_call_json(tool_call_str: str) -> str:
                     2:-2
                 ].strip()  # Remove both sets of braces
                 try:
-                    json.loads(inner_content)
+                    json5.loads(inner_content)
                     tool_call_str = inner_content
                     logger.debug(
                         f"Successfully removed both sets of braces: '{tool_call_str}'"
                     )
-                except json.JSONDecodeError:
+                except ValueError:
                     logger.debug(
                         f"Failed to parse after removing both sets of braces, leaving as is: '{tool_call_str}'"
                     )
@@ -139,7 +140,9 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
             normalized_content = normalize_tool_call_json(tool_call_content)
 
             # Attempt to parse the normalized JSON
-            tool_call_data = json.loads(normalized_content)
+            tool_call_data = json5.loads(normalized_content)
+
+            logger.info(f"Parsed tool call data: {tool_call_data}")
 
             logger.info(f"Parsed tool call data: {tool_call_data}")
 
@@ -148,8 +151,20 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
                 not isinstance(tool_call_data, dict)
                 or "name" not in tool_call_data
                 # "arguments" check will be handled by transform_tool_arguments
+                # "arguments" check will be handled by transform_tool_arguments
             ):
                 raise ValueError(
+                    "Parsed JSON missing required 'name' field or is not a dictionary."
+                )
+            
+            tool_name = tool_call_data['name']
+            arguments_field = tool_call_data.get("arguments")
+            
+            # Use the new helper function to parse/validate arguments
+            parsed_args_dict = transform_tool_arguments(arguments_field, tool_name)
+
+            logger.info(f"Successfully parsed arguments for tool '{tool_name}'.")
+
                     "Parsed JSON missing required 'name' field or is not a dictionary."
                 )
             
