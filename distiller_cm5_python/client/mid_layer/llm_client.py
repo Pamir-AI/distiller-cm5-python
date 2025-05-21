@@ -17,6 +17,7 @@ from distiller_cm5_python.utils.config import (
     N_CTX,
     MAX_TOKENS,
     STOP,
+    MIN_P,
 )  # Removed unused OPENAI_URL, DEEPSEEK_URL
 from distiller_cm5_python.utils.distiller_exception import (
     UserVisibleError,
@@ -229,6 +230,7 @@ class LLMClient:
             "temperature": TEMPERATURE,
             "top_p": TOP_P,
             "top_k": TOP_K,
+            "min_p": MIN_P,
             "repetition_penalty": REPETITION_PENALTY,
             "max_tokens": MAX_TOKENS,
             "stop": STOP,
@@ -665,6 +667,8 @@ class LLMClient:
             if "tool_calls" in message and message["tool_calls"]:
                 logger.debug("Found tool calls directly in response message object.")
                 tool_calls = message["tool_calls"]
+                if isinstance(tool_calls[0]['function']['arguments'], str):
+                    tool_calls[0]['function']['arguments'] = json.loads(tool_calls[0]['function']['arguments'])
             elif (
                 isinstance(full_response_content, str)
                 and "<tool_call>" in full_response_content
@@ -672,20 +676,15 @@ class LLMClient:
                 logger.debug(
                     "Found <tool_call> tags in response content, attempting to parse."
                 )
-                parsed_calls = parse_tool_calls(full_response_content)
-                if parsed_calls:
-                    tool_calls = parsed_calls
+                tool_calls = parse_tool_calls(full_response_content)
+                if tool_calls:
                     full_response_content = full_response_content.split("<tool_call>")[
                         0
                     ].strip()
                     logger.debug(
                         f"Content updated after extracting tool calls: '{full_response_content[:100]}...'"
                     )
-                else:
-                    logger.warning(
-                        "Found <tool_call> tag in response, but failed to parse any valid calls."
-                    )
-
+                    
             result = {
                 "message": {
                     "content": full_response_content,
@@ -833,8 +832,14 @@ class LLMClient:
                                         and delta["content"] is not None
                                     ):
                                         delta_content = delta["content"]
-                                        full_response_content += delta_content
+                                        # adapt for thinking method in Qwen 3 
+                                        if "<think>" in delta_content or "</think>" in delta_content: 
+                                            delta_content = delta_content.replace("<think>", "").replace("</think>", "").strip()
 
+                                        if delta_content == "" or delta_content == "\n\n":
+                                            continue
+                                            
+                                        full_response_content += delta_content
                                         # Detect potential inline tool call markers (fallback)
                                         # Switch content type if marker found and not already ACTION
                                         if (
@@ -942,9 +947,8 @@ class LLMClient:
                 logger.warning(
                     "Stream ended. No structured tool calls found, but found '<tool_call>' tags in accumulated text. Attempting parse."
                 )
-                parsed_calls = parse_tool_calls(full_response_content)
-                if parsed_calls:
-                    final_tool_calls = parsed_calls
+                final_tool_calls = parse_tool_calls(full_response_content)
+                if final_tool_calls:
                     # Remove the tool call section from the final content
                     full_response_content = full_response_content.split("<tool_call>")[
                         0
@@ -955,9 +959,9 @@ class LLMClient:
                     # Re-dispatch the extracted tool calls if a dispatcher exists
                     if dispatcher:
                         logger.info(
-                            f"Dispatching {len(parsed_calls)} tool calls parsed from text."
+                            f"Dispatching {len(final_tool_calls)} tool calls parsed from text."
                         )
-                        for call in parsed_calls:
+                        for call in final_tool_calls:
                             # Ensure the call structure matches what MessageSchema.tool_call expects
                             if isinstance(call, dict) and "function" in call:
                                 dispatcher.dispatch(MessageSchema.tool_call(call))
@@ -970,11 +974,16 @@ class LLMClient:
                 else:
                     self._emit_success(dispatcher, str(uuid.uuid4()), EventType.MESSAGE, "tool call parsing failed, please retry")
 
-            logger.info(
-                f"LLMClient.get_chat_completion_streaming_response: Processed result. Content length: {len(full_response_content)}, Tool calls: {len(final_tool_calls)}"
-            )
+                logger.info(
+                    f"LLMClient.get_chat_completion_streaming_response: Processed result. Content length: {len(full_response_content)}, Tool calls: {len(final_tool_calls)}"
+                )
+            else:
 
-            
+                logger.debug("Found tool calls directly in response message object.")
+
+                if len(final_tool_calls)>0 and isinstance(final_tool_calls[0]['function']['arguments'], str):
+                    final_tool_calls[0]['function']['arguments'] = json.loads(final_tool_calls[0]['function']['arguments'])
+
             return {
                 "message": {
                     "content": full_response_content,

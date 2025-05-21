@@ -6,7 +6,7 @@ import asyncio
 import argparse
 import sys
 import os
-import time
+import threading
 import logging  # Import standard logging
 from colorama import Fore, Style, init as colorama_init
 
@@ -26,7 +26,10 @@ from distiller_cm5_python.utils.config import (
     LOGGING_LEVEL,
     MCP_SERVER_SCRIPT_PATH,
     API_KEY,
+    AUTO_RECOGNIZE,
+    WAKE_WORD
 )
+
 from distiller_cm5_python.utils.distiller_exception import (
     UserVisibleError,
     LogOnlyError,
@@ -36,13 +39,16 @@ from functools import partial  # Import partial for asyncio.to_thread
 # Try to import whisper, but don't fail if it's not available initially.
 # We'll handle the actual import attempt later based on args.
 try:
-    from distiller_cm5_sdk import whisper
+    from distiller_cm5_sdk import parakeet
 except ImportError:
-    whisper = None  # Placeholder if the SDK isn't installed
+    parakeet = None  # Placeholder if the SDK isn't installed
 
 # Get logger for this module after setup
 logger = logging.getLogger(__name__)
 
+is_wake = False
+wake_timer = None
+lock = threading.Lock()
 
 class CLIEventHandler:
     """Handles UI events for CLI display"""
@@ -106,98 +112,134 @@ class CLIEventHandler:
             logger.debug(f"CLIEventHandler received unhandled event type: {evt.type}")
 
 
-async def chat_loop(client: MCPClient, whisper_instance):
+async def chat_loop(client: MCPClient, parakeet_instance):
     """Start an interactive chat loop with the user, supporting text and audio input."""
-    colorama_init()  # Initialize colorama
 
-    if whisper_instance:
+    colorama_init()  # Initialize colorama
+    if AUTO_RECOGNIZE and parakeet_instance:
+        print(f"{Style.BRIGHT}Auto recognition enabled.{Style.RESET_ALL}")
+        input_type = "AUTO_RECOGNIZE"
+
+    elif parakeet_instance:
         print(
             f"{Style.BRIGHT}Chat session started. Type '/mic' to record audio, 'exit' or 'quit' to end.{Style.RESET_ALL}\n"
         )
+        input_type = "PUSH_TO_TALK"
+
     else:
         print(
             f"{Style.BRIGHT}Chat session started (Audio disabled). Type 'exit' or 'quit' to end.{Style.RESET_ALL}\n"
         )
+        input_type = "CONSOLE_INPUT"
 
+    global is_wake
+    is_wake = False
     while True:
-        user_input_text = ""
-        transcribed_text = ""
+        user_input_for_llm = ""
         try:
             # Get user input asynchronously to avoid blocking
             prompt = f"{Style.BRIGHT}\nYou: {Style.RESET_ALL}"
-            # Use asyncio.to_thread to run the blocking input() in a separate thread
-            user_input_text = await asyncio.to_thread(partial(input, prompt))
-
-            # Check for exit command
-            if user_input_text.lower() in ["exit", "quit", "q"]:
-                print("Exiting chat...")
-                break
-
-            # Check for audio input command
-            if user_input_text.lower() == "/mic":
-                if whisper_instance is None:
-                    print(
-                        f"{Fore.YELLOW}Audio input is disabled (SDK not found or --disable-audio used).{Style.RESET_ALL}"
-                    )
-                    continue
-
-                print(
-                    f"{Fore.YELLOW}Starting audio input... Press Enter to start recording.{Style.RESET_ALL}"
+            if input_type =="AUTO_RECOGNIZE":
+                logging.info(
+                    f"{Fore.YELLOW}Starting vad audio input... {Style.RESET_ALL}"
                 )
-                await asyncio.to_thread(input)  # Wait for Enter press
-
-                if await asyncio.to_thread(whisper_instance.start_recording):
-                    print(
-                        f"{Fore.YELLOW}Recording... Press Enter to stop.{Style.RESET_ALL}"
-                    )
-                    await asyncio.to_thread(input)  # Wait for Enter press to stop
-                    audio_data = await asyncio.to_thread(
-                        whisper_instance.stop_recording
-                    )
-
-                    if audio_data:
-                        print(f"{Fore.YELLOW}Transcribing...{Style.RESET_ALL}")
-                        # Transcribe using asyncio.to_thread as transcribe_buffer might be CPU-bound
-                        transcribed_segments = []
-                        try:
-                            # Use a wrapper function for the generator in to_thread
-                            def get_transcription_sync(data):
-                                return list(whisper_instance.transcribe_buffer(data))
-
-                            transcribed_segments = await asyncio.to_thread(
-                                get_transcription_sync, audio_data
-                            )
-
-                        except Exception as e:
-                            logger.error(f"Error during transcription: {e}")
+                print(f"{Fore.YELLOW}{prompt}{Style.RESET_ALL}")
+                for text in parakeet_instance.auto_record_and_transcribe():
+                    user_input_text = text
+                    logging.info(f"{Fore.YELLOW}Transcribed text: {text}{Style.RESET_ALL}")
+                    if user_input_text:
+                        wake_status = check_wake_word_status(user_input_text, is_wake)
+                        if wake_status == 1:
+                            is_wake = True
+                            cancel_wake_timer()
                             print(
-                                f"{Fore.RED}\nError during transcription: {e}{Style.RESET_ALL}"
+                                f"{Style.BRIGHT}You (Audio): {Style.RESET_ALL}{user_input_text}"
                             )
-                            continue  # Skip processing this turn
-
-                        if transcribed_segments:
-                            transcribed_text = " ".join(transcribed_segments).strip()
+                        elif wake_status == 2:
+                            is_wake = True
+                            user_input_for_llm = user_input_text
+                            cancel_wake_timer()
                             print(
-                                f"{Style.BRIGHT}You (Audio): {Style.RESET_ALL}{transcribed_text}"
+                                f"{Style.BRIGHT}You (Audio): {Style.RESET_ALL}{user_input_text}"
                             )
-                            user_input_for_llm = (
-                                transcribed_text  # Use transcribed text
-                            )
-                            # Send transcribed text to client
-                            await client.process_query(user_input_for_llm)
+                            break
                         else:
-                            print(
-                                f"{Fore.YELLOW}Transcription returned no text.{Style.RESET_ALL}"
-                            )
-                            continue  # Skip processing if transcription is empty
+                            continue
+
+            elif input_type =="PUSH_TO_TALK":
+                # Use asyncio.to_thread to run the blocking input() in a separate thread
+                user_input_text = await asyncio.to_thread(partial(input, prompt))
+
+                # Check for exit command
+                if user_input_text.lower() in ["exit", "quit", "q"]:
+                    print("Exiting chat...")
+                    break
+
+                elif user_input_text.lower() == "/mic":
+                    if parakeet_instance is None:
+                        print(
+                            f"{Fore.YELLOW}Audio input is disabled (SDK not found or --disable-audio used).{Style.RESET_ALL}"
+                        )
+                        continue
+
+                    print(
+                        f"{Fore.YELLOW}Starting audio input... Press Enter to start recording.{Style.RESET_ALL}"
+                    )
+                    await asyncio.to_thread(input)  # Wait for Enter press
+
+                    if await asyncio.to_thread(parakeet_instance.start_recording):
+                        print(
+                            f"{Fore.YELLOW}Recording... Press Enter to stop.{Style.RESET_ALL}"
+                        )
+                        await asyncio.to_thread(input)  # Wait for Enter press to stop
+                        audio_data = await asyncio.to_thread(
+                            parakeet_instance.stop_recording
+                        )
+
+                        if audio_data:
+                            print(f"{Fore.YELLOW}Transcribing...{Style.RESET_ALL}")
+                            # Transcribe using asyncio.to_thread as transcribe_buffer might be CPU-bound
+                            transcribed_segments = []
+                            try:
+                                # Use a wrapper function for the generator in to_thread
+                                def get_transcription_sync(data):
+                                    return list(parakeet_instance.transcribe_buffer(data))
+
+                                transcribed_segments = await asyncio.to_thread(
+                                    get_transcription_sync, audio_data
+                                )
+
+                            except Exception as e:
+                                logger.error(f"Error during transcription: {e}")
+                                print(
+                                    f"{Fore.RED}\nError during transcription: {e}{Style.RESET_ALL}"
+                                )
+                                continue  # Skip processing this turn
+
+                            if transcribed_segments:
+                                transcribed_text = " ".join(transcribed_segments).strip()
+                                print(
+                                    f"{Style.BRIGHT}You (Audio): {Style.RESET_ALL}{transcribed_text}"
+                                )
+                                user_input_for_llm = (
+                                    transcribed_text  # Use transcribed text
+                                )
+                                # Send transcribed text to client
+                                await client.process_query(user_input_for_llm)
+                            else:
+                                print(
+                                    f"{Fore.YELLOW}Transcription returned no text.{Style.RESET_ALL}"
+                                )
+                                continue  # Skip processing if transcription is empty
+                        else:
+                            print(f"{Fore.YELLOW}No audio recorded.{Style.RESET_ALL}")
+                            continue  # Go back to the start of the loop for new input
                     else:
-                        print(f"{Fore.YELLOW}No audio recorded.{Style.RESET_ALL}")
-                        continue  # Go back to the start of the loop for new input
+                        print(f"{Fore.RED}Failed to start recording.{Style.RESET_ALL}")
+                        continue  # Go back to the start of the loop
+
                 else:
-                    print(f"{Fore.RED}Failed to start recording.{Style.RESET_ALL}")
-                    continue  # Go back to the start of the loop
-            else:
-                user_input_for_llm = user_input_text  # Use text input
+                    user_input_for_llm = user_input_text  # Use text input
 
             # Process the query (either text or transcribed audio)
             if not user_input_for_llm:  # Should only happen if text input was empty
@@ -205,6 +247,7 @@ async def chat_loop(client: MCPClient, whisper_instance):
 
             try:
                 await client.process_query(user_input_for_llm)
+                reset_wake_timer()
                 print()  # Ensure newline after the full response/stream is printed
             except LogOnlyError as e:
                 # Handle errors potentially raised from within process_query's streaming
@@ -240,6 +283,50 @@ async def chat_loop(client: MCPClient, whisper_instance):
             logger.exception("Error details:")
             # break # Optional: exit on unexpected errors
 
+def check_wake_word_status(text: str, is_waked) -> int:
+
+    if is_waked:
+        return 2
+
+    words = (text.strip().lower()
+             .replace(".", "")
+             .replace("!", "")
+             .replace(",","")
+             .split())
+
+    # Only wake
+    if WAKE_WORD.lower() in words and len(words) <= 3:
+        return 1
+    #  Wake + Speak
+    elif  WAKE_WORD.lower() in words and len(words) > 3:
+        return 2
+    #  No wake
+    else:
+        return 3
+
+def expire_wake():
+    global is_wake
+    with lock:
+        is_wake = False
+    logging.info(f"{Fore.YELLOW}[wake word expired]{Style.RESET_ALL}")
+
+def reset_wake_timer():
+    global wake_timer
+    # If a previous timer exists and hasn't triggered yet, cancel it
+    if wake_timer is not None:
+        wake_timer.cancel()
+    # Start a new 2-second timer
+    wake_timer = threading.Timer(7, expire_wake)
+    wake_timer.daemon = True   # Daemon thread, automatically exits with the program
+    wake_timer.start()
+    logging.info(f"{Fore.YELLOW}[wake word reset]{Style.RESET_ALL}")
+
+def cancel_wake_timer():
+    global wake_timer
+    if wake_timer is not None:
+        wake_timer.cancel()
+        wake_timer = None
+        logging.info(f"{Fore.YELLOW}[wake word timer cancelled]{Style.RESET_ALL}")
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="MCP Client CLI")
@@ -273,6 +360,7 @@ def parse_arguments():
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set logging level",
     )
+
     parser.add_argument(
         "--disable-audio",
         action="store_true",
@@ -316,21 +404,21 @@ async def main():
         dispatcher=event_dispatcher,
     )
 
-    # Instantiate Whisper only if SDK is available and not disabled
-    whisper_module = None
-    whisper_instance = None
+    # Instantiate parakeetAsr only if SDK is available and not disabled
+    parakeet_module = None
+    parakeet_instance = None
     if not args.disable_audio:
         try:
             # Dynamically import whisper if not already done or if it was None
-            global whisper
-            if whisper is None:
-                from distiller_cm5_sdk import whisper as sdk_whisper
+            global parakeet
+            if parakeet is None:
+                from distiller_cm5_sdk import parakeet as sdk_parakeet
 
-                whisper = sdk_whisper  # Assign to the global placeholder
+                parakeet = sdk_parakeet  # Assign to the global placeholder
 
-            if whisper:  # Check if import succeeded
-                whisper_instance = whisper.Whisper()
-                logger.info("Whisper SDK loaded and instance created.")
+            if parakeet:  # Check if import succeeded
+                parakeet_instance = parakeet.Parakeet(vad_silence_duration=0.5)
+                logger.info("Parakeet SDK loaded and instance created.")
             else:
                 logger.warning("Audio input disabled: distiller_cm5_sdk not found.")
                 print(
@@ -341,15 +429,15 @@ async def main():
             print(
                 f"{Fore.YELLOW}Warning: Failed to import distiller_cm5_sdk. Audio input will be disabled.{Style.RESET_ALL}"
             )
-            whisper = None  # Ensure whisper is None if import fails here
+            parakeet = None  # Ensure whisper is None if import fails here
         except Exception as e:
-            logger.error(f"Error initializing Whisper: {e}", exc_info=True)
+            logger.error(f"Error initializing Parakeet: {e}", exc_info=True)
             print(f"{Fore.RED}Error initializing audio input: {e}{Style.RESET_ALL}")
-            whisper_instance = None  # Ensure instance is None on error
-            whisper = None  # Ensure whisper module ref is None
+            parakeet_instance = None  # Ensure instance is None on error
+            parakeet = None  # Ensure parakeet module ref is None
     else:
         logger.info("Audio input explicitly disabled via --disable-audio flag.")
-        whisper = None  # Ensure whisper is None if disabled by flag
+        parakeet = None  # Ensure parakeet is None if disabled by flag
 
     try:
         logger.info("Connecting to MCP server...")
@@ -362,7 +450,7 @@ async def main():
             sys.exit(1)
 
         logger.info("Connection successful. Starting chat loop.")
-        await chat_loop(client, whisper_instance)  # Pass whisper instance
+        await chat_loop(client, parakeet_instance)  # Pass whisper instance
 
     except UserVisibleError as e:
         logger.error(f"Initialization Error: {e}")
@@ -374,8 +462,8 @@ async def main():
         logger.info("Cleaning up client resources...")
         await client.cleanup()
         logger.info("Cleaning up Whisper resources...")
-        if whisper_instance:
-            whisper_instance.cleanup()  # Cleanup Whisper resources only if it exists
+        if parakeet_instance:
+            parakeet_instance.cleanup()  # Cleanup Whisper resources only if it exists
         else:
             logger.info("Whisper resources cleanup skipped (instance not created).")
         logger.info("Cleaning up event dispatcher...")

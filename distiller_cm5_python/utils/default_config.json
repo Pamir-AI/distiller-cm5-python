@@ -2,14 +2,15 @@
   "llm_providers": {
     "llama-cpp": {
       "server_url": "http://127.0.0.1:8000",
-      "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "model_name": "Qwen3-1.7B-Q4_K_M.gguf",
       "provider_type": "llama-cpp",
       "api_key": "",
       "timeout": 150,
       "temperature": 0.7,
       "top_p": 0.8,
       "top_k": 20,
-      "repetition_penalty": 1.0,
+      "min_p": 0.0,
+      "repetition_penalty": 1.5,
       "n_ctx": 32768,
       "max_tokens": 4096,
       "stop": [
@@ -21,7 +22,7 @@
     },
     "openrouter": {
       "server_url": "https://openrouter.ai/api/v1",
-      "model_name": "google/gemini-2.0-flash-exp:free",
+      "model_name": "*",
       "provider_type": "openrouter",
       "api_key": "sk-or-v1-*",
       "timeout": 60,
@@ -32,17 +33,22 @@
   },
   "active_llm_provider": "llama-cpp",
   "logging": {
-    "level": "INFO",
+    "level": "DEBUG",
     "file_enabled": false,
     "file_path": "mcp_client.log"
   },
   "prompts": {
-    "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."
+    "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user. /no_think"
   },
   "mcp_server": {
-    "server_script_path": "*"
+    "server_script_path": "distiller_cm5_python/mcp_server/beep_server.py"
   },
   "display": {
     "dark_mode": "false"
+  },
+  "audio_recognize": {
+    "activate": true,
+    "wake_word": "Siri"
   }
+
 }
