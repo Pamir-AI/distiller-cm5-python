@@ -118,6 +118,8 @@ class MCPClient:
 
         try:
             logger.debug(f"Setting up stdio transport")
+            
+            self.message_processor.cleanup() # reset message processor
 
             start_time = time.time()
             stdio_transport = await self.exit_stack.enter_async_context(
@@ -565,7 +567,8 @@ class MCPClient:
         logger.info("Starting MCP client cleanup")
 
         # Cancel all running tasks first
-        self._cancel_all_running_tasks()
+        await self._cancel_all_running_tasks()
+
 
         # If we have a process, terminate it
         if hasattr(self, "_proc") and self._proc:
@@ -599,26 +602,54 @@ class MCPClient:
 
         logger.info("MCP client cleanup completed")
 
-    def _cancel_all_running_tasks(self):
+    async def _cancel_all_running_tasks(self):
         """Cancel all running tasks safely."""
         logger.info("Cancelling all MCP client tasks")
 
-        try:
-            # Get all tasks in the current event loop
-            for task in asyncio.all_tasks():
-                # Skip the current task (cleanup)
-                if task is asyncio.current_task():
-                    continue
+        tasks_to_cancel_and_wait = []
+        current_task = asyncio.current_task()  # Task running this cleanup logic
 
-                # Only cancel tasks that belong to our client
-                task_name = task.get_name()
-                if "mcp_client" in task_name.lower():
-                    logger.info(f"Cancelling task: {task_name}")
+        # Identify tasks to cancel
+        # Iterate over a copy of all_tasks() in case the set changes during iteration
+        for task in list(asyncio.all_tasks()):
+            if task is current_task:  # Don't cancel self
+                continue
+
+            task_name = task.get_name()
+            # Only cancel tasks that seem to belong to our client based on naming convention
+            if "mcp_client" in task_name.lower():
+                if not task.done():
+                    logger.info(f"Scheduling cancellation for MCP client task: {task_name or 'Unnamed task'}")
                     task.cancel()
+                    tasks_to_cancel_and_wait.append(task)
+            # Consider if there are other criteria for identifying client-related tasks
 
-            logger.info("All MCP client tasks cancelled")
-        except Exception as e:
-            logger.error(f"Error cancelling tasks: {e}", exc_info=True)
+        if not tasks_to_cancel_and_wait:
+            logger.info("No running MCP client tasks found to cancel and wait for.")
+            return
+
+        logger.info(f"Waiting for {len(tasks_to_cancel_and_wait)} tasks to acknowledge cancellation (timeout per task: 2s)...")
+
+        # Wait for tasks to complete or timeout
+        results = await asyncio.gather(
+            *[asyncio.wait_for(task, timeout=2.0) for task in tasks_to_cancel_and_wait],
+            return_exceptions=True
+        )
+
+        for task, result in zip(tasks_to_cancel_and_wait, results):
+            task_name = task.get_name() or "Unnamed task"
+            if isinstance(result, asyncio.CancelledError):
+                logger.info(f"Task '{task_name}' was cancelled successfully.")
+            elif isinstance(result, asyncio.TimeoutError):
+                logger.warning(f"Task '{task_name}' timed out during cancellation grace period.")
+            elif isinstance(result, Exception):
+                # Log the exception type and message. exc_info=result could be used for full trace.
+                logger.error(f"Task '{task_name}' raised an exception during/after cancellation: {type(result).__name__}: {result}", exc_info=False)
+            else:
+                # Task finished, possibly before timeout or wasn't cancellable in a way that raises CancelledError
+                logger.info(f"Task '{task_name}' completed after cancellation request (result type: {type(result).__name__}).")
+
+        logger.info("Finished processing cancellation for MCP client tasks.")
 
     async def _safe_aclose_exit_stack(self):
         """Safely close the exit stack with error handling."""

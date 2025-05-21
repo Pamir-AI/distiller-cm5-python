@@ -59,6 +59,15 @@ class MessageProcessor:
         logger.debug(
             f"MessageProcessor.__init__: Initialized with {'Enabled' if self.save_debug_traffic else 'Disabled'} mode"
         )
+    
+    def cleanup(self):
+        """Cleanup the message processor"""
+        self.message_history = []
+        self.session_start_time = timestamp_to_time(time.time()).replace(":", "-")
+        self.save_debug_traffic = LOGGING_LEVEL == "DEBUG"
+        self.debug_history_file = (
+            f"debug_message_traffic_{self.session_start_time}.json"
+        )
 
     def add_message(
         self,
