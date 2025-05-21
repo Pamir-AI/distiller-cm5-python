@@ -159,8 +159,8 @@ class EInkRendererBridge(QObject):
                 # Send the data to the display
                 try:
                     self.eink_driver.pic_display(display_data)
-                    if config["display"]["Full_Refresh_LUT_MODE"]: 
-                        time.sleep(1.3)
+                    # if config["display"]["Full_Refresh_LUT_MODE"]: 
+                    #     time.sleep(1.3)
                 except Exception as e:
                     logger.error(f"Error displaying frame: {e}")
 
@@ -242,8 +242,8 @@ class EInkRendererBridge(QObject):
                     # Clear the display before shutting down
                     
                     self.eink_driver.pic_display_clear(poweroff=True)
-                    if config["display"]["Full_Refresh_LUT_MODE"]: 
-                        time.sleep(1.3)
+                    # if config["display"]["Full_Refresh_LUT_MODE"]: 
+                    #     time.sleep(1.3)
                     self.eink_driver.cleanup()
                     logger.info("E-ink display cleaned up")
             except Exception as e:

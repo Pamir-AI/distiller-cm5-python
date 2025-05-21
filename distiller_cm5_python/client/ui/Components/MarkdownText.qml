@@ -1,5 +1,4 @@
-import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick
 
 // Use Item as container to handle the background
 Item {
@@ -24,28 +23,6 @@ Item {
     // The actual TextEdit
     TextEdit {
         id: markdownTextEdit
-
-        // Fill the container
-        anchors.fill: parent
-
-        // Configuration
-        text: markdownTextContainer.markdownText
-        textFormat: TextEdit.MarkdownText
-        readOnly: true
-        wrapMode: TextEdit.Wrap
-        selectByMouse: true
-        selectByKeyboard: false
-
-        // Styling
-        font: markdownTextContainer.textFont
-        color: markdownTextContainer.textColor
-
-        // Make background transparent
-        Rectangle {
-            z: -1
-            anchors.fill: parent
-            color: ThemeManager.transparentColor
-        }
 
         // Style the markdown with CSS
         property string cssStyle: "
@@ -96,9 +73,30 @@ Item {
             }
         "
 
+        // Fill the container
+        anchors.fill: parent
+        // Configuration
+        text: markdownTextContainer.markdownText
+        textFormat: TextEdit.MarkdownText
+        readOnly: true
+        wrapMode: TextEdit.Wrap
+        selectByMouse: true
+        selectByKeyboard: false
+        // Styling
+        font: markdownTextContainer.textFont
+        color: markdownTextContainer.textColor
         // Set the CSS style sheet
         Component.onCompleted: {
             textDocument.defaultStyleSheet = cssStyle;
         }
+
+        // Make background transparent
+        Rectangle {
+            z: -1
+            anchors.fill: parent
+            color: ThemeManager.transparentColor
+        }
+
     }
+
 }

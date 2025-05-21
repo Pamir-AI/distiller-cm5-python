@@ -1,5 +1,5 @@
-import QtQuick 2.15
 pragma Singleton
+import QtQuick
 
 QtObject {
     // Subtle overlay for hover effects
@@ -7,6 +7,7 @@ QtObject {
     // Standard button height
     // Text on accent background: Black/White
     // Lighter version of accent color
+    // No animations for e-ink
 
     id: themeManager
 
@@ -14,33 +15,29 @@ QtObject {
     property bool darkMode: false
     // Theme caching to reduce bridge calls
     property bool themeCached: false
-    
     // Simplified black and white palette - no gradients
     readonly property color black: "#000000"
     readonly property color white: "#FFFFFF"
     readonly property color backgroundColor: darkMode ? black : white
     readonly property color textColor: darkMode ? white : black
     readonly property color transparentColor: "transparent"
-    
     // Sizes and metrics
-    readonly property real borderRadius: 6  // Border radius for rectangles
-    readonly property real borderWidth: 2  // Border width
-    readonly property real animationDuration: 0  // No animations for e-ink
-    
+    readonly property real borderRadius: 6
+    // Border radius for rectangles
+    readonly property real borderWidth: 2
+    // Border width
+    readonly property real animationDuration: 0
     // Padding
     readonly property real paddingSmall: 4
     readonly property real paddingNormal: 8
     readonly property real paddingLarge: 12
-    
     // Spacing
     readonly property real spacingSmall: 8
     readonly property real spacingNormal: 16
     readonly property real spacingLarge: 20
     readonly property real spacingTiny: 4
-    
     // Component specific properties
     readonly property real buttonHeight: 36
-    
     // Icon management - using more defined paths
     readonly property string basePath: "../../images/icons/"
     readonly property string lightIconPath: basePath

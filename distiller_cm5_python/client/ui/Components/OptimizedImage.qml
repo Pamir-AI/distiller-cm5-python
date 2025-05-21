@@ -1,4 +1,4 @@
-import QtQuick 2.15
+import QtQuick
 
 // Optimized image component with performance enhancements for e-ink
 Image {
@@ -18,8 +18,12 @@ Image {
     // Default properties optimized for performance
     asynchronous: true
     cache: true
-    mipmap: smooth
     smooth: true
+    mipmap: smooth
+
+    // Use the sourceClipRect property for better performance
+    sourceClipRect: Qt.rect(0, 0, sourceSize.width, sourceSize.height)
+
     // Automatically handle fallback source on error
     onStatusChanged: {
         if (status === Image.Error && fallbackSource !== "") {
@@ -46,7 +50,5 @@ Image {
             color: ThemeManager.textColor
             font.pixelSize: Math.min(parent.width, parent.height) * 0.2
         }
-
     }
-
 }
