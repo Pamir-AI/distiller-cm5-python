@@ -37,6 +37,17 @@ def setup_logging(log_level: int = LOGGING_LEVEL, stream: IO = sys.stdout):
     # Add our handler
     root_logger.addHandler(stream_handler)
 
+    # --- BEGIN: Specific level for server.py's logger ---
+    # Set the logger for when server.py is imported
+    server_module_logger_name = "distiller_cm5_python.llm_server.server"
+    server_module_logger = logging.getLogger(server_module_logger_name)
+    server_module_logger.setLevel(logging.DEBUG)
+
+    # Set the logger for when server.py is run as __main__
+    main_logger = logging.getLogger("__main__")
+    main_logger.setLevel(logging.DEBUG)
+    # --- END: Specific level for server.py's logger ---
+
     # Optionally quiet overly verbose libraries
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)

@@ -277,31 +277,6 @@ class Config:
 # Create global configuration instance
 config = Config()
 
-# Expose commonly used configuration values
-SERVER_URL = config.get("llm", "server_url")
-MODEL_NAME = config.get("llm", "model_name")
-PROVIDER_TYPE = config.get("llm", "provider_type")
-API_KEY = config.get("llm", "api_key")
-TIMEOUT = config.get("llm", "timeout")
-STREAMING_ENABLED = config.get("llm", "streaming")
-STREAMING_CHUNK_SIZE = config.get("llm", "streaming_chunk_size")
-DEFAULT_SYSTEM_PROMPT = config.get("prompts", "default_system_prompt")
-MCP_SERVER_SCRIPT_PATH = config.get("mcp_server", "server_script_path")
-LOGGING_LEVEL = config.get("logging", "level")
-
-# Backwards compatibility aliases
-TEMPERATURE = config.get("llm", "temperature")
-TOP_P = config.get("llm", "top_p")
-TOP_K = config.get("llm", "top_k")
-REPETITION_PENALTY = config.get("llm", "repetition_penalty")
-N_CTX = config.get("llm", "n_ctx")
-MAX_TOKENS = config.get("llm", "max_tokens")
-STOP = config.get("llm", "stop")
-MAX_MESSAGES_LENGTH = config.get("llm", "max_messages_length")
-# Add Llama.cpp specific constant
-LLAMA_CPP_START_WAIT_TIME = config.get(
-    "llama_cpp", "start_wait_time", default=30
-)  # Default 3 seconds
 
 # --- Global Configuration Instance ---
 config = Config()
@@ -345,11 +320,13 @@ STREAMING_CHUNK_SIZE = get_active_config(
 TEMPERATURE = get_active_config("temperature", 0.7)
 TOP_P = get_active_config("top_p", 0.8)
 TOP_K = get_active_config("top_k", 20)
+MIN_P = get_active_config("min_p", 0.0)
 REPETITION_PENALTY = get_active_config("repetition_penalty", 1.0)
 N_CTX = get_active_config("n_ctx", 32768)  # Context window size
 MAX_TOKENS = get_active_config("max_tokens", 4096)  # Max generation tokens
 STOP = get_active_config("stop", ["\n\n"])  # Stop sequences
 MAX_MESSAGES_LENGTH = get_active_config("max_messages_length", 100)  # History length
+LLAMA_CPP_START_WAIT_TIME = get_active_config("timeout", 30)  # Default 3 seconds
 
 # Non-LLM specific configurations (remain as before)
 DEFAULT_SYSTEM_PROMPT = config.get(
@@ -361,3 +338,9 @@ MCP_SERVER_SCRIPT_PATH = config.get(
 LOGGING_LEVEL = config.get(
     "logging", "level", "INFO"
 ).upper()  # Default to INFO, ensure uppercase
+
+AUTO_RECOGNIZE = config.get("audio_recognize", "activate",default=True)
+WAKE_WORD = config.get("audio_recognize", "wake_word",default=True)
+
+
+
