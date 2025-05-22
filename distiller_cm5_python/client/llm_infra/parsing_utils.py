@@ -164,9 +164,6 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
             parsed_args_dict = transform_tool_arguments(arguments_field, tool_name)
 
             logger.info(f"Successfully parsed arguments for tool '{tool_name}'.")
-
-                    "Parsed JSON missing required 'name' field or is not a dictionary."
-                )
             
             tool_name = tool_call_data['name']
             arguments_field = tool_call_data.get("arguments")
