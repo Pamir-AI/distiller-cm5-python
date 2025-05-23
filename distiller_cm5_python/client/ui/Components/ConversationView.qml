@@ -38,6 +38,8 @@ ListView {
         // Reset pagination info
         messagePaginationInfo = {};
         currentPaginationPage = 0;
+        // Calculate pagination for new model
+        Qt.callLater(calculateMessagePagination);
     }
 
     // Calculate pagination for large messages
@@ -53,12 +55,26 @@ ListView {
         }
     }
 
+    // Ensure pagination is calculated for current index
+    function ensureCurrentMessagePagination() {
+        if (currentMessageIndex >= 0 && currentMessageIndex < count) {
+            var item = itemAtIndex(currentMessageIndex);
+            if (item && item.height > height * 0.8) {
+                var pages = Math.ceil(item.height / (height * 0.8));
+                messagePaginationInfo[currentMessageIndex] = pages;
+            }
+        }
+    }
+
     // Navigate to next message or page
     function navigateDown() {
         // Already at the last message and page, do nothing
         if (currentMessageIndex >= count - 1 && currentPaginationPage >= (messagePaginationInfo[currentMessageIndex] || 0) - 1) {
             return;
         }
+
+        // Ensure pagination is calculated for current message
+        ensureCurrentMessagePagination();
 
         // Has pagination and not at last page
         if (messagePaginationInfo[currentMessageIndex] && currentPaginationPage < messagePaginationInfo[currentMessageIndex] - 1) {
@@ -72,9 +88,11 @@ ListView {
             }
         } else {
             // Next message
-            currentPaginationPage = 0;
             currentMessageIndex = Math.min(currentMessageIndex + 1, count - 1);
+            currentPaginationPage = 0;
             positionViewAtIndex(currentMessageIndex, 0);
+            // Ensure pagination is calculated for the new current message
+            ensureCurrentMessagePagination();
         }
     }
 
@@ -84,6 +102,9 @@ ListView {
         if (currentMessageIndex <= 0 && currentPaginationPage <= 0) {
             return;
         }
+
+        // Ensure pagination is calculated for current message
+        ensureCurrentMessagePagination();
 
         // On a paginated message and not at first page
         if (currentPaginationPage > 0) {
@@ -100,6 +121,8 @@ ListView {
             currentMessageIndex = Math.max(currentMessageIndex - 1, 0);
             currentPaginationPage = 0;
             positionViewAtIndex(currentMessageIndex, 0);
+            // Ensure pagination is calculated for the new current message
+            ensureCurrentMessagePagination();
         }
     }
 
@@ -116,6 +139,10 @@ ListView {
         if (responseInProgress || atYEnd)
             positionViewAtEnd();
         Qt.callLater(calculateMessagePagination);
+        if (scrollModeActive && currentMessageIndex >= 0) {
+            // Recalculate for current message if we're in scroll mode
+            Qt.callLater(ensureCurrentMessagePagination);
+        }
     }
 
     onModelChanged: {
@@ -132,6 +159,8 @@ ListView {
             // Initialize to last message
             currentMessageIndex = count - 1;
             positionViewAtIndex(currentMessageIndex, 0);
+            // Ensure pagination is calculated for the initial current message
+            Qt.callLater(ensureCurrentMessagePagination);
         } else if (!scrollModeActive) {
             // Reset when exiting
             currentMessageIndex = -1;
@@ -235,6 +264,11 @@ ListView {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
                 text: {
+                    // Ensure we refresh pagination info when showing text
+                    if (scrollModeActive && currentMessageIndex >= 0) {
+                        ensureCurrentMessagePagination();
+                    }
+                    
                     if (messagePaginationInfo[currentMessageIndex] && messagePaginationInfo[currentMessageIndex] > 1) {
                         return "Message " + (currentMessageIndex + 1) + "/" + count + " (Page " + (currentPaginationPage + 1) + "/" + messagePaginationInfo[currentMessageIndex] + "), Enter to exit";
                     } else {
@@ -265,8 +299,8 @@ ListView {
             anchors.fill: parent
             visible: conversationView.scrollModeActive && conversationView.currentMessageIndex === index
             color: ThemeManager.transparentColor
-            border.color: ThemeManager.textColor
-            border.width: 2
+            border.color: ThemeManager.white
+            border.width: ThemeManager.borderWidth
             radius: ThemeManager.borderRadius
         }
 
