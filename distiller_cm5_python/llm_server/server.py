@@ -41,7 +41,6 @@ MODEL = None
 class Message(BaseModel):
     role: str
     content: str
-    tool_calls: Optional[List[Dict[str, Any]]] = None
 
 
 class SetModel(BaseModel):
@@ -113,7 +112,6 @@ class Cache:
         cache_dir: str,
         prompts: str,
         model: Llama,
-        model_name: str,
         temperature: float = 0.0,
         capacity_bytes: int = 2 << 30,
         seed: Optional[int] = None,
@@ -121,12 +119,7 @@ class Cache:
         cache = Cache(model)
         if seed:
             model.set_seed(seed)
-        
-        # Create a model-specific cache directory
-        model_specific_cache_dir = os.path.join(cache_dir, model_name)
-        os.makedirs(model_specific_cache_dir, exist_ok=True) # Ensure the directory exists
-
-        cache_context = LlamaDiskCache(cache_dir=model_specific_cache_dir)
+        cache_context = LlamaDiskCache(cache_dir=cache_dir)
         model.set_cache(cache_context)
         prompt_tokens = cache.get_cache_key(prompts)
 
@@ -226,7 +219,6 @@ def _chat_completion(messages, tools, inference_configs):
         max_tokens=inference_configs["max_tokens"],
         top_k=inference_configs["top_k"],
         top_p=inference_configs["top_p"],
-        min_p=inference_configs["min_p"],
         repeat_penalty=inference_configs["repetition_penalty"],
         stop=inference_configs["stop"],
         stream=False,
@@ -244,7 +236,6 @@ def _stream_chat_completion(messages, tools, inference_configs):
         max_tokens=inference_configs["max_tokens"],
         top_k=inference_configs["top_k"],
         top_p=inference_configs["top_p"],
-        min_p=inference_configs["min_p"],
         repeat_penalty=inference_configs["repetition_penalty"],
         stop=inference_configs["stop"],
         stream=True,
@@ -266,24 +257,23 @@ def format_prompt(messages, tools):
         f"format_prompt called with {len(messages)} messages and {len(tools) if tools else 0} tools."
     )
     rendered_prompt = template.render(messages=messages, tools=tools)
-    # logger.debug(f"MODEL.chat_handler: {MODEL.chat_handler}")
-    # rendered_prompt = MODEL.chat_handler(llama=MODEL, messages=messages, tools=tools)
-    # rendered_prompt = FORMATTER(messages=messages, tools=tools).prompt
-    # logger.debug(
-    #     "Actual prompt into llm:\n"
-    #     + rendered_prompt
-    # )
+    logger.debug(
+        "Actual prompt into llm (truncated):\n"
+        + rendered_prompt[:500]
+        + ("..." if len(rendered_prompt) > 500 else "")
+    )
     return rendered_prompt
 
 
 def format_messages(messages):
-    # if tool_call is None, remove it
-    formatted_messages = []
-    for msg in messages:
-        if msg.tool_calls is not None:
-            formatted_messages.append({"role": msg.role, "content": msg.content, "tool_calls": msg.tool_calls})
-        else:
-            formatted_messages.append({"role": msg.role, "content": msg.content})
+    formatted_messages = [
+        {"role": msg.role, "content": msg.content} for msg in messages
+    ]
+    # Move the followig to the client side
+    # for i in range(len(formatted_messages)):
+    #     if formatted_messages[i]["role"] == "function":
+    #         formatted_messages[i]["role"] = "user"
+    #         formatted_messages[i]["content"] = "[TOOL EXECUTION RESULT]" + formatted_messages[i]["content"]
     return formatted_messages
 
 
@@ -305,8 +295,6 @@ def format_tools(tools):
 
 @app.post("/restore_cache")
 async def restore_cache(request: RestoreCacheRequest):
-    global MODEL
-    global MODEL_NAME
     try:
         # extract messages and tools
         messages = format_messages(request.messages)
@@ -317,7 +305,6 @@ async def restore_cache(request: RestoreCacheRequest):
             cache_dir=os.path.join(os.path.dirname(__file__), "cache"),
             prompts=prompt,
             model=MODEL,
-            model_name=MODEL_NAME,
             temperature=request.inference_configs["temperature"],
         )
         MODEL.load_state(cache_context)

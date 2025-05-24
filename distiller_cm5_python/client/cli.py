@@ -33,10 +33,12 @@ from distiller_cm5_python.utils.distiller_exception import (
 )
 from functools import partial  # Import partial for asyncio.to_thread
 
+# Try to import whisper, but don't fail if it's not available initially.
+# We'll handle the actual import attempt later based on args.
 try:
-    from distiller_cm5_sdk import parakeet as asr_provider
+    from distiller_cm5_sdk import whisper
 except ImportError:
-    asr_provider = None  # Placeholder if the SDK isn't installed
+    whisper = None  # Placeholder if the SDK isn't installed
 
 # Get logger for this module after setup
 logger = logging.getLogger(__name__)
@@ -104,11 +106,11 @@ class CLIEventHandler:
             logger.debug(f"CLIEventHandler received unhandled event type: {evt.type}")
 
 
-async def chat_loop(client: MCPClient, asr_instance):
+async def chat_loop(client: MCPClient, whisper_instance):
     """Start an interactive chat loop with the user, supporting text and audio input."""
     colorama_init()  # Initialize colorama
 
-    if asr_instance:
+    if whisper_instance:
         print(
             f"{Style.BRIGHT}Chat session started. Type '/mic' to record audio, 'exit' or 'quit' to end.{Style.RESET_ALL}\n"
         )
@@ -133,7 +135,7 @@ async def chat_loop(client: MCPClient, asr_instance):
 
             # Check for audio input command
             if user_input_text.lower() == "/mic":
-                if asr_instance is None:
+                if whisper_instance is None:
                     print(
                         f"{Fore.YELLOW}Audio input is disabled (SDK not found or --disable-audio used).{Style.RESET_ALL}"
                     )
@@ -144,13 +146,13 @@ async def chat_loop(client: MCPClient, asr_instance):
                 )
                 await asyncio.to_thread(input)  # Wait for Enter press
 
-                if await asyncio.to_thread(asr_instance.start_recording):
+                if await asyncio.to_thread(whisper_instance.start_recording):
                     print(
                         f"{Fore.YELLOW}Recording... Press Enter to stop.{Style.RESET_ALL}"
                     )
                     await asyncio.to_thread(input)  # Wait for Enter press to stop
                     audio_data = await asyncio.to_thread(
-                        asr_instance.stop_recording
+                        whisper_instance.stop_recording
                     )
 
                     if audio_data:
@@ -160,7 +162,7 @@ async def chat_loop(client: MCPClient, asr_instance):
                         try:
                             # Use a wrapper function for the generator in to_thread
                             def get_transcription_sync(data):
-                                return list(asr_instance.transcribe_buffer(data))
+                                return list(whisper_instance.transcribe_buffer(data))
 
                             transcribed_segments = await asyncio.to_thread(
                                 get_transcription_sync, audio_data
@@ -183,7 +185,6 @@ async def chat_loop(client: MCPClient, asr_instance):
                             )
                             # Send transcribed text to client
                             await client.process_query(user_input_for_llm)
-                            continue  # Skip the second process_query call
                         else:
                             print(
                                 f"{Fore.YELLOW}Transcription returned no text.{Style.RESET_ALL}"
@@ -316,20 +317,20 @@ async def main():
     )
 
     # Instantiate Whisper only if SDK is available and not disabled
-    asr_module = None
-    asr_instance = None
+    whisper_module = None
+    whisper_instance = None
     if not args.disable_audio:
         try:
             # Dynamically import whisper if not already done or if it was None
-            global asr_provider
-            if asr_provider is None:
-                from distiller_cm5_sdk import parakeet as sdk_asr_provider
+            global whisper
+            if whisper is None:
+                from distiller_cm5_sdk import whisper as sdk_whisper
 
-                asr_provider = sdk_asr_provider  # Assign to the global placeholder
+                whisper = sdk_whisper  # Assign to the global placeholder
 
-            if asr_provider:  # Check if import succeeded
-                asr_instance = asr_provider.Parakeet()
-                logger.info("Parakeet SDK loaded and instance created.")
+            if whisper:  # Check if import succeeded
+                whisper_instance = whisper.Whisper()
+                logger.info("Whisper SDK loaded and instance created.")
             else:
                 logger.warning("Audio input disabled: distiller_cm5_sdk not found.")
                 print(
@@ -340,15 +341,15 @@ async def main():
             print(
                 f"{Fore.YELLOW}Warning: Failed to import distiller_cm5_sdk. Audio input will be disabled.{Style.RESET_ALL}"
             )
-            asr_provider = None  # Ensure asr_provider is None if import fails here
+            whisper = None  # Ensure whisper is None if import fails here
         except Exception as e:
-            logger.error(f"Error initializing ASR: {e}", exc_info=True)
+            logger.error(f"Error initializing Whisper: {e}", exc_info=True)
             print(f"{Fore.RED}Error initializing audio input: {e}{Style.RESET_ALL}")
-            asr_instance = None  # Ensure instance is None on error
-            asr_provider = None  # Ensure asr_provider module ref is None
+            whisper_instance = None  # Ensure instance is None on error
+            whisper = None  # Ensure whisper module ref is None
     else:
         logger.info("Audio input explicitly disabled via --disable-audio flag.")
-        asr_provider = None  # Ensure asr_provider is None if disabled by flag
+        whisper = None  # Ensure whisper is None if disabled by flag
 
     try:
         logger.info("Connecting to MCP server...")
@@ -361,7 +362,7 @@ async def main():
             sys.exit(1)
 
         logger.info("Connection successful. Starting chat loop.")
-        await chat_loop(client, asr_instance)  # Pass asr instance
+        await chat_loop(client, whisper_instance)  # Pass whisper instance
 
     except UserVisibleError as e:
         logger.error(f"Initialization Error: {e}")
@@ -372,11 +373,11 @@ async def main():
     finally:
         logger.info("Cleaning up client resources...")
         await client.cleanup()
-        logger.info("Cleaning up ASR resources...")
-        if asr_instance:
-            asr_instance.cleanup()  # Cleanup ASR resources only if it exists
+        logger.info("Cleaning up Whisper resources...")
+        if whisper_instance:
+            whisper_instance.cleanup()  # Cleanup Whisper resources only if it exists
         else:
-            logger.info("ASR resources cleanup skipped (instance not created).")
+            logger.info("Whisper resources cleanup skipped (instance not created).")
         logger.info("Cleaning up event dispatcher...")
         event_dispatcher.close()
         logger.info("Client cleanup complete. Exiting.")
