@@ -17,6 +17,7 @@ from distiller_cm5_python.utils.config import (
     N_CTX,
     MAX_TOKENS,
     STOP,
+    MIN_P,
 )  # Removed unused OPENAI_URL, DEEPSEEK_URL
 from distiller_cm5_python.utils.distiller_exception import (
     UserVisibleError,
@@ -28,6 +29,7 @@ from distiller_cm5_python.client.llm_infra.parsing_utils import (
     normalize_tool_call_json,
     parse_tool_calls,
     check_is_c_ntx_too_long,
+    transform_tool_arguments,
 )
 from distiller_cm5_python.client.ui.events.event_types import (
     EventType,
@@ -107,18 +109,40 @@ class _ToolCallAccumulator:
         """Returns the list of fully accumulated and valid tool calls."""
         final_calls = []
         for i, tool in enumerate(self._calls):
+            tool_function = tool.get("function", {})
+            tool_name = tool_function.get("name")
+            tool_id = tool.get("id")
+
             # Ensure essential fields are present
-            if tool.get("id") and tool.get("function", {}).get("name"):
-                # Clean up internal flag before returning
-                final_tool = {k: v for k, v in tool.items() if k != "_dispatched"}
-                final_calls.append(final_tool)
+            if tool_id and tool_name:
+                try:
+                    # Get the raw arguments
+                    raw_arguments = tool_function.get("arguments")
+                    parsed_arguments = transform_tool_arguments(raw_arguments, tool_name)
+                    
+                    # Update the tool with parsed arguments
+                    final_tool_function = tool_function.copy() # Avoid modifying the original _calls entry directly if not needed elsewhere
+                    final_tool_function["arguments"] = parsed_arguments
+                    
+                    final_tool = {
+                        "id": tool_id,
+                        "type": tool.get("type", "function"), # Preserve type if present, default to function
+                        "function": final_tool_function
+                    }
+                    
+                    final_calls.append(final_tool)
+
+                except ValueError as e:
+                    logger.warning(
+                        f"_ToolCallAccumulator: Skipping tool call at index {i} due to argument parsing error for tool '{tool_name}': {e}. Original tool: {tool}"
+                    )
             else:
                 logger.warning(
-                    f"Skipping incomplete accumulated tool call at index {i}: {tool}"
+                    f"_ToolCallAccumulator: Skipping incomplete accumulated tool call at index {i} (missing id or name): {tool}"
                 )
         logger.debug(
             f"_ToolCallAccumulator: Returning {len(final_calls)} final tool calls."
-        )  # Added log
+        )
         return final_calls
 
 
@@ -229,6 +253,7 @@ class LLMClient:
             "temperature": TEMPERATURE,
             "top_p": TOP_P,
             "top_k": TOP_K,
+            "min_p": MIN_P,
             "repetition_penalty": REPETITION_PENALTY,
             "max_tokens": MAX_TOKENS,
             "stop": STOP,
@@ -672,20 +697,15 @@ class LLMClient:
                 logger.debug(
                     "Found <tool_call> tags in response content, attempting to parse."
                 )
-                parsed_calls = parse_tool_calls(full_response_content)
-                if parsed_calls:
-                    tool_calls = parsed_calls
+                tool_calls = parse_tool_calls(full_response_content)
+                if tool_calls:
                     full_response_content = full_response_content.split("<tool_call>")[
                         0
                     ].strip()
                     logger.debug(
                         f"Content updated after extracting tool calls: '{full_response_content[:100]}...'"
                     )
-                else:
-                    logger.warning(
-                        "Found <tool_call> tag in response, but failed to parse any valid calls."
-                    )
-
+                    
             result = {
                 "message": {
                     "content": full_response_content,
@@ -833,8 +853,14 @@ class LLMClient:
                                         and delta["content"] is not None
                                     ):
                                         delta_content = delta["content"]
-                                        full_response_content += delta_content
+                                        # adapt for thinking method in Qwen 3 
+                                        if "<think>" in delta_content or "</think>" in delta_content: 
+                                            delta_content = delta_content.replace("<think>", "").replace("</think>", "").strip()
 
+                                        if delta_content == "" or delta_content == "\n\n":
+                                            continue
+                                            
+                                        full_response_content += delta_content
                                         # Detect potential inline tool call markers (fallback)
                                         # Switch content type if marker found and not already ACTION
                                         if (
@@ -942,9 +968,8 @@ class LLMClient:
                 logger.warning(
                     "Stream ended. No structured tool calls found, but found '<tool_call>' tags in accumulated text. Attempting parse."
                 )
-                parsed_calls = parse_tool_calls(full_response_content)
-                if parsed_calls:
-                    final_tool_calls = parsed_calls
+                final_tool_calls = parse_tool_calls(full_response_content)
+                if final_tool_calls:
                     # Remove the tool call section from the final content
                     full_response_content = full_response_content.split("<tool_call>")[
                         0
@@ -955,9 +980,9 @@ class LLMClient:
                     # Re-dispatch the extracted tool calls if a dispatcher exists
                     if dispatcher:
                         logger.info(
-                            f"Dispatching {len(parsed_calls)} tool calls parsed from text."
+                            f"Dispatching {len(final_tool_calls)} tool calls parsed from text."
                         )
-                        for call in parsed_calls:
+                        for call in final_tool_calls:
                             # Ensure the call structure matches what MessageSchema.tool_call expects
                             if isinstance(call, dict) and "function" in call:
                                 dispatcher.dispatch(MessageSchema.tool_call(call))

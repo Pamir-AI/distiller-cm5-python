@@ -3,6 +3,7 @@ import asyncio
 from typing import Optional, List, Dict, Any
 import json
 import logging
+import json5
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -267,9 +268,6 @@ class MCPClient:
 
     async def _execute_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> None:
         """Helper method to execute tool calls and add results to history."""
-        if not tool_calls:
-            return
-
         logger.info(f"Found {len(tool_calls)} tool calls to execute")
         for i, tool_call in enumerate(tool_calls):
             logger.info(f"Executing tool call {i + 1}/{len(tool_calls)}")
@@ -282,32 +280,45 @@ class MCPClient:
                 else tool_call.get("name", "unknown")
             )
 
-            raw_tool_args = tool_call.get("function", {}).get(
-                "arguments", "{}"
-            )  # Default to empty JSON string
-            parsed_tool_args = {}
-            parsing_failed = False  # Flag to track parsing status
-            try:
-                # Only parse if raw_tool_args is a non-empty string
-                if isinstance(raw_tool_args, str) and raw_tool_args.strip():
-                    parsed_tool_args = json.loads(raw_tool_args)
-                elif isinstance(raw_tool_args, dict):
-                    parsed_tool_args = raw_tool_args  # Already a dict, use as is
-            except json.JSONDecodeError:
-                logger.error(
-                    f"Failed to parse tool arguments: {raw_tool_args}", exc_info=True
+            # --- Handle pre-identified LLM tool parse errors first ---
+            if tool_name == "__llm_tool_parse_error__":
+                logger.warning(f"Handling pre-identified LLM tool parse error: {tool_call.get('id')}")
+                raw_error_args_str = tool_call.get("function", {}).get("arguments", "{}")
+                error_details_dict = {}
+                try:
+                    error_details_dict = json.loads(raw_error_args_str)
+                    parsed_error_message = error_details_dict.get('error_message', 'Unknown parsing error')
+                    original_snippet = error_details_dict.get('original_content_snippet', 'N/A')
+                    error_type = error_details_dict.get('error_type', 'LLMToolParseError')
+                    tool_result_content = f"Error: LLM tool call parsing failed ({error_type}). Message: {parsed_error_message}.'"
+                except json.JSONDecodeError as e:
+                    logger.error(f"Could not parse details for __llm_tool_parse_error__ (JSONDecodeError): {e}. Args: {raw_error_args_str}")
+                    tool_result_content = f"Error: LLM tool call parsing failed. Could not parse internal error details (JSONDecodeError): {raw_error_args_str}"
+                except Exception as e:
+                    logger.error(f"Could not parse details for __llm_tool_parse_error__ (General Exception): {e}. Args: {raw_error_args_str}")
+                    tool_result_content = f"Error: LLM tool call parsing failed. Could not parse internal error details (General Exception): {raw_error_args_str}"
+
+                # Dispatch an error event for the parsing failure
+                action_event = ActionEvent(
+                    type=EventType.ACTION,
+                    content=tool_result_content, 
+                    status=StatusType.FAILED,
+                    tool_name=tool_name, # This will be "__llm_tool_parse_error__"
+                    tool_args=error_details_dict,
+                    data={"tool_call": tool_call, "error": "LLMToolParseError"},
                 )
-                self.dispatcher.dispatch(
-                    StatusEvent(
-                        type=EventType.ERROR,
-                        content=f"Failed to parse arguments for tool {tool_name}",  # More specific content
-                        status=StatusType.FAILED,
-                        component="tools",
-                    )
+                self.dispatcher.dispatch(action_event)
+
+                # Add the parsing failure result to message history
+                self.message_processor.add_failed_tool_gen(
+                    original_snippet,
+                    tool_call, # Original error tool_call object from parsing_utils
+                    tool_result_content
                 )
-                # Set specific error content about JSON parsing
-                tool_result_content = f"Error: Failed to parse tool arguments provided by LLM. Invalid JSON received: {raw_tool_args}"
-                parsing_failed = True  # Mark parsing as failed
+                continue # Move to the next tool_call in the loop
+            # --- End of handling for __llm_tool_parse_error__ ---
+
+            parsed_tool_args = tool_call.get("function", {}).get("arguments", {})
 
             # Dispatch ActionEvent (start) - provide args or error info based on parsing status
             action_event = ActionEvent(
@@ -315,92 +326,63 @@ class MCPClient:
                 content=f"Executing tool: {tool_name}",
                 status=StatusType.IN_PROGRESS,
                 tool_name=tool_name,
-                tool_args=(
-                    parsed_tool_args
-                    if not parsing_failed
-                    else {"error": "Invalid JSON arguments", "raw_args": raw_tool_args}
-                ),
+                tool_args=parsed_tool_args,
                 data={"tool_call": tool_call},
             )
             self.dispatcher.dispatch(action_event)
 
-            # Only attempt execution if JSON parsing succeeded
-            if not parsing_failed:
-                try:
-                    if not isinstance(tool_call, dict) or "function" not in tool_call:
-                        error_msg = f"Invalid tool call format: {tool_call}"
-                        logger.error(error_msg)
-                        tool_result_content = error_msg
+            try:
+                self.message_processor.add_tool_call(tool_call)
+                tool_result_content = (
+                    await self.tool_processor.execute_tool_call_async(tool_call)
+                )
+                logger.info(f"Executed tool name: {tool_call.get('id', 'N/A')}")
+                logger.info(f"Executed tool result: {tool_result_content}")
 
-                        # Dispatch error event
-                        error_event = ActionEvent(
-                            type=EventType.ERROR,
-                            content=error_msg,
-                            status=StatusType.FAILED,
-                            tool_name=tool_name,
-                            data={"tool_call": tool_call},
-                        )
-                        self.dispatcher.dispatch(error_event)
-                    else:
-                        self.message_processor.add_tool_call(
-                            tool_call
-                        )  # Add the call attempt
-                        tool_result_content = (
-                            await self.tool_processor.execute_tool_call_async(tool_call)
-                        )
-                        logger.info(f"Executed tool name: {tool_call.get('id', 'N/A')}")
-                        logger.info(f"Executed tool result: {tool_result_content}")
+                # Dispatch success event
+                result_event = ActionEvent(
+                    type=EventType.ACTION,
+                    content=f"Tool result: {tool_result_content}",
+                    status=StatusType.SUCCESS,
+                    tool_name=tool_name,
+                    tool_args=parsed_tool_args,  # Use the parsed dictionary here too
+                    data={
+                        "tool_call": tool_call,
+                        "result": tool_result_content,
+                    },
+                )
+                self.dispatcher.dispatch(result_event)
+                # Add the successful tool result to message history
+                self.message_processor.add_tool_result(
+                    tool_call, tool_result_content
+                )
 
-                        # Dispatch success event
-                        result_event = ActionEvent(
-                            type=EventType.ACTION,
-                            content=f"Tool result: {tool_result_content}",
-                            status=StatusType.SUCCESS,
-                            tool_name=tool_name,
-                            tool_args=parsed_tool_args,  # Use the parsed dictionary here too
-                            data={
-                                "tool_call": tool_call,
-                                "result": tool_result_content,
-                            },
-                        )
-                        self.dispatcher.dispatch(result_event)
+            except Exception as ex:
+                exception_type = type(ex).__name__
+                exception_message = str(ex)
+                traceback_info = ''.join(traceback.format_tb(ex.__traceback__))
+                error_message = f'An error occurred when calling tool `{tool_name}`:\n' \
+                                f'{exception_type}: {exception_message}\n' \
+                                f'Traceback:\n{traceback_info}'
+                logger.warning(error_message)
+                tool_result_content = error_message  # Store error as result
 
-                except Exception as e:
-                    error_msg = f"Error executing tool call {tool_call.get('function',{}).get('name', 'N/A')}: {e}"
-                    logger.error(f"{error_msg}")
-                    tool_result_content = error_msg  # Store error as result
-
-                    # Dispatch error event for execution failure
-                    error_event = ActionEvent(
-                        type=EventType.ERROR,
-                        content=error_msg,
-                        status=StatusType.FAILED,
-                        tool_name=tool_name,
-                        tool_args=parsed_tool_args,  # Include parsed args even on error
-                        data={"tool_call": tool_call, "error": str(e)},
-                    )
-                    self.dispatcher.dispatch(error_event)
-            else:  # Parsing failed case
-                # Dispatch error event specific to parsing failure
+                # Dispatch error event for execution failure
                 error_event = ActionEvent(
                     type=EventType.ERROR,
-                    content=f"Skipped execution of tool {tool_name} due to invalid arguments.",
+                    content=exception_message,
                     status=StatusType.FAILED,
                     tool_name=tool_name,
-                    tool_args={
-                        "error": "Invalid JSON arguments",
-                        "raw_args": raw_tool_args,
-                    },
-                    data={"tool_call": tool_call, "error": "JSONDecodeError"},
+                    tool_args=parsed_tool_args,  # Include parsed args even on error
+                    data={"tool_call": tool_call, "error": exception_message},
                 )
                 self.dispatcher.dispatch(error_event)
-
-            # Add the tool call result (success, execution error, or parsing error) to the message history
-            # This now correctly uses the tool_result_content set in the JSONDecodeError block if parsing failed
-            self.message_processor.add_tool_result(
-                tool_call, tool_result_content  # Pass the original tool_call dict
-            )
-
+                # Add the execution failure result to message history
+                self.message_processor.add_failed_tool_execute(
+                    tool_call, # The tool_call that failed execution
+                    tool_result_content # Contains the detailed error message from execution
+                )
+            
     async def process_query(self, query: str) -> Dict[str, Any]:
         """Process a query through the LLM client.
 
@@ -487,13 +469,13 @@ class MCPClient:
                     # Re-raise the error to be caught by the higher-level handler
                     raise
 
-                # Add message to processor
-                self.message_processor.add_message(
-                    "assistant", response.get("message", {}).get("content", "")
-                )
-                # done with message processing
+                # Add message to processor if any 
+                if response.get("message", {}).get("content", "") != "":
+                    self.message_processor.add_message(
+                        "assistant", response.get("message", {}).get("content", "")
+                    )
 
-                # Extract tool calls
+                # Extract tool calls, if no tool calls, conversation is done
                 tool_calls = (response or {}).get("message", {}).get("tool_calls", [])
                 if not tool_calls:
                     break
