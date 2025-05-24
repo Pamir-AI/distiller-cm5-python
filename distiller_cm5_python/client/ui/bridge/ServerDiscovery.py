@@ -142,8 +142,3 @@ class ServerDiscovery:
                 f"Failed to process server file {file_path}: {e}", exc_info=True
             )
             return False
-
-    def cleanup(self):
-        """Clean up resources used by server discovery"""
-        logger.debug("Server discovery cleanup")
-        self._available_servers = []

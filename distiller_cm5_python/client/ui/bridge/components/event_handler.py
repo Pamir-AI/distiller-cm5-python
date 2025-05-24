@@ -219,19 +219,8 @@ class BridgeEventHandler:
             logger.debug(
                 f"Handling INFO event: content='{event.content}', id={event.id}"
             )
-            # if event.content:
-                # self.signals.infoReceived.emit(
-                #     event.content, str(event.id), timestamp_str
-                # )
-                # Add to conversation history
-                # if conversation_manager:
-                #     message = {
-                #         "timestamp": self._get_formatted_timestamp(),
-                #         "content": f"{event.content}",
-                #         "type": "Info",
-                #     }
-                #     conversation_manager.add_message(message)
-
+            # INFO events are handled via status updates only - the UI doesn't
+            # need to show these in the chat
             status_value = (
                 event.status.value if hasattr(event.status, "value") else event.status
             )
@@ -295,14 +284,7 @@ class BridgeEventHandler:
                 elif status_value == StatusType.FAILED:
                     self.status_manager.update_status("error", event.content)
 
-            # Add to conversation history
-            # if conversation_manager:
-            #     message = {
-            #         "timestamp": self._get_formatted_timestamp(),
-            #         "content": f"{event.content}",
-            #         "type": "Cache Operation",
-            #     }
-            #     conversation_manager.add_message(message)
+            # Cache operations don't need to be added to the conversation history
 
         elif event.type == EventType.OBSERVATION:
             # Handle observation events
@@ -345,6 +327,27 @@ class BridgeEventHandler:
                     "type": "Plan",
                 }
                 conversation_manager.add_message(message)
+                
+        elif event.type == EventType.FUNCTION:
+            # Handle function events
+            if hasattr(self.signals, "functionReceived"):
+                self.signals.functionReceived.emit(
+                    event.content, str(event.id), timestamp_str
+                )
+            else:
+                # Fall back to info message if no dedicated handler
+                self.signals.infoReceived.emit(
+                    event.content, str(event.id), timestamp_str
+                )
+
+            # Add to conversation history
+            if conversation_manager:
+                message = {
+                    "timestamp": self._get_formatted_timestamp(),
+                    "content": f"{event.content}",
+                    "type": "Function",
+                }
+                conversation_manager.add_message(message)
 
         elif event.type == EventType.STATUS:
             # Check for specific component status events
@@ -370,24 +373,6 @@ class BridgeEventHandler:
 
         else:
             logger.warning(f"Unknown event type: {event.type}")
-
-    def create_error_event(self, error_msg: str) -> MessageSchema:
-        """
-        Create an error event.
-
-        Args:
-            error_msg: The error message
-
-        Returns:
-            A MessageSchema representing the error
-        """
-        return MessageSchema(
-            id=str(uuid.uuid4()),
-            type=EventType.ERROR,
-            content=error_msg,
-            status=StatusType.FAILED,
-            timestamp=time.time(),
-        )
 
     def _get_formatted_timestamp(self):
         """Get a formatted timestamp string for messages."""

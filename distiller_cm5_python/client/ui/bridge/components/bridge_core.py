@@ -61,7 +61,6 @@ class BridgeCore(QObject):
     transcriptionComplete = pyqtSignal(
         str, arguments=["full_text"]
     )  # Signal for completed transcription
-    sshInfoReceived = pyqtSignal(str, str, str)  # Signal for SSH info events
     functionReceived = pyqtSignal(str, str, str)  # Signal for function events
     observationReceived = pyqtSignal(str, str, str)  # Signal for observation events
     planReceived = pyqtSignal(str, str, str)  # Signal for plan events
@@ -219,19 +218,6 @@ class BridgeCore(QObject):
                 "Query processing",
                 user_friendly_msg="Failed to process query. Please try again.",
             )
-
-    @pyqtSlot(str, str, result="QVariant")
-    def getConfigValue(self, section: str, key: str) -> str:
-        """Get a configuration value (Stub method)."""
-        logger.warning("ConfigManager removed: getConfigValue returning empty string")
-        return ""
-
-    @pyqtSlot(str, str, "QVariant")
-    def setConfigValue(self, section: str, key: str, value):
-        """Set a configuration value (Stub method)."""
-        logger.warning(
-            f"ConfigManager removed: setConfigValue({section}, {key}, {value}) ignored"
-        )
 
     async def connect_to_server(self):
         """Ask the user to select a server from the list of available servers."""

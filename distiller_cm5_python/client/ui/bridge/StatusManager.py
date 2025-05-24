@@ -105,24 +105,6 @@ class StatusManager(QObject):
         ]
         return self._current_status in processing_states
 
-    def is_ready(self):
-        """
-        Check if the system is in ready state
-
-        Returns:
-            True if status is READY
-        """
-        return self._current_status == self.STATUS_READY
-
-    def is_connected(self):
-        """
-        Check if the system is connected
-
-        Returns:
-            True if status is CONNECTED
-        """
-        return self._current_status == self.STATUS_CONNECTED
-
     def cleanup(self):
         """Clean up resources and reset status"""
         self.update_status(self.STATUS_IDLE)
