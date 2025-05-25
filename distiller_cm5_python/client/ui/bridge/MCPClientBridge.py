@@ -139,8 +139,6 @@ class MCPClientBridge(BridgeCore):
         # MCPClientBridge-specific caches
         self._last_server_discovery_time = 0
         self._server_discovery_cache_timeout = 5  # seconds
-        self._config_cache = {}
-        self._config_dirty = False
 
     # Audio recording and transcription methods override the base class
     # to provide App instance-specific functionality
@@ -178,33 +176,6 @@ class MCPClientBridge(BridgeCore):
         self.event_handler.handle_event(event)
 
     # MCPClientBridge-specific methods not present in BridgeCore
-    @pyqtSlot(result=str)
-    def getWifiMacAddress(self):
-        """Get the WiFi MAC address of the system."""
-        try:
-            return self.network_utils.get_wifi_mac_address()
-        except Exception as e:
-            logger.error(f"Error getting WiFi MAC address: {e}")
-            return "Error getting MAC address"
-
-    @pyqtSlot(result=str)
-    def getWifiSignalStrength(self):
-        """Get the WiFi signal strength."""
-        try:
-            return self.network_utils.get_wifi_signal_strength()
-        except Exception as e:
-            logger.error(f"Error getting WiFi signal strength: {e}")
-            return "Error getting signal strength"
-
-    @pyqtSlot(result="QVariant")
-    def getNetworkDetails(self):
-        """Get detailed information about the network."""
-        try:
-            return self.network_utils.get_network_details()
-        except Exception as e:
-            logger.error(f"Error getting network details: {e}")
-            return {"error": "Failed to get network details"}
-
     def _on_connection_changed(self, value):
         """Handle connection state changes from the connection manager"""
         self.is_connected = value  # This will emit the signal
@@ -230,35 +201,17 @@ class MCPClientBridge(BridgeCore):
             logger.error(f"Error getting primary font path: {e}")
             return "fonts/MonoramaNerdFont-Medium.ttf"  # Default fallback
 
-    @pyqtSlot(result=bool)
-    def getShowSystemStats(self):
-        """Check if system stats display is enabled in config."""
-        try:
-            # Import here to avoid circular imports
-            from distiller_cm5_python.client.ui.display_config import (
-                config as display_config,
-            )
-
-            if (
-                "display" in display_config
-                and "show_system_stats" in display_config["display"]
-            ):
-                return display_config["display"]["show_system_stats"]
-
-            return True  # Default to enabled if missing
-        except Exception as e:
-            logger.error(f"Error checking system stats flag: {e}")
-            return True  # Default to enabled if error
-
     @pyqtSlot(result="QVariantMap")
     def getSystemStats(self):
         """Get system statistics (CPU, RAM, temperature, LLM)."""
         try:
             # Lazy import to avoid circular imports
-            from distiller_cm5_python.client.ui.system_monitor import system_monitor
+            from distiller_cm5_python.client.ui.system_monitor import SystemMonitor
 
             # Return formatted stats dictionary
-            return system_monitor.get_formatted_stats()
+            return SystemMonitor(
+                self.mcp_client.llm_provider.provider_type
+            ).get_formatted_stats()
         except Exception as e:
             logger.error(f"Error getting system stats: {e}")
             return {"cpu": "N/A", "ram": "N/A", "temp": "N/A", "llm": "Local"}
@@ -273,24 +226,25 @@ class MCPClientBridge(BridgeCore):
         try:
             # Signal application power down via UART
             from distiller_cm5_python.utils.uart_utils import signal_app_shutdown
+
             signal_app_shutdown()
             logger.info("Sent shutdown signal to UART device")
-            
+
             # Perform cleanup first
-            if hasattr(self, 'cleanup') and callable(self.cleanup):
+            if hasattr(self, "cleanup") and callable(self.cleanup):
                 try:
                     # Run cleanup synchronously
-                    asyncio.run_coroutine_threadsafe(
-                        self.cleanup(), self._loop
-                    ).result(timeout=2.0)  # 2-second timeout for cleanup
+                    asyncio.run_coroutine_threadsafe(self.cleanup(), self._loop).result(
+                        timeout=2.0
+                    )  # 2-second timeout for cleanup
                     logger.info("Cleanup completed successfully")
                 except Exception as e:
                     logger.error(f"Error during cleanup: {e}")
-            
+
             # Schedule application exit with a short delay to allow cleanup to complete
             QApplication.instance().quit()
             logger.info("Application exit scheduled")
-            
+
         except Exception as e:
             logger.error(f"Error during application close: {e}")
             # Force quit if normal exit fails
@@ -299,52 +253,3 @@ class MCPClientBridge(BridgeCore):
             except:
                 # Last resort: terminate process
                 os._exit(1)
-                
-    @pyqtSlot(str)
-    def executeSystemCommand(self, command: str):
-        """
-        Execute a system command with proper security checks.
-        
-        Args:
-            command: The system command to execute
-        """
-        # Only allow specific system commands
-        allowed_commands = {
-            "shutdown now": "sudo shutdown now",
-            "poweroff": "sudo poweroff"
-        }
-        
-        logger.info(f"Received system command request: {command}")
-        
-        if command not in allowed_commands:
-            logger.error(f"Unauthorized system command attempt: {command}")
-            return
-            
-        try:
-            # Signal application power down via UART first
-            from distiller_cm5_python.utils.uart_utils import signal_app_shutdown
-            signal_app_shutdown()
-            logger.info(f"Sent shutdown signal to UART device before system {command}")
-            
-            # Execute the allowed command
-            import subprocess
-            logger.info(f"Executing system command: {allowed_commands[command]}")
-            
-            # Run the command in a separate process
-            subprocess.Popen(allowed_commands[command], shell=True)
-            
-            # Return immediately to allow the command to complete
-            return
-            
-        except Exception as e:
-            logger.error(f"Error executing system command: {e}")
-    
-    @pyqtSlot(str)
-    def setLlmModel(self, model_name):
-        """Set the current LLM model name."""
-        try:
-            from distiller_cm5_python.client.ui.system_monitor import system_monitor
-
-            system_monitor.set_llm_model(model_name)
-        except Exception as e:
-            logger.error(f"Error setting LLM model: {e}")

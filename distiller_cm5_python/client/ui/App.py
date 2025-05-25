@@ -397,11 +397,6 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         if config.get("display").get("eink_enabled"):
             self._cleanup_eink()
 
-        # Disconnect SAM
-        if self.sam:
-            self.sam.disconnect()
-            self.sam = None
-
         # Schedule bridge shutdown
         try:
             self.bridge.shutdown()
@@ -602,12 +597,6 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         except Exception as e:
             logger.error(f"Failed to send emergency shutdown signal to UART: {e}")
             
-        try:
-            # Disconnect SAM if possible
-            if self.sam:
-                self.sam.disconnect()
-        except Exception:
-            pass  # Ignore errors during emergency exit
         try:
             # Make one final attempt to flush logs
             import logging
