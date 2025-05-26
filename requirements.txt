@@ -17,4 +17,3 @@ evdev
 spidev
 lgpio
 numba
-json5

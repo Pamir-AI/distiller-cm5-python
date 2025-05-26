@@ -9,7 +9,7 @@ from distiller_cm5_python.client.ui.display_config import config
 from distiller_cm5_python.client.ui.AppInfoManager import AppInfoManager
 from distiller_cm5_python.client.ui.bridge.MCPClientBridge import MCPClientBridge
 from distiller_cm5_python.client.ui.InputMonitor import InputMonitor
-from distiller_cm5_sdk.whisper import Whisper  # Assuming whisper.py is in this path
+from distiller_cm5_sdk.parakeet import Parakeet as asr_provider
 from qasync import QEventLoop
 import asyncio
 import os
@@ -96,12 +96,12 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         # Set up signal handlers for graceful shutdown on system signals
         self._setup_signal_handlers()
 
-        # --- Whisper Initialization ---
+        # --- ASR Initialization ---
         # TODO: Load model path/size from config if needed
-        self.whisper = Whisper()
+        self.asr_provider = asr_provider(audio_config={"rate": 48000})
         self._is_actively_recording = False  # Separate state for UI feedback
         self._transcription_task = None
-        # --- End Whisper Initialization ---
+        # --- End ASR Initialization ---
 
         # Add main_window attribute initialization
         self.main_window = None
@@ -619,13 +619,13 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         # Force exit at the process level
         os._exit(0)
 
-    # --- Whisper Slots ---
+    # --- ASR Slots ---
     @pyqtSlot()
     def startRecording(self):
         if self._is_actively_recording:
             logger.warning("Already recording.")
             return
-        if self.whisper.start_recording():
+        if self.asr_provider.start_recording():
             self._is_actively_recording = True
             self.recordingStateChanged.emit(True)
             # Also forward to the bridge if it exists
@@ -633,7 +633,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
                 self.bridge.recordingStateChanged.emit(True)
             logger.info("UI Recording Started")
         else:
-            logger.error("Failed to start Whisper recording")
+            logger.error("Failed to start ASR recording")
 
     MIN_AUDIO_BYTES_THRESHOLD = 16000  # Approx 0.5 seconds at 16kHz/16bit/mono
 
@@ -643,7 +643,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             logger.warning("Not recording.")
             return
 
-        audio_data = self.whisper.stop_recording()
+        audio_data = self.asr_provider.stop_recording()
         self._is_actively_recording = False
         self.recordingStateChanged.emit(False)
         # Also forward to the bridge if it exists
@@ -681,7 +681,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             logger.info("Transcription task started.")
             # Use asyncio.to_thread for blocking I/O or CPU-bound tasks
             transcription_generator = await asyncio.to_thread(
-                self.whisper.transcribe_buffer, audio_data
+                self.asr_provider.transcribe_buffer, audio_data
             )
 
             full_transcription = []

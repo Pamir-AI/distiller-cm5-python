@@ -2,7 +2,7 @@
   "llm_providers": {
     "llama-cpp": {
       "server_url": "http://127.0.0.1:8000",
-      "model_name": "Qwen3-1.7B-Q4_K_M.gguf",
+      "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
       "provider_type": "llama-cpp",
       "api_key": "",
       "timeout": 150,
@@ -33,22 +33,17 @@
   },
   "active_llm_provider": "llama-cpp",
   "logging": {
-    "level": "DEBUG",
+    "level": "INFO",
     "file_enabled": false,
     "file_path": "mcp_client.log"
   },
   "prompts": {
-    "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user. /no_think"
+    "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."
   },
   "mcp_server": {
-    "server_script_path": "distiller_cm5_python/mcp_server/beep_server.py"
+    "server_script_path": "distiller_cm5_python/mcp_server/led-use_server.py"
   },
   "display": {
     "dark_mode": "false"
-  },
-  "audio_recognize": {
-    "activate": true,
-    "wake_word": "Siri"
   }
-
 }
