@@ -65,6 +65,15 @@
           "run",
           "tts-use_server.py"
         ]
+      },
+      "wifi-use-server": {
+        "command": "uv",
+        "args": [
+          "--directory",
+          "/home/lanpangzi/distiller-cm5-python/distiller_cm5_python/mcp_server/wifi_use/",
+          "run",
+          "wifi-use_server.py"
+        ]
       }
     }
   }
