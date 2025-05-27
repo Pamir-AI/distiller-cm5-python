@@ -690,6 +690,8 @@ class LLMClient:
             if "tool_calls" in message and message["tool_calls"]:
                 logger.debug("Found tool calls directly in response message object.")
                 tool_calls = message["tool_calls"]
+                if isinstance(tool_calls[0]['function']['arguments'], str):
+                    tool_calls[0]['function']['arguments'] = json.loads(tool_calls[0]['function']['arguments'])
             elif (
                 isinstance(full_response_content, str)
                 and "<tool_call>" in full_response_content
@@ -995,11 +997,16 @@ class LLMClient:
                 else:
                     self._emit_success(dispatcher, str(uuid.uuid4()), EventType.MESSAGE, "tool call parsing failed, please retry")
 
-            logger.info(
-                f"LLMClient.get_chat_completion_streaming_response: Processed result. Content length: {len(full_response_content)}, Tool calls: {len(final_tool_calls)}"
-            )
+                logger.info(
+                    f"LLMClient.get_chat_completion_streaming_response: Processed result. Content length: {len(full_response_content)}, Tool calls: {len(final_tool_calls)}"
+                )
+            else:
 
-            
+                logger.debug("Found tool calls directly in response message object.")
+
+                if len(final_tool_calls)>0 and isinstance(final_tool_calls[0]['function']['arguments'], str):
+                    final_tool_calls[0]['function']['arguments'] = json.loads(final_tool_calls[0]['function']['arguments'])
+
             return {
                 "message": {
                     "content": full_response_content,

@@ -33,17 +33,48 @@
   },
   "active_llm_provider": "llama-cpp",
   "logging": {
-    "level": "INFO",
+    "level": "DEBUG",
     "file_enabled": false,
     "file_path": "mcp_client.log"
   },
   "prompts": {
     "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."
   },
-  "mcp_server": {
-    "server_script_path": "distiller_cm5_python/mcp_server/led-use_server.py"
-  },
   "display": {
     "dark_mode": "false"
+  },
+
+  "mcp_server_config": {
+    "active_mcp_server": "led-use-server",
+
+    "mcp_servers": {
+      "led-use-server": {
+        "command": "uv",
+        "args": [
+          "--directory",
+          "/home/lanpangzi/distiller-cm5-python/distiller_cm5_python/mcp_server/led_use/",
+          "run",
+          "led-use_server.py"
+        ]
+      },
+      "tts-use-server": {
+        "command": "uv",
+        "args": [
+          "--directory",
+          "/home/lanpangzi/distiller-cm5-python/distiller_cm5_python/mcp_server/tts_use/",
+          "run",
+          "tts-use_server.py"
+        ]
+      },
+      "wifi-use-server": {
+        "command": "uv",
+        "args": [
+          "--directory",
+          "/home/lanpangzi/distiller-cm5-python/distiller_cm5_python/mcp_server/wifi_use/",
+          "run",
+          "wifi-use_server.py"
+        ]
+      }
+    }
   }
 }

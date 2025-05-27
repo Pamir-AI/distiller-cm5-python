@@ -338,3 +338,15 @@ MCP_SERVER_SCRIPT_PATH = config.get(
 LOGGING_LEVEL = config.get(
     "logging", "level", "INFO"
 ).upper()  # Default to INFO, ensure uppercase
+
+AUTO_RECOGNIZE = config.get("audio_recognize", "activate",default=True)
+WAKE_WORD = config.get("audio_recognize", "wake_word",default=True)
+
+# MCP-SERVER settings
+MCP_SERVERS = config.get("mcp_server_config","mcp_servers", default={})
+ACTIVE_MCP_SERVER = config.get("mcp_server_config", "active_mcp_server", "led-use-server")
+
+
+if __name__ == "__main__":
+    print(f"MCP_SERVER: {MCP_SERVERS}")
+    print(f"ACTIVE_MCP_SERVER: {ACTIVE_MCP_SERVER}")
