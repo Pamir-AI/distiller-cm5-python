@@ -1,0 +1,10 @@
+[project]
+name = "led-use"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.9.1",
+    "nest-asyncio>=1.6.0",
+]
