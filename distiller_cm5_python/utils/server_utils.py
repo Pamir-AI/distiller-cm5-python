@@ -6,61 +6,39 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-def extract_server_name(server_script_path: str) -> str:
+def extract_server_name(active_server_name: str) -> str:
     """
-    Extract a meaningful server name from a server script path.
+    Derives a user-friendly server name from a given internal server identifier.
 
-    This function uses multiple strategies to extract the best possible name:
-    1. Try to extract SERVER_NAME constant from the script
-    2. Fall back to extracting from the filename using naming conventions
-    3. Return a default if all else fails
+    This function applies a series of heuristics to convert a raw server name
+    (typically a script filename or identifier) into a readable label:
+
+    1. Removes common prefixes/suffixes such as 'server_' or '_server'.
+    2. Converts underscores to spaces and capitalizes each word.
+    3. Falls back to a default name if processing fails.
 
     Args:
-        server_script_path: Path to the server script file
+        active_server_name: The raw server name, usually derived from a script or config.
 
     Returns:
-        A human-friendly server name
+        A cleaned and human-readable server name string.
     """
-    if not server_script_path or not os.path.exists(server_script_path):
-        logger.warning(f"Invalid server script path: {server_script_path}")
-        return "Unknown Server"
 
-    # Strategy 1: Extract SERVER_NAME constant from the script
-    try:
-        with open(server_script_path, "r") as f:
-            content = f.read(2000)  # Read only first 2000 chars to avoid large files
-            # Use regex to find SERVER_NAME variable with proper string assignment
-            match = re.search(r'SERVER_NAME\s*=\s*["\']([^"\']+)["\']', content)
-            if match:
-                extracted_name = match.group(1).strip()
-                if extracted_name:
-                    logger.debug(
-                        f"Extracted server name from script constant: {extracted_name}"
-                    )
-                    return extracted_name
-    except Exception as e:
-        logger.warning(f"Failed to read server script for name extraction: {e}")
 
     # Strategy 2: Extract from filename
     try:
-        # Get the base filename
-        filename = os.path.basename(server_script_path)
-
-        # Remove extension
-        if filename.endswith(".py"):
-            filename = filename[:-3]
 
         # Handle common naming patterns
-        if filename.endswith("_server"):
-            filename = filename[:-7]
-        elif filename.startswith("server_"):
-            filename = filename[7:]
+        if active_server_name.endswith("_server"):
+            active_server_name = active_server_name[:-7]
+        elif active_server_name.startswith("server_"):
+            active_server_name = active_server_name[7:]
 
         # Convert to title case with spaces
-        name = filename.replace("_", " ").title()
+        name = active_server_name.replace("_", " ").title()
 
         if name:
-            logger.debug(f"Extracted server name from filename: {name}")
+            logger.debug(f"Extracted server name from active mcp server: {name}")
             return name
     except Exception as e:
         logger.warning(f"Failed to extract server name from filename: {e}")
