@@ -56,6 +56,15 @@
           "run",
           "led-use_server.py"
         ]
+      },
+      "tts-use-server": {
+        "command": "uv",
+        "args": [
+          "--directory",
+          "/home/lanpangzi/distiller-cm5-python/distiller_cm5_python/mcp_server/tts_use/",
+          "run",
+          "tts-use_server.py"
+        ]
       }
     }
   }
