@@ -22,6 +22,7 @@ from distiller_cm5_python.utils.config import (
     PROVIDER_TYPE,
     MODEL_NAME,
     TIMEOUT,
+    MCP_SERVERS
 )
 from contextlib import AsyncExitStack
 
@@ -105,15 +106,15 @@ class MCPClient:
 
         self.dispatcher = dispatcher
 
-    async def connect_to_server(self, server_script_path: str) -> bool:
+    async def connect_to_server(self, active_mcp_server: str) -> bool:
         """Connect to an MCP server"""
-
-        if not server_script_path.endswith(".py"):
-            raise UserVisibleError("Server script must be a .py file")
+        logger.debug(f"Connecting to server: {active_mcp_server}")
 
         # use current python interpreter by default
         server_params = StdioServerParameters(
-            command=sys.executable, args=[server_script_path], env=None
+            command=MCP_SERVERS.get(active_mcp_server).get("command", None),
+            args=MCP_SERVERS.get(active_mcp_server).get("args", None),
+            env=MCP_SERVERS.get(active_mcp_server).get("env", None),
         )
 
         try:
@@ -139,7 +140,7 @@ class MCPClient:
             if self.server_name == "cli":
                 from distiller_cm5_python.utils.server_utils import extract_server_name
 
-                self.server_name = extract_server_name(server_script_path)
+                self.server_name = extract_server_name(active_mcp_server)
                 logger.debug(f"Using extracted server name: {self.server_name}")
 
             end_time = time.time()
