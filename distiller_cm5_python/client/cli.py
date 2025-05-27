@@ -24,7 +24,7 @@ from distiller_cm5_python.utils.config import (
     MODEL_NAME,
     TIMEOUT,
     LOGGING_LEVEL,
-    MCP_SERVER_SCRIPT_PATH,
+    ACTIVE_MCP_SERVER,
     API_KEY,
 )
 from distiller_cm5_python.utils.distiller_exception import (
@@ -242,11 +242,7 @@ async def chat_loop(client: MCPClient, asr_instance):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="MCP Client CLI")
-    parser.add_argument(
-        "--server-script",
-        default=MCP_SERVER_SCRIPT_PATH,
-        help="Path to the MCP server script (e.g., ../server/server.py)",
-    )
+
     parser.add_argument(
         "--stream",
         action=argparse.BooleanOptionalAction,
@@ -289,16 +285,7 @@ async def main():
     # Log the effective level
     logger.info(f"Log level set to: {args.log_level}")  # This logger is now configured
 
-    # Make server script path absolute, default to MCP_SERVER_SCRIPT_PATH
-    server_script_path = os.path.abspath(args.server_script)
-    if not os.path.exists(server_script_path):
-        logger.error(f"Server script not found at: {server_script_path}")
-        print(
-            f"{Fore.RED}Error: Server script not found at '{server_script_path}'. Please provide a valid path.{Style.RESET_ALL}"
-        )
-        sys.exit(1)
-
-    logger.info(f"Using server script: {server_script_path}")
+    # Make mcp-server server dir exist
 
     # Initialize event dispatcher and handler
     event_handler = CLIEventHandler()
@@ -352,7 +339,7 @@ async def main():
 
     try:
         logger.info("Connecting to MCP server...")
-        connected = await client.connect_to_server(server_script_path)
+        connected = await client.connect_to_server(ACTIVE_MCP_SERVER)
         if not connected:
             logger.error("Failed to connect to the MCP server.")
             print(
