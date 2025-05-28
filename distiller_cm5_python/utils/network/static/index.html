@@ -1,0 +1,50 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>WiFi Configuration</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+        </head>
+        <body>
+            <div class="container">
+                <h1>WiFi Configuration</h1>
+                
+                <!-- Connection Status -->
+                <div id="connectionStatus" class="connection-info hidden">
+                    <p><strong>Connected to:</strong> <span id="connectedSsid"></span></p>
+                    <p><strong>IP Address:</strong> <span id="ipAddress"></span></p>
+                </div>
+                
+        <!-- Connect Form -->
+        <div id="connectFormView">
+                        <h2>Connect to Network</h2>
+                    <form id="connectForm">
+                        <div class="form-group">
+                            <label for="ssid">Network Name (SSID):</label>
+                    <input type="text" id="ssid" name="ssid" required>
+                        </div>
+                        <div class="form-group" id="passwordGroup">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password">
+                        </div>
+                        <button type="submit" id="connectButton">Connect</button>
+                    </form>
+                </div>
+                
+                <!-- Status Messages -->
+                <div id="statusMessage" class="status-message hidden"></div>
+                
+                <div id="connectingMessage" class="hidden">
+                    <div class="flex">
+                        <div class="loading"></div> Connecting to network...
+                    </div>
+                    <p>Please wait while the device connects. This may take up to 30 seconds.</p>
+                    <p>If connection is successful, this page may disconnect as the device changes networks.</p>
+                </div>
+            </div>
+            
+    <script src="/static/js/app.js"></script>
+        </body>
+        </html>
+        

@@ -1,0 +1,14 @@
+[Unit]
+Description=Distiller WiFi Setup Service
+After=network.target
+
+[Service]
+ExecStart=/home/utsav/dev/pamir-ai/distiller-cm5-python/wifi_setup.py
+WorkingDirectory=/home/utsav/dev/pamir-ai/distiller-cm5-python
+Restart=on-failure
+RestartSec=5
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target 

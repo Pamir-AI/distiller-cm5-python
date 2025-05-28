@@ -5,7 +5,7 @@ config = {
         "eink_dithering_method": 1,  # 1=Floyd-Steinberg, 2=Ordered
         "eink_full_refresh_interval": 15,
         "eink_refresh_interval": 1500,
-        "eink_enabled": True,
+        "eink_enabled": False,
         "eink_buffer_size": 1,  # Reduced buffer size to save memory
         "eink_threshold": 150,  # Threshold for black/white conversion (0-255)
         "eink_save_capture": False,  # Save screen captures for debugging
