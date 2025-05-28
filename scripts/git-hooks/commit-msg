@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# Debugging - create a log file to confirm hook execution
+touch /tmp/commit-msg-hook-executed
+
+# Conventional Commit Types
+# feat: A new feature
+# fix: A bug fix
+# docs: Documentation only changes
+# style: Changes that do not affect the meaning of the code
+# refactor: A code change that neither fixes a bug nor adds a feature
+# perf: A code change that improves performance
+# test: Adding missing tests or correcting existing tests
+# build: Changes that affect the build system or external dependencies
+# ci: Changes to our CI configuration files and scripts
+# chore: Other changes that don't modify src or test files
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Debugging
+echo "Hook triggered with message file: $COMMIT_MSG_FILE" >> /tmp/commit-msg-hook-debug
+echo "Message content: $(cat $COMMIT_MSG_FILE)" >> /tmp/commit-msg-hook-debug
+
+# Ignore merge commits
+if [[ $COMMIT_MSG =~ ^Merge\ branch ]]; then
+    exit 0
+fi
+
+# Conventional commit pattern:
+# type(scope): subject
+# Empty line
+# body (optional)
+# Empty line
+# footer (optional)
+
+# Improved pattern with space after colon
+PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z0-9-]+\))?:[[:space:]].{1,72}$'
+
+if ! [[ $(head -1 "$COMMIT_MSG_FILE") =~ $PATTERN ]]; then
+    echo "❌ Commit message format is incorrect. It should match: type(scope): subject"
+    echo "Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore"
+    echo "Example: feat(ui): add new button component"
+    echo
+    echo "Your commit message: $(head -1 "$COMMIT_MSG_FILE")"
+    exit 1
+fi
+
+# Check if subject line is too long (>72 chars)
+if [[ $(head -1 "$COMMIT_MSG_FILE" | wc -c) -gt 73 ]]; then
+    echo "❌ Commit subject line is too long (max 72 characters)"
+    exit 1
+fi
+
+# Ensure first letter after type(scope): is lowercase
+FIRST_LETTER=$(echo "$COMMIT_MSG" | head -1 | sed -E 's/^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z0-9-]+\))?:[[:space:]]*(.)/\3/')
+if [[ "$FIRST_LETTER" =~ [A-Z] ]]; then
+    echo "❌ First letter of commit message should be lowercase"
+    exit 1
+fi
+
+echo "✅ Commit message follows conventional commit format!"
+exit 0 
