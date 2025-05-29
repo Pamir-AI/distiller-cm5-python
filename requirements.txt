@@ -17,3 +17,4 @@ evdev
 spidev
 lgpio
 numba
+zeroconf>=0.76.0

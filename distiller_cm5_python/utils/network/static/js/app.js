@@ -100,11 +100,40 @@ async function connectToNetwork(ssid, password) {
         if (result.success) {
             showStatus(`Successfully connected to ${ssid}`);
             
-            // Wait and then check status
-            setTimeout(async () => {
-                await fetchStatus();
-                showConnectForm();
-            }, 3000);
+            // Check if we have a redirect URL
+            if (result.data && result.data.redirect_url) {
+                // Show message about redirection
+                connectingMessage.innerHTML = `
+                    <div class="flex">
+                        <div class="loading"></div> Connection successful!
+                    </div>
+                    <p>You are now connected to ${ssid}.</p>
+                    <p>Redirecting to dashboard in 3 seconds...</p>
+                `;
+                
+                // Wait and then redirect
+                setTimeout(() => {
+                    // Use the IP address if available
+                    if (result.data.ip_address && result.data.ip_address !== "Unknown") {
+                        // Check if we're using mDNS
+                        if (window.location.hostname === "distiller.local") {
+                            window.location.href = `${window.location.protocol}//${window.location.host}${result.data.redirect_url}`;
+                        } else {
+                            // Try using the IP directly - this helps if we change networks
+                            window.location.href = `${window.location.protocol}//${result.data.ip_address}:${window.location.port}${result.data.redirect_url}`;
+                        }
+                    } else {
+                        // Just use relative URL if no IP is available
+                        window.location.href = result.data.redirect_url;
+                    }
+                }, 3000);
+            } else {
+                // No redirect - just update status and show form
+                setTimeout(async () => {
+                    await fetchStatus();
+                    showConnectForm();
+                }, 3000);
+            }
         } else {
             // Format a more detailed error message
             let errorMessage = `Failed to connect: ${result.message}`;

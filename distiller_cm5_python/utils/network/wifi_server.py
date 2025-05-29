@@ -12,16 +12,18 @@ import uvicorn
 import ipaddress
 import signal
 import sys
+import socket
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 
 from .wifi_manager import WiFiManager
+from .mdns_service import MDNSService
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +73,9 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
-# Initialize WiFi manager
+# Initialize WiFi manager and mDNS service
 wifi_manager = None
+mdns_service = None
 
 # Store the server startup task
 server_startup_task = None
@@ -96,6 +99,16 @@ async def get_index() -> HTMLResponse:
     html_path = static_dir / "index.html"
     
     # Serve the index.html file
+    return FileResponse(html_path)
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def get_dashboard() -> HTMLResponse:
+    """
+    Serve the dashboard HTML page after successful WiFi connection.
+    """
+    html_path = static_dir / "dashboard.html"
+    
+    # Serve the dashboard.html file
     return FileResponse(html_path)
 
 @app.get("/api/networks", response_model=List[WiFiNetwork])
@@ -155,12 +168,16 @@ async def connect_to_network(credentials: WiFiCredentials) -> ActionResponse:
         else:
             ip_address = "Unknown"
             
+        # Include redirect URL to dashboard
+        redirect_url = "/dashboard"
+            
         return ActionResponse(
             success=True,
             message=f"Successfully connected to {credentials.ssid}",
             data={
                 "previous_hotspot_active": is_hotspot_active,
-                "ip_address": ip_address
+                "ip_address": ip_address,
+                "redirect_url": redirect_url
             }
         )
     else:
@@ -250,148 +267,188 @@ async def restart_networking() -> ActionResponse:
     if success:
         return ActionResponse(
             success=True,
-            message="Networking services restarted successfully"
+            message="Networking restarted successfully"
         )
     else:
         return ActionResponse(
             success=False,
-            message="Failed to restart networking services"
+            message="Failed to restart networking"
         )
 
-# Signal handlers and cleanup function
 def cleanup():
     """
-    Cleanup resources before exiting.
-    Stop the hotspot if it's running.
+    Clean up resources before shutting down.
     """
-    global wifi_manager
-    
     logger.info("Cleaning up resources...")
     
-    if wifi_manager:
-        if wifi_manager.is_hotspot_active():
-            logger.info("Stopping hotspot before exit...")
-            wifi_manager.stop_hotspot()
+    # Stop WiFi manager tasks if needed
+    # This is a placeholder for any WiFi manager cleanup
     
+    # Stop server task if running
+    global server_startup_task
+    if server_startup_task:
+        server_startup_task.cancel()
+        
     logger.info("Cleanup complete")
 
 def signal_handler(sig, frame):
     """
-    Handle termination signals.
+    Handle signals to gracefully shutdown.
     """
     logger.info(f"Received signal {sig}, shutting down...")
     cleanup()
     sys.exit(0)
 
-# Server functions
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
 def get_server_ip() -> str:
     """
-    Get the IP address of the server when in hotspot mode.
+    Get the server's IP address.
     """
-    # Default IP when in hotspot mode
-    return "10.42.0.1"
+    # Get the IP from WiFi manager if possible
+    if wifi_manager:
+        connection = wifi_manager.get_current_connection()
+        if connection and "ip_address" in connection:
+            return connection["ip_address"]
+    return "0.0.0.0"  # Fallback
 
 async def start_server(host: str = "0.0.0.0", port: int = 8080, hotspot_ssid: str = None, 
-                       hotspot_password: str = None) -> None:
+                       hotspot_password: str = None, enable_mdns: bool = True, service_name: str = None) -> None:
     """
-    Start the WiFi configuration server.
+    Start the WiFi configuration web server.
     
     Args:
         host: Host to bind the server to
         port: Port to bind the server to
-        hotspot_ssid: SSID for the hotspot
-        hotspot_password: Password for the hotspot
+        hotspot_ssid: SSID for the hotspot (optional)
+        hotspot_password: Password for the hotspot (optional)
+        enable_mdns: Enable mDNS service advertisement
+        service_name: mDNS service name (optional, auto-generated if None)
     """
-    global wifi_manager
+    global wifi_manager, mdns_service
     
-    # Register signal handlers
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    # Initialize WiFi manager with proper defaults
+    # Initialize WiFi manager
     wifi_manager = WiFiManager(
-        hotspot_ssid=hotspot_ssid if hotspot_ssid is not None else WiFiManager.DEFAULT_HOTSPOT_SSID,
-        hotspot_password=hotspot_password if hotspot_password is not None else WiFiManager.DEFAULT_HOTSPOT_PASSWORD
+        hotspot_ssid=hotspot_ssid if hotspot_ssid else WiFiManager.DEFAULT_HOTSPOT_SSID,
+        hotspot_password=hotspot_password if hotspot_password else WiFiManager.DEFAULT_HOTSPOT_PASSWORD
     )
     
-    # Start hotspot
-    if not wifi_manager.is_hotspot_active():
-        # Create hotspot
-        success = wifi_manager.create_hotspot()
-        if not success:
-            logger.error("Failed to start hotspot")
-            return
+    # Get device IP address for better logging
+    device_ip = None
+    connection = wifi_manager.get_current_connection()
+    if connection and "ip_address" in connection:
+        device_ip = connection["ip_address"]
     
-    # Get server IP
-    server_ip = get_server_ip()
+    # If no IP found via WiFi connection, try to get local IP
+    if not device_ip or device_ip == "Unknown":
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            device_ip = s.getsockname()[0]
+            s.close()
+        except:
+            device_ip = "Unknown"
     
+    # Prepare the config
     config = uvicorn.Config(
         app=app,
         host=host,
         port=port,
         log_level="info"
     )
+    
+    # Create the server
     server = uvicorn.Server(config)
     
-    logger.info(f"Starting WiFi configuration server at http://{server_ip}:{port}")
-    logger.info(f"Hotspot SSID: {wifi_manager.hotspot_ssid}, Password: {wifi_manager.hotspot_password}")
+    # Start the mDNS service if enabled
+    if enable_mdns:
+        mdns_service = MDNSService(service_name=service_name)
+        mdns_success = await mdns_service.start_service(port=port)
+        
+        if mdns_success:
+            logger.info(f"Device accessible via: http://{mdns_service.service_name}.{mdns_service.domain}:{port}")
     
-    try:
-        await server.serve()
-    finally:
-        # Ensure cleanup happens if the server stops
-        cleanup()
+    # Log the server URLs
+    if device_ip and device_ip != "Unknown":
+        logger.info(f"Server accessible via: http://{device_ip}:{port}")
+    else:
+        logger.info(f"Server running on port {port}, but device IP address unknown")
+        
+    # Log if we're binding to all interfaces
+    if host == "0.0.0.0":
+        logger.info(f"Server bound to all network interfaces")
+    
+    # Run the server
+    logger.info(f"Starting WiFi configuration server...")
+    await server.serve()
+    
+    # Cleanup
+    if mdns_service:
+        await mdns_service.stop_service()
 
 def run_server(host: str = "0.0.0.0", port: int = 8080, hotspot_ssid: str = None, 
-               hotspot_password: str = None) -> None:
+               hotspot_password: str = None, enable_mdns: bool = True, service_name: str = "distiller") -> None:
     """
-    Run the WiFi configuration server in the main thread.
+    Run the server in the main thread (blocking).
     
     Args:
         host: Host to bind the server to
         port: Port to bind the server to
-        hotspot_ssid: SSID for the hotspot
-        hotspot_password: Password for the hotspot
+        hotspot_ssid: SSID for the hotspot (optional)
+        hotspot_password: Password for the hotspot (optional)
+        enable_mdns: Enable mDNS service advertisement
+        service_name: mDNS service name
     """
-    try:
-        asyncio.run(start_server(host, port, hotspot_ssid, hotspot_password))
-    except KeyboardInterrupt:
-        logger.info("Server stopped by keyboard interrupt")
-    finally:
-        # Ensure cleanup happens on normal exit
-        cleanup()
+    asyncio.run(start_server(
+        host=host, 
+        port=port, 
+        hotspot_ssid=hotspot_ssid, 
+        hotspot_password=hotspot_password,
+        enable_mdns=enable_mdns,
+        service_name=service_name
+    ))
 
 async def start_server_background(host: str = "0.0.0.0", port: int = 8080, 
-                                  hotspot_ssid: str = None, hotspot_password: str = None) -> asyncio.Task:
+                                  hotspot_ssid: str = None, hotspot_password: str = None,
+                                  enable_mdns: bool = True, service_name: str = "distiller") -> asyncio.Task:
     """
-    Start the WiFi configuration server in the background.
+    Start the server in the background.
     
     Args:
         host: Host to bind the server to
         port: Port to bind the server to
-        hotspot_ssid: SSID for the hotspot
-        hotspot_password: Password for the hotspot
+        hotspot_ssid: SSID for the hotspot (optional)
+        hotspot_password: Password for the hotspot (optional)
+        enable_mdns: Enable mDNS service advertisement
+        service_name: mDNS service name
         
     Returns:
         asyncio.Task: The server task
     """
     global server_startup_task
     
+    # Create and start the task
     server_startup_task = asyncio.create_task(
-        start_server(host, port, hotspot_ssid, hotspot_password)
+        start_server(
+            host=host, 
+            port=port, 
+            hotspot_ssid=hotspot_ssid, 
+            hotspot_password=hotspot_password,
+            enable_mdns=enable_mdns,
+            service_name=service_name
+        )
     )
-    
-    # Register at-exit cleanup
-    import atexit
-    atexit.register(cleanup)
     
     return server_startup_task
 
-# Main entry point
 if __name__ == "__main__":
+    # Set up logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     
+    # Run the server
     run_server() 
