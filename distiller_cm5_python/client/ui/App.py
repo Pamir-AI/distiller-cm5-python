@@ -180,16 +180,18 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             self._apply_window_constraints()
             # E-Ink Initialization Call
             self._init_eink_renderer()
-            self._eink_initialized = True
 
-            # Add a small delay to allow QML/FocusManager to potentially settle
-            await asyncio.sleep(0.2)  # Wait 200ms
-            logger.info("Proceeding to start input monitor after short delay.")
+            if self._eink_initialized: # Check if E-Ink initialized successfully
+                # Add a small delay to allow QML/FocusManager to potentially settle
+                await asyncio.sleep(0.2)  # Wait 200ms
+                logger.info("Proceeding to start input monitor after short delay.")
 
-            # Set the target window for the input monitor
-            self.input_monitor.set_target_window(self.main_window)
-            # Start the input monitor with default device name
-            self.input_monitor.start()
+                # Set the target window for the input monitor
+                self.input_monitor.set_target_window(self.main_window)
+                # Start the input monitor with default device name
+                self.input_monitor.start()
+            else:
+                logger.warning("E-Ink initialization failed (self._eink_initialized is False). Input monitor will not be started.")
 
         logger.info("Application initialized successfully")
 
@@ -527,13 +529,9 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             # Set adaptive capture mode
             self.eink_renderer.set_adaptive_capture(adaptive_capture)
 
-            # Connect the signal to an async lambda that schedules the handler
-            # Use asyncio.create_task to run the async handler without blocking the signal emission
-            self.eink_renderer.frameReady.connect(
-                lambda data, w, h: asyncio.create_task(
-                    self._handle_eink_frame(data, w, h)
-                )
-            )
+            # Connect the signal to a synchronous handler that uses Qt's thread pool
+            # This avoids threading issues with asyncio.create_task
+            self.eink_renderer.frameReady.connect(self._handle_eink_frame_sync)
 
             # Start capturing frames
             self.eink_renderer.start()
@@ -558,10 +556,10 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             self.eink_renderer = None
             return False
 
-    async def _handle_eink_frame(self, frame_data, width, height):
+    def _handle_eink_frame_sync(self, frame_data, width, height):
         """
-        Handle a new frame from the E-Ink renderer asynchronously.
-        This method forwards the frame to the e-ink bridge for display in a separate thread.
+        Handle a new frame from the E-Ink renderer synchronously.
+        This method forwards the frame to the e-ink bridge for display in the main thread.
 
         Args:
             frame_data: The binary data for the frame
@@ -572,17 +570,15 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             f"E-Ink frame received: {width}x{height}, {len(frame_data)} bytes. Offloading to bridge."
         )
 
-        # Forward the frame to the e-ink bridge if available, using a separate thread
+        # Forward the frame to the e-ink bridge if available, using the main thread
         if self.eink_bridge and self.eink_bridge.initialized:
             try:
-                # Run the potentially blocking bridge call in a separate thread
-                await asyncio.to_thread(
-                    self.eink_bridge.handle_frame, frame_data, width, height
-                )
+                # Run the potentially blocking bridge call in the main thread
+                self.eink_bridge.handle_frame(frame_data, width, height)
                 logger.debug("E-Ink frame successfully handled by bridge.")
             except Exception as e:
                 logger.error(
-                    f"Error calling eink_bridge.handle_frame in thread: {e}",
+                    f"Error calling eink_bridge.handle_frame in main thread: {e}",
                     exc_info=True,
                 )
         else:
