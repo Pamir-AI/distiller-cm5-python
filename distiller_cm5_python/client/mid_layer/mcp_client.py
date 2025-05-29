@@ -217,9 +217,39 @@ class MCPClient:
                     )
                     return False
             else:
-                # For other provider types, just set connected
-                self._is_connected = True
-                return True
+                # For other provider types, explicitly check connection
+                logger.info(
+                    f"Verifying connection for LLM provider: {self.llm_provider.provider_type} at {self.llm_provider.server_url}"
+                )
+                if self.llm_provider.check_connection():
+                    logger.info(
+                        f"Successfully connected to LLM provider: {self.llm_provider.provider_type}"
+                    )
+                    self._is_connected = True
+                    if self.dispatcher:
+                        self.dispatcher.dispatch(
+                            StatusEvent(
+                                type=EventType.INFO,
+                                content=f"Successfully connected to LLM provider: {self.llm_provider.provider_type}",
+                                status=StatusType.SUCCESS,
+                                component="llm_connection",
+                            )
+                        )
+                    return True
+                else:
+                    error_msg = f"Failed to connect to LLM provider: {self.llm_provider.provider_type} at {self.llm_provider.server_url}. Please check configuration and network."
+                    logger.error(error_msg)
+                    if self.dispatcher:
+                        self.dispatcher.dispatch(
+                            StatusEvent(
+                                type=EventType.ERROR,
+                                content=error_msg,
+                                status=StatusType.FAILED,
+                                component="llm_connection",
+                            )
+                        )
+                    self._is_connected = False
+                    return False
 
         except Exception as e:
             logger.error(f"Failed to connect to server: {e}")

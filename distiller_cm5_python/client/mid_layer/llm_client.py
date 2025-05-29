@@ -273,9 +273,10 @@ class LLMClient:
             if (
                 not self._check_cloud_api_connection_sync()
             ):  # Use sync check during init
-                #  logger.error(f"LLMClient.__init__: Could not connect to API at {self.server_url}")
-                raise UserVisibleError(
-                    f"Could not connect to API at {self.server_url}. Check URL and API key."
+                # Log a warning, but don't raise an error immediately.
+                # Let the first actual request fail if connection is terrible.
+                logger.warning(
+                    f"LLMClient.__init__: Initial check failed for {self.provider_type} API at {self.server_url}. Client will proceed, but requests may fail."
                 )
         else:
             logger.error(
@@ -446,39 +447,6 @@ class LLMClient:
             return False
         except Exception as e:
             logger.error(f"Unexpected error during sync cloud connection check: {e}")
-            return False
-
-    # Async version for internal use during API calls if needed later (currently unused)
-    async def _check_cloud_api_connection_async(self) -> bool:
-        """Asynchronously check connection for cloud-based APIs (e.g., OpenRouter)."""
-        endpoint = self._get_endpoint(self.models_url)
-        headers = self._get_headers()
-        if not headers.get("Authorization"):
-            logger.error(
-                f"Cannot check connection async to {self.server_url}: API key is missing."
-            )
-            return False
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    endpoint, timeout=10, headers=headers
-                ) as response:
-                    if response.status == 200:
-                        return True
-                    else:
-                        response_text = await response.text()
-                        logger.warning(
-                            f"Async cloud API connection check failed at {endpoint}. Status: {response.status}, Response: {response_text[:100]}..."
-                        )
-                        return False
-        except aiohttp.ClientError as e:
-            logger.warning(
-                f"Async cloud API connection check failed at {endpoint}. Error: {e}"
-            )
-            return False
-        except Exception as e:
-            logger.error(f"Unexpected error during async cloud connection check: {e}")
             return False
 
     def _get_headers(self) -> Dict[str, str]:

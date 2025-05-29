@@ -9,6 +9,7 @@ import asyncio
 import sys
 import os
 import logging
+import time
 from typing import Optional
 
 # Add project root to sys.path if necessary, although cli.py should handle it
@@ -68,7 +69,9 @@ async def main():
             else:
                  logger.info(f"Existing llama-cpp server detected at {SERVER_URL}. Proceeding.")
         # --- End Llama.cpp Server Management ---
-        
+        else:
+            logger.info("Configuration specifies non-llama-cpp provider. Skipping server management.")
+            time.sleep(5) # Wait for 5 seconds to ensure the server is ready
 
         if hasattr(args, 'gui') and args.gui:
             logger.info("Starting GUI mode...")
