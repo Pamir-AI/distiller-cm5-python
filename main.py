@@ -22,8 +22,6 @@ from distiller_cm5_python.utils.distiller_exception import UserVisibleError
 # Import necessary components for LLM server management
 from distiller_cm5_python.client.llm_infra.llama_manager import LlamaCppServerManager
 from distiller_cm5_python.utils.config import PROVIDER_TYPE, SERVER_URL, MODEL_NAME
-# Import UART utilities for power status signaling
-from distiller_cm5_python.utils.uart_utils import signal_app_start, signal_app_shutdown
 
 # Get logger instance for this module
 from distiller_cm5_python.utils.logger import setup_logging
@@ -39,9 +37,6 @@ async def main():
     started_server = False
     
     try:
-        # Signal application startup via UART
-        signal_app_start()
-        
         # Parse arguments 
         args = parse_arguments()
         
@@ -91,9 +86,6 @@ async def main():
         print(f"An unexpected critical error occurred: {e}")
         sys.exit(1) # Exit with error code
     finally:
-        # Signal application shutdown via UART
-        signal_app_shutdown()
-        
         # --- Llama.cpp Server Shutdown ---
         if llama_manager and started_server:
             logger.info(f"Shutting down managed llama-cpp server (PID: {llama_manager.get_pid()})...")

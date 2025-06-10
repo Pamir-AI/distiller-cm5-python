@@ -333,8 +333,8 @@ DEFAULT_SYSTEM_PROMPT = config.get(
     "prompts", "default_system_prompt", "You are a helpful assistant."
 )
 MCP_SERVER_SCRIPT_PATH = config.get(
-    "mcp_server", "server_script_path", "mcp_server/wifi_mac_server.py"
-)  # Provide default
+    "mcp_server", "server_script_path"
+)  # Can be None for LLM-only mode
 LOGGING_LEVEL = config.get(
     "logging", "level", "INFO"
 ).upper()  # Default to INFO, ensure uppercase

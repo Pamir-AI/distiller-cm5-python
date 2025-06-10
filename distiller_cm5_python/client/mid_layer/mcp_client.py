@@ -1,6 +1,6 @@
 import time
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 import json
 import logging
 
@@ -33,15 +33,6 @@ from distiller_cm5_python.utils.distiller_exception import (
 import signal
 import traceback
 import concurrent.futures
-from distiller_cm5_python.client.ui.events.event_dispatcher import EventDispatcher
-from distiller_cm5_python.client.ui.events.event_types import (
-    EventType,
-    StatusType,
-    MessageEvent,
-    ActionEvent,
-    StatusEvent,
-    CacheEvent,
-)
 
 # Get logger instance for this module
 logger = logging.getLogger(__name__)
@@ -56,7 +47,6 @@ class MCPClient:
         model: Optional[str] = None,
         api_key: Optional[str] = None,
         timeout: Optional[int] = None,
-        dispatcher: Optional[EventDispatcher] = None,
     ):
         self.session = None
         self.write = None
@@ -102,8 +92,6 @@ class MCPClient:
         self.tool_processor = None
 
         logger.debug("Client initialized with components")
-
-        self.dispatcher = dispatcher
 
     async def connect_to_server(self, server_script_path: str) -> bool:
         """Connect to an MCP server"""
@@ -171,20 +159,7 @@ class MCPClient:
 
             # enable cache restore if provider is llama-cpp
             if self.llm_provider.provider_type == "llama-cpp":
-                self.dispatcher.dispatch(
-                    StatusEvent(
-                        type=EventType.INFO,
-                        content="Connecting to server, restoring cache...",
-                        status=StatusType.IN_PROGRESS,
-                        component="cache",
-                    )
-                )
-
-                # Send a more specific status event for cache restoration
-                # Dispatch a proper cache event
-                self.dispatcher.dispatch(
-                    CacheEvent.restoration_started(model_name=self.llm_provider.model)
-                )
+                logger.info("Connecting to server, restoring cache...")
 
                 try:
                     # Restore cache (this is the operation that can cause errors if interrupted)
@@ -195,26 +170,12 @@ class MCPClient:
 
                     # Set the connection status to True after cache is successfully restored
                     self._is_connected = True
-
-                    # Dispatch a proper cache completion event
-                    self.dispatcher.dispatch(
-                        CacheEvent.restoration_completed(
-                            model_name=self.llm_provider.model
-                        )
-                    )
+                    logger.info("Cache restoration completed")
 
                     return True
 
                 except Exception as e:
                     logger.error(f"Failed to restore cache: {e}")
-                    # No need for additional status update here as we'll dispatch an error event below
-
-                    # Dispatch a proper cache failure event
-                    self.dispatcher.dispatch(
-                        CacheEvent.restoration_failed(
-                            error_message=str(e), model_name=self.llm_provider.model
-                        )
-                    )
                     return False
             else:
                 # For other provider types, just set connected
@@ -223,15 +184,6 @@ class MCPClient:
 
         except Exception as e:
             logger.error(f"Failed to connect to server: {e}")
-            # Dispatch a generic connection error event
-            self.dispatcher.dispatch(
-                StatusEvent(
-                    type=EventType.STATUS,
-                    content=f"Failed to connect to server: {e}",
-                    status=StatusType.FAILED,
-                    component="connection",
-                )
-            )
             return False
 
     async def refresh_capabilities(self):
@@ -267,6 +219,24 @@ class MCPClient:
 
     async def _execute_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> None:
         """Helper method to execute tool calls and add results to history."""
+        if not tool_calls:
+            logger.debug("No tool calls to execute")
+            return
+            
+        if self.tool_processor is None:
+            logger.warning("Tool processor is None (LLM-only mode), but tool calls were generated. This should not happen.")
+            # Add error messages for each tool call
+            for tool_call in tool_calls:
+                tool_name = (
+                    tool_call.get("function", {}).get("name", "unknown")
+                    if "function" in tool_call
+                    else tool_call.get("name", "unknown")
+                )
+                error_message = f"Error: Tool '{tool_name}' is not available in LLM-only mode."
+                self.message_processor.add_tool_call(tool_call)
+                self.message_processor.add_failed_tool_execute(tool_call, error_message)
+            return
+            
         logger.info(f"Found {len(tool_calls)} tool calls to execute")
         for i, tool_call in enumerate(tool_calls):
             logger.info(f"Executing tool call {i + 1}/{len(tool_calls)}")
@@ -297,17 +267,6 @@ class MCPClient:
                     logger.error(f"Could not parse details for __llm_tool_parse_error__ (General Exception): {e}. Args: {raw_error_args_str}")
                     tool_result_content = f"Error: LLM tool call parsing failed. Could not parse internal error details (General Exception): {raw_error_args_str}"
 
-                # Dispatch an error event for the parsing failure
-                action_event = ActionEvent(
-                    type=EventType.ACTION,
-                    content=tool_result_content, 
-                    status=StatusType.FAILED,
-                    tool_name=tool_name, # This will be "__llm_tool_parse_error__"
-                    tool_args=error_details_dict,
-                    data={"tool_call": tool_call, "error": "LLMToolParseError"},
-                )
-                self.dispatcher.dispatch(action_event)
-
                 # Add the parsing failure result to message history
                 self.message_processor.add_failed_tool_gen(
                     original_snippet,
@@ -318,17 +277,7 @@ class MCPClient:
             # --- End of handling for __llm_tool_parse_error__ ---
 
             parsed_tool_args = tool_call.get("function", {}).get("arguments", {})
-
-            # Dispatch ActionEvent (start) - provide args or error info based on parsing status
-            action_event = ActionEvent(
-                type=EventType.ACTION,
-                content=f"Executing tool: {tool_name}",
-                status=StatusType.IN_PROGRESS,
-                tool_name=tool_name,
-                tool_args=parsed_tool_args,
-                data={"tool_call": tool_call},
-            )
-            self.dispatcher.dispatch(action_event)
+            logger.info(f"Executing tool: {tool_name}")
 
             try:
                 self.message_processor.add_tool_call(tool_call)
@@ -338,19 +287,6 @@ class MCPClient:
                 logger.info(f"Executed tool name: {tool_call.get('id', 'N/A')}")
                 logger.info(f"Executed tool result: {tool_result_content}")
 
-                # Dispatch success event
-                result_event = ActionEvent(
-                    type=EventType.ACTION,
-                    content=f"Tool result: {tool_result_content}",
-                    status=StatusType.SUCCESS,
-                    tool_name=tool_name,
-                    tool_args=parsed_tool_args,  # Use the parsed dictionary here too
-                    data={
-                        "tool_call": tool_call,
-                        "result": tool_result_content,
-                    },
-                )
-                self.dispatcher.dispatch(result_event)
                 # Add the successful tool result to message history
                 self.message_processor.add_tool_result(
                     tool_call, tool_result_content
@@ -366,49 +302,27 @@ class MCPClient:
                 logger.warning(error_message)
                 tool_result_content = error_message  # Store error as result
 
-                # Dispatch error event for execution failure
-                error_event = ActionEvent(
-                    type=EventType.ERROR,
-                    content=exception_message,
-                    status=StatusType.FAILED,
-                    tool_name=tool_name,
-                    tool_args=parsed_tool_args,  # Include parsed args even on error
-                    data={"tool_call": tool_call, "error": exception_message},
-                )
-                self.dispatcher.dispatch(error_event)
                 # Add the execution failure result to message history
                 self.message_processor.add_failed_tool_execute(
                     tool_call, # The tool_call that failed execution
                     tool_result_content # Contains the detailed error message from execution
                 )
             
-    async def process_query(self, query: str) -> Dict[str, Any]:
+    async def process_query(self, query: str, print_callback: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """Process a query through the LLM client.
 
         Args:
             query: The query to process.
+            print_callback: Optional callback function to print streaming content.
         Returns:
             The processed response from the LLM client.
         """
         import time, uuid
 
-        # Create standard message schema for thinking state
-        thinking_msg = MessageEvent(
-            type=EventType.INFO,
-            content="Thinking...",
-            status=StatusType.IN_PROGRESS,
-            role="assistant",
-            data=None,
-        )
-
-        # Dispatch using new message schema
-        self.dispatcher.dispatch(thinking_msg)
+        logger.info("Processing query...")
 
         # Record the user's message
         user_msg = self.message_processor.add_message("user", query)
-
-        # Dispatch user message event
-        # self.dispatcher.dispatch(user_msg)
 
         messages = self.message_processor.get_formatted_messages()
         max_tool_iterations = 5
@@ -425,45 +339,19 @@ class MCPClient:
                         response = await self.llm_provider.get_chat_completion_streaming_response(
                             messages=messages,
                             tools=self.available_tools,
-                            dispatcher=self.dispatcher,
+                            print_content=print_callback,
                         )
                     else:
                         # Non-streaming
                         response = await self.llm_provider.get_chat_completion_response(
-                            messages, self.available_tools
-                        )
-                        self.dispatcher.dispatch(
-                            MessageEvent(
-                                type=EventType.MESSAGE,
-                                content=response.get("message", {}).get("content", ""),
-                                status=StatusType.SUCCESS,
-                                role="assistant",
-                            )
+                            messages, self.available_tools, callback=None, print_content=print_callback
                         )
 
                 except LogOnlyError as e:
-                    # Create proper error message in case of streaming failure
-                    error_event = MessageEvent(
-                        type=EventType.ERROR,
-                        content=f"Failed to get response: {str(e)}",
-                        status=StatusType.FAILED,
-                        role="assistant",
-                        data={"error": str(e)},
-                    )
-                    self.dispatcher.dispatch(error_event)
-
                     # Add error message to the conversation as assistant message
                     error_msg = "I encountered an error while processing your request. Please try again or check your connection."
                     self.message_processor.add_message("assistant", error_msg)
-
-                    # Create completion event to signal end of processing
-                    complete_event = StatusEvent(
-                        type=EventType.INFO,
-                        content="",
-                        status=StatusType.SUCCESS,
-                        component="query",
-                    )
-                    self.dispatcher.dispatch(complete_event)
+                    logger.error(f"Failed to get response: {str(e)}")
 
                     # Re-raise the error to be caught by the higher-level handler
                     raise
@@ -479,66 +367,23 @@ class MCPClient:
                 if not tool_calls:
                     break
 
-                # Create and dispatch info event for tool execution
-                tool_info_event = StatusEvent(
-                    type=EventType.INFO,
-                    content=f"Executing tools ...",
-                    status=StatusType.IN_PROGRESS,
-                    component="tools",
-                    data={"count": len(tool_calls)},
-                )
-                self.dispatcher.dispatch(tool_info_event)
+                logger.info(f"Executing {len(tool_calls)} tools...")
 
                 # Execute tools
                 await self._execute_tool_calls(tool_calls)
 
-                # Create and dispatch completion event for tool execution
-                tool_complete_event = StatusEvent(
-                    type=EventType.INFO,
-                    content=f"Executed tools, processing response ...",
-                    status=StatusType.SUCCESS,
-                    component="tools",
-                )
-                self.dispatcher.dispatch(tool_complete_event)
+                logger.info("Tools executed, processing response...")
 
                 # Prepare for potential next iteration
                 messages = self.message_processor.get_formatted_messages()
 
-            # Create and dispatch completion event
-            complete_event = StatusEvent(
-                type=EventType.INFO,
-                content="",
-                status=StatusType.SUCCESS,
-                component="query",
-            )
-            self.dispatcher.dispatch(complete_event)
-
-            logger.info("--- Query Processing Complete ---")
+            logger.info("Query processing complete")
 
         except LogOnlyError as e:
             # This is already handled above and has proper UI messaging
             logger.error(f"Error during streaming: {e}")
             raise
         except Exception as e:
-            # Handle unexpected errors by dispatching an error event
-            error_event = MessageEvent(
-                type=EventType.ERROR,
-                content=f"Unexpected error: {str(e)}",
-                status=StatusType.FAILED,
-                role="assistant",
-                data={"error": str(e)},
-            )
-            self.dispatcher.dispatch(error_event)
-
-            # Also dispatch completion event to signal end of processing
-            complete_event = StatusEvent(
-                type=EventType.INFO,
-                content="",
-                status=StatusType.SUCCESS,
-                component="query",
-            )
-            self.dispatcher.dispatch(complete_event)
-
             # Log the error
             logger.error(f"Unexpected error in process_query: {e}", exc_info=True)
             raise
@@ -577,9 +422,11 @@ class MCPClient:
             logger.debug("No server process to terminate")
 
         # Now safely close the exit stack
-        if hasattr(self, "_exit_stack") and self._exit_stack:
+        if hasattr(self, "exit_stack") and self.exit_stack:
             await self._safe_aclose_exit_stack()
-            self._exit_stack = None
+            self.exit_stack = None
+        else:
+            logger.debug("No exit stack to close (likely LLM-only mode)")
 
         logger.info("MCP client cleanup completed")
 
@@ -636,7 +483,7 @@ class MCPClient:
         """Safely close the exit stack with error handling."""
         logger.info("Closing MCP client exit stack")
 
-        if not self._exit_stack:
+        if not self.exit_stack:
             return
 
         try:
@@ -645,7 +492,7 @@ class MCPClient:
                 # Create a future that will close the exit stack
                 future = executor.submit(
                     lambda: asyncio.run_coroutine_threadsafe(
-                        self._exit_stack.aclose(), asyncio.get_event_loop()
+                        self.exit_stack.aclose(), asyncio.get_event_loop()
                     )
                 )
 
@@ -663,3 +510,54 @@ class MCPClient:
             )
             # Log the full traceback for debugging
             logger.error(traceback.format_exc())
+
+    async def initialize_llm_only_mode(self) -> bool:
+        """Initialize the client for LLM-only mode without MCP server"""
+        try:
+            logger.info("Initializing LLM-only mode...")
+            
+            # Clean up message processor
+            self.message_processor.cleanup()
+            
+            # Set available tools to empty (no MCP server means no tools)
+            self.available_tools = []
+            self.available_resources = []
+            self.available_prompts = []
+            
+            # Initialize tool processor as None since we don't have a session
+            self.tool_processor = None
+            
+            # Set up system prompt without tools
+            self.message_processor.set_system_message(
+                self.prompt_processor.generate_system_prompt()
+            )
+            
+            # Enable cache restore if provider is llama-cpp
+            if self.llm_provider.provider_type == "llama-cpp":
+                logger.info("LLM-only mode: restoring cache...")
+                
+                try:
+                    # Restore cache with empty tools list
+                    await self.llm_provider.restore_cache(
+                        self.message_processor.get_formatted_messages(),
+                        self.available_tools,  # Empty list
+                    )
+                    
+                    # Set the connection status to True after cache is successfully restored
+                    self._is_connected = True
+                    logger.info("Cache restoration completed for LLM-only mode")
+                    
+                    return True
+                    
+                except Exception as e:
+                    logger.error(f"Failed to restore cache in LLM-only mode: {e}")
+                    return False
+            else:
+                # For other provider types, just set connected
+                self._is_connected = True
+                logger.info("LLM-only mode initialized successfully")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize LLM-only mode: {e}")
+            return False

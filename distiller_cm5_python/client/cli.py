@@ -11,12 +11,6 @@ import logging  # Import standard logging
 from colorama import Fore, Style, init as colorama_init
 
 from distiller_cm5_python.client.mid_layer.mcp_client import MCPClient
-from distiller_cm5_python.client.ui.events.event_types import (
-    EventType,
-    StatusType,
-    MessageSchema,
-)
-from distiller_cm5_python.client.ui.events.event_dispatcher import EventDispatcher
 from distiller_cm5_python.utils.config import (
     STREAMING_ENABLED,
     SERVER_URL,
@@ -40,68 +34,6 @@ except ImportError:
 
 # Get logger for this module after setup
 logger = logging.getLogger(__name__)
-
-
-class CLIEventHandler:
-    """Handles UI events for CLI display"""
-
-    def __init__(self):
-        self.current_message_id = None
-        self.message_chunks = []
-
-    def handle_event(self, evt: MessageSchema):
-        """Handles dispatched MessageSchema events for CLI display"""
-        # Check event type using evt.type enum
-        if evt.type == EventType.INFO or evt.type == EventType.STATUS:
-            # Treat STATUS like INFO for basic CLI display
-            print(f"{Fore.CYAN}{evt.content}{Style.RESET_ALL}")
-        elif evt.type == EventType.WARNING:
-            print(f"{Fore.YELLOW}{evt.content}{Style.RESET_ALL}")
-        elif evt.type == EventType.ERROR:
-            print(f"{Fore.RED}{evt.content}{Style.RESET_ALL}")
-        elif evt.type == EventType.MESSAGE:
-            # Use evt.status enum for message state
-            if evt.status == StatusType.IN_PROGRESS:
-                # Handle streaming message chunks
-                if evt.id != self.current_message_id:
-                    # Start of a new message stream
-                    self.current_message_id = evt.id
-                    self.message_chunks = []
-                    print(f"\n{Style.BRIGHT}Assistant: {Style.RESET_ALL}", end="")
-                # Access content directly from evt.content
-                if isinstance(evt.content, str):
-                    self.message_chunks.append(evt.content)
-                    print(evt.content, end="", flush=True)
-            elif evt.status == StatusType.SUCCESS:
-                print("[SUCCESS]", flush=True)
-
-        elif evt.type == EventType.ACTION:
-            # Display simplified action info
-            if evt.status == StatusType.IN_PROGRESS:
-                # Use tool_name from ActionEvent if available
-                tool_name = (
-                    evt.tool_name
-                    if hasattr(evt, "tool_name") and evt.tool_name
-                    else "Action"
-                )
-                print(f"{Fore.BLUE}Running: {tool_name}...{Style.RESET_ALL}")
-            elif evt.status == StatusType.SUCCESS:
-                # Indicate success, maybe show tool name again
-                tool_name = (
-                    evt.tool_name
-                    if hasattr(evt, "tool_name") and evt.tool_name
-                    else "Action"
-                )
-                print(
-                    f"{Fore.GREEN}{tool_name} finished.{Style.RESET_ALL} , output : {evt.content}"
-                )
-
-        elif evt.type == EventType.OBSERVATION:
-            pass
-
-        # Other event types can be ignored or logged
-        else:
-            logger.debug(f"CLIEventHandler received unhandled event type: {evt.type}")
 
 
 async def chat_loop(client: MCPClient, asr_instance):
@@ -182,7 +114,14 @@ async def chat_loop(client: MCPClient, asr_instance):
                                 transcribed_text  # Use transcribed text
                             )
                             # Send transcribed text to client
-                            await client.process_query(user_input_for_llm)
+                            print(f"\n{Style.BRIGHT}Assistant: {Style.RESET_ALL}", end="")
+                            
+                            # Define a print callback for streaming content with color
+                            def print_streaming_content(content: str):
+                                print(f"{Fore.GREEN}{content}{Style.RESET_ALL}", end="", flush=True)
+                            
+                            await client.process_query(user_input_for_llm, print_callback=print_streaming_content)
+                            print()  # Ensure newline after the full response/stream is printed
                             continue  # Skip the second process_query call
                         else:
                             print(
@@ -203,7 +142,13 @@ async def chat_loop(client: MCPClient, asr_instance):
                 continue
 
             try:
-                await client.process_query(user_input_for_llm)
+                print(f"\n{Style.BRIGHT}Assistant: {Style.RESET_ALL}", end="")
+                
+                # Define a print callback for streaming content with color
+                def print_streaming_content(content: str):
+                    print(f"{Fore.GREEN}{content}{Style.RESET_ALL}", end="", flush=True)
+                
+                await client.process_query(user_input_for_llm, print_callback=print_streaming_content)
                 print()  # Ensure newline after the full response/stream is printed
             except LogOnlyError as e:
                 # Handle errors potentially raised from within process_query's streaming
@@ -211,15 +156,11 @@ async def chat_loop(client: MCPClient, asr_instance):
                 print(
                     f"{Fore.RED}\nAssistant encountered an error processing the request.{Style.RESET_ALL}"
                 )
-                # Decide how to handle history - MCPClient already logged the error
-                # Maybe add a placeholder message?
-                # client.message_processor.add_message("assistant", "[Error processing request]")
             except (
                 UserVisibleError
             ) as e:  # Catch user-visible errors from process_query
                 logger.error(f"Error during response generation: {e}")
                 print(f"{Fore.RED}\nError: {e}{Style.RESET_ALL}")
-                # History is handled by process_query yielding the error message
 
         except KeyboardInterrupt:
             print("\nChat interrupted by user. Exiting...")
@@ -227,8 +168,6 @@ async def chat_loop(client: MCPClient, asr_instance):
         except UserVisibleError as e:
             logger.error(f"Error: {e}")
             print(f"{Fore.RED}\nError: {e}{Style.RESET_ALL}")
-            # Decide if we should break or continue
-            # break
         except EOFError:
             print("\nInput stream closed. Exiting...")
             break
@@ -237,7 +176,6 @@ async def chat_loop(client: MCPClient, asr_instance):
                 f"{Fore.RED}\nAn unexpected error occurred in the chat loop: {str(e)}{Style.RESET_ALL}"
             )
             logger.exception("Error details:")
-            # break # Optional: exit on unexpected errors
 
 
 def parse_arguments():
@@ -246,6 +184,11 @@ def parse_arguments():
         "--server-script",
         default=MCP_SERVER_SCRIPT_PATH,
         help="Path to the MCP server script (e.g., ../server/server.py)",
+    )
+    parser.add_argument(
+        "--no-mcp",
+        action="store_true",
+        help="Run without MCP server (no tools available, LLM only mode)",
     )
     parser.add_argument(
         "--stream",
@@ -289,21 +232,27 @@ async def main():
     # Log the effective level
     logger.info(f"Log level set to: {args.log_level}")  # This logger is now configured
 
-    # Make server script path absolute, default to MCP_SERVER_SCRIPT_PATH
-    server_script_path = os.path.abspath(args.server_script)
-    if not os.path.exists(server_script_path):
-        logger.error(f"Server script not found at: {server_script_path}")
-        print(
-            f"{Fore.RED}Error: Server script not found at '{server_script_path}'. Please provide a valid path.{Style.RESET_ALL}"
-        )
-        sys.exit(1)
+    # Determine if we should use MCP server
+    use_mcp_server = not args.no_mcp
+    server_script_path = None
+    
+    if use_mcp_server:
+        # Make server script path absolute, default to MCP_SERVER_SCRIPT_PATH
+        if args.server_script is None:
+            logger.warning("No MCP server script specified and MCP_SERVER_SCRIPT_PATH is None. Running in LLM-only mode.")
+            use_mcp_server = False
+        else:
+            server_script_path = os.path.abspath(args.server_script)
+            if not os.path.exists(server_script_path):
+                logger.warning(f"Server script not found at: {server_script_path}. Running in LLM-only mode.")
+                print(f"{Fore.YELLOW}Warning: Server script not found at '{server_script_path}'. Running in LLM-only mode.{Style.RESET_ALL}")
+                use_mcp_server = False
 
-    logger.info(f"Using server script: {server_script_path}")
-
-    # Initialize event dispatcher and handler
-    event_handler = CLIEventHandler()
-    event_dispatcher = EventDispatcher(debug=args.log_level == "DEBUG")
-    event_dispatcher.message_dispatched.connect(event_handler.handle_event)
+    if use_mcp_server:
+        logger.info(f"Using server script: {server_script_path}")
+    else:
+        logger.info("Running in LLM-only mode (no MCP server)")
+        print(f"{Fore.CYAN}Running in LLM-only mode (no tools available){Style.RESET_ALL}")
 
     client = MCPClient(
         streaming=args.stream,
@@ -312,7 +261,6 @@ async def main():
         model=args.model,
         api_key=args.api_key,
         timeout=args.timeout,
-        dispatcher=event_dispatcher,
     )
 
     # Instantiate Whisper only if SDK is available and not disabled
@@ -351,16 +299,34 @@ async def main():
         asr_provider = None  # Ensure asr_provider is None if disabled by flag
 
     try:
-        logger.info("Connecting to MCP server...")
-        connected = await client.connect_to_server(server_script_path)
-        if not connected:
-            logger.error("Failed to connect to the MCP server.")
-            print(
-                f"{Fore.RED}Error: Failed to connect to the MCP server. Check server script and logs.{Style.RESET_ALL}"
-            )
-            sys.exit(1)
+        if use_mcp_server:
+            logger.info("Connecting to MCP server...")
+            print(f"{Fore.CYAN}Connecting to MCP server...{Style.RESET_ALL}")
+            connected = await client.connect_to_server(server_script_path)
+            if not connected:
+                logger.error("Failed to connect to the MCP server.")
+                print(
+                    f"{Fore.RED}Error: Failed to connect to the MCP server. Check server script and logs.{Style.RESET_ALL}"
+                )
+                sys.exit(1)
 
-        logger.info("Connection successful. Starting chat loop.")
+            logger.info("Connection successful. Starting chat loop.")
+            print(f"{Fore.GREEN}Connected successfully!{Style.RESET_ALL}")
+        else:
+            # Initialize client for LLM-only mode
+            logger.info("Initializing LLM-only mode...")
+            print(f"{Fore.CYAN}Initializing LLM-only mode...{Style.RESET_ALL}")
+            connected = await client.initialize_llm_only_mode()
+            if not connected:
+                logger.error("Failed to initialize LLM-only mode.")
+                print(
+                    f"{Fore.RED}Error: Failed to initialize LLM-only mode. Check LLM configuration and logs.{Style.RESET_ALL}"
+                )
+                sys.exit(1)
+            
+            logger.info("LLM-only mode initialized successfully. Starting chat loop.")
+            print(f"{Fore.GREEN}LLM-only mode ready!{Style.RESET_ALL}")
+            
         await chat_loop(client, asr_instance)  # Pass asr instance
 
     except UserVisibleError as e:
@@ -377,8 +343,6 @@ async def main():
             asr_instance.cleanup()  # Cleanup ASR resources only if it exists
         else:
             logger.info("ASR resources cleanup skipped (instance not created).")
-        logger.info("Cleaning up event dispatcher...")
-        event_dispatcher.close()
         logger.info("Client cleanup complete. Exiting.")
 
 

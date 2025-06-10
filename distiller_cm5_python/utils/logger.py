@@ -41,11 +41,11 @@ def setup_logging(log_level: int = LOGGING_LEVEL, stream: IO = sys.stdout):
     # Set the logger for when server.py is imported
     server_module_logger_name = "distiller_cm5_python.llm_server.server"
     server_module_logger = logging.getLogger(server_module_logger_name)
-    server_module_logger.setLevel(logging.DEBUG)
+    server_module_logger.setLevel(logging.INFO)
 
     # Set the logger for when server.py is run as __main__
     main_logger = logging.getLogger("__main__")
-    main_logger.setLevel(logging.DEBUG)
+    main_logger.setLevel(logging.INFO)
     # --- END: Specific level for server.py's logger ---
 
     # Optionally quiet overly verbose libraries
