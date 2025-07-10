@@ -65,14 +65,9 @@ class EInkRendererBridge(QObject):
         try:
             logger.info("Initializing E-Ink display driver...")
             with self.driver_lock:
-                # Initialize the driver
+                # Initialize the SDK-based driver
                 self.eink_driver = EinkDriver()
-
-                try:
-                    self.eink_driver.epd_w21_init()
-                    logger.info("E-Ink display hardware detected")
-                except Exception as hw_err:
-                    logger.warning(f"E-Ink hardware initialization issue: {hw_err}")
+                logger.info("E-Ink display hardware initialized via SDK")
 
                 # Start a timer to complete initialization after hardware is ready
                 self._init_timer.start(
@@ -92,16 +87,13 @@ class EInkRendererBridge(QObject):
                     logger.warning("E-ink driver not initialized")
                     return
 
-                # Proper initialization sequence
-                if config["display"]["Full_Refresh_LUT_MODE"]:
-                    self.eink_driver.epd_init_lut()
-                else:
-                    self.eink_driver.epd_init_fast()  # Initial hardware setup
+                # Initialize the SDK display
+                self.eink_driver.epd_w21_init()
 
                 self.initialized = True
                 self._first_frame = True
                 self._frame_count = 0
-                logger.info("E-ink display initialized successfully")
+                logger.info("E-ink display initialized successfully via SDK")
         except Exception as e:
             logger.error(f"Error in delayed e-ink initialization: {e}")
 
@@ -171,21 +163,15 @@ class EInkRendererBridge(QObject):
     def _apply_refresh_strategy(self):
         """Apply the appropriate refresh strategy based on frame count"""
         if self._first_frame:
-            # First frame after initialization - already in fast mode
+            # First frame after initialization
             self._first_frame = False
             self._frame_count = 1
         elif self._frame_count >= self._full_refresh_interval:
-            # Time for a full refresh
-            if config["display"]["Full_Refresh_LUT_MODE"]:
-                self.eink_driver.epd_init_lut()
-                logger.info("FULL REFRESH LUT MODE")
-            else:
-                self.eink_driver.epd_init_fast()
-                logger.info("FULL REFRESH FAST MODE")
+            # Time for a full refresh - SDK handles refresh modes internally
+            logger.info("FULL REFRESH (handled by SDK)")
             self._frame_count = 1  # Reset counter
         else:
-            # Normal partial update
-            self.eink_driver.epd_init_part()
+            # Normal partial update - SDK handles this automatically
             self._frame_count += 1
 
     def _recover_driver(self):
