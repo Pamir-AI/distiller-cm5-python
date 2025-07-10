@@ -165,6 +165,7 @@ class MCPClient:
                             message["role"], message["content"]
                         )
                     else:
+                        logger.debug(f" **injecting {message} **")
                         logger.warning(
                             f"Few shot injection message role not supported: {message['role']}"
                         )
@@ -247,13 +248,13 @@ class MCPClient:
         # Set available tools
         self.available_tools = self.tool_processor.format_tools()
 
-        # Set available resources
-        try:
-            resources_response = await self.session.list_resources()
-            self.available_resources = resources_response.resources
-        except Exception as e:
-            logger.warning(f"Failed to get resources: {e}")
-            self.available_resources = []
+        # Set available resources (not supported)
+        # try:
+        #     resources_response = await self.session.list_resources()
+        #     self.available_resources = resources_response.resources
+        # except Exception as e:
+        #     logger.warning(f"Failed to get resources: {e}")
+        #     self.available_resources = []
 
         # Set available prompts
         try:

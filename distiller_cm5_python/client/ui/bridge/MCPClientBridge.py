@@ -141,6 +141,9 @@ class MCPClientBridge(BridgeCore):
         self._server_discovery_cache_timeout = 5  # seconds
         self._config_cache = {}
         self._config_dirty = False
+        
+        # EInk renderer reference for text streaming optimization
+        self._eink_renderer = None
 
     # Audio recording and transcription methods override the base class
     # to provide App instance-specific functionality
@@ -165,6 +168,11 @@ class MCPClientBridge(BridgeCore):
         self._app_instance = app_instance
         logger.info("App instance reference set in bridge")
 
+    def set_eink_renderer(self, eink_renderer):
+        """Set the reference to the EInk renderer for text streaming optimization."""
+        self._eink_renderer = eink_renderer
+        logger.info("EInk renderer reference set in bridge")
+
     def _handle_event(self, event: Union[dict, object]) -> None:
         """
         Legacy method for backward compatibility.
@@ -174,6 +182,21 @@ class MCPClientBridge(BridgeCore):
         logger.debug(
             f"MCPClientBridge received event: type={getattr(event, 'type', None)}, status={getattr(event, 'status', None)}"
         )
+        
+        # Handle EInk renderer text streaming mode based on event type
+        if self._eink_renderer:
+            event_type = getattr(event, 'type', None)
+            event_status = getattr(event, 'status', None)
+            
+            # Enable text streaming mode for message events
+            if event_type == 'message' and event_status in ['in_progress', 'streaming']:
+                self._eink_renderer.set_text_streaming_mode(True)
+                self._eink_renderer.request_update()
+            elif event_type == 'message' and event_status in ['success', 'complete']:
+                self._eink_renderer.set_text_streaming_mode(False)
+            elif event_type in ['tool_call_started', 'tool_call_complete', 'conversation_updated']:
+                self._eink_renderer.request_update()
+        
         # Just delegate to the event handler
         self.event_handler.handle_event(event)
 

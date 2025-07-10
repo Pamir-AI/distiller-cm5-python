@@ -57,6 +57,15 @@ class EInkRenderer(QObject):
         self._min_interval = 500  # Min interval: 0.5 seconds
         self._adaptive_capture = True
 
+        # Debouncing mechanism to prevent rapid successive updates
+        self._debounce_timer = QTimer(self)
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.timeout.connect(self._debounced_capture)
+        self._debounce_delay = 300  # 300ms debounce delay
+        self._pending_capture = False
+        self._text_streaming_mode = False  # Track if we're in text streaming mode
+        self._last_text_update = 0
+
         # Debug capture settings
         self._save_capture = config["display"].get("eink_save_capture", False)
         self._capture_path = os.path.join(
@@ -79,7 +88,9 @@ class EInkRenderer(QObject):
         if self._rendering_active:
             logger.info("Stopping e-ink renderer")
             self._capture_timer.stop()
+            self._debounce_timer.stop()  # Stop debounce timer as well
             self._rendering_active = False
+            self._pending_capture = False  # Reset pending capture flag
             with self._buffer_lock:
                 self._frame_buffer.clear()
 
@@ -113,9 +124,53 @@ class EInkRenderer(QObject):
         # Use QTimer.singleShot to queue the capture on the event loop immediately
         QTimer.singleShot(0, self._capture_frame)
 
+    def set_text_streaming_mode(self, enabled):
+        """Enable or disable text streaming mode for better batching during responses"""
+        self._text_streaming_mode = enabled
+        if enabled:
+            self._last_text_update = time.time()
+            logger.debug("Text streaming mode enabled")
+        else:
+            logger.debug("Text streaming mode disabled")
+            # Force an immediate update when streaming ends
+            self.force_render_update()
+
+    def request_update(self):
+        """Request an update with debouncing to prevent rapid successive updates"""
+        if not self._rendering_active:
+            return
+            
+        current_time = time.time()
+        
+        # In text streaming mode, use longer debounce delay
+        if self._text_streaming_mode:
+            self._last_text_update = current_time
+            debounce_delay = 800  # 800ms debounce for text streaming
+        else:
+            debounce_delay = self._debounce_delay
+            
+        # If debounce timer is already running, just mark that we need a capture
+        if self._debounce_timer.isActive():
+            self._pending_capture = True
+            return
+            
+        # Start the debounce timer
+        self._pending_capture = True
+        self._debounce_timer.start(debounce_delay)
+
+    def _debounced_capture(self):
+        """Perform the actual capture after debounce delay"""
+        if self._pending_capture:
+            self._pending_capture = False
+            self._capture_frame()
+
     def _capture_frame(self):
         """Capture the current screen content"""
         error_count = getattr(self, "_error_count", 0)
+        
+        # Skip capture if we're in debounce mode and this is a regular timer capture
+        if self._debounce_timer.isActive() and not self._force_update:
+            return
 
         try:
             # Get the application instance

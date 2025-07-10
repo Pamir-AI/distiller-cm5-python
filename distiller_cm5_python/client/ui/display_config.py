@@ -4,7 +4,7 @@ config = {
         "eink_dithering_enabled": False,
         "eink_dithering_method": 1,  # 1=Floyd-Steinberg, 2=Ordered
         "eink_full_refresh_interval": 15,
-        "eink_refresh_interval": 1500,
+        "eink_refresh_interval": 2000,  # Increased to 2000ms for better batching
         "eink_enabled": True,
         "eink_buffer_size": 1,  # Reduced buffer size to save memory
         "eink_threshold": 150,  # Threshold for black/white conversion (0-255)

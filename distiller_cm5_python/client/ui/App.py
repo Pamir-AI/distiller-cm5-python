@@ -537,6 +537,9 @@ class App(QObject):  # Inherit from QObject to support signals/slots
 
             # Start capturing frames
             self.eink_renderer.start()
+            
+            # Register the renderer with the bridge for text streaming notifications
+            self.bridge.set_eink_renderer(self.eink_renderer)
             logger.info(
                 f"E-Ink renderer initialized with {capture_interval}ms interval, "
                 f"buffer_size={buffer_size}, dithering={'enabled' if dithering_enabled else 'disabled'} "

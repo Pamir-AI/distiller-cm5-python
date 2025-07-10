@@ -214,7 +214,7 @@ Rectangle {
                 anchors.centerIn: parent
                 width: parent.width - refreshButton.width - closeButton.width - 40 // Allow space on both sides
                 horizontalAlignment: Text.AlignHCenter
-                text: "SELECT SERVER"
+                text: "SELECT MODE"
                 font.pixelSize: FontManager.fontSizeNormal
                 font.family: FontManager.primaryFontFamily
                 color: ThemeManager.textColor

@@ -884,8 +884,7 @@ PageBase {
         Connections {
             function onConversationChanged() {
                 conversationView.updateModel(bridge.get_conversation());
-                // Ensure we scroll to the bottom after model updates
-                conversationView.scrollToBottom();
+                // Let updateModel handle scrolling to prevent race conditions
             }
 
             function onMessageReceived(message, eventId, timestamp, status) {
@@ -909,13 +908,18 @@ PageBase {
                     // Update the model and keep response in progress
                     conversationView.updateModel(conversation);
                     conversationView.setResponseInProgress(true);
-                    conversationView.scrollToBottom();
+                    // Let updateModel and setResponseInProgress handle scrolling
                 } else if (status === "success") {
                     console.log("QML: Message complete, resetting UI state");
                     // Final message or end of streaming
                     // Reset UI state now that the response is complete
                     voiceAssistantPage.state = "idle";
-                    conversationView.scrollToBottom();
+                    // Final scroll to bottom after response completion
+                    Qt.callLater(function() {
+                        if (!conversationView.scrollModeActive) {
+                            conversationView.scrollToBottom();
+                        }
+                    });
                     // Stop failsafe timer
                     stateResetTimer.stop();
                 }

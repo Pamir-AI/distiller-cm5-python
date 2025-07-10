@@ -1,0 +1,4 @@
+# FastMCP Medical Assistant Server Requirements
+
+# Core FastMCP framework
+fastmcp>=2.0.0 

@@ -769,6 +769,7 @@ class PromptProcessor:
                 ],
             }
             prompts.append(formatted_prompt)
+            logger.debug(f"PromptProcessor.format_prompts: Formatted prompt: {formatted_prompt}")
         return prompts
 
     def generate_system_prompt(self, additional_prompt: Optional[str] = None) -> str:
