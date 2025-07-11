@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: distiller-cm5-python
 Upstream-Contact: PamirAI Incorporated <support@pamir.ai>
-Source: https://github.com/pamirai/distiller-cm5-python
+Source: https://github.com/pamir-ai/distiller-cm5-python
 
 Files: *
 Copyright: 2025 PamirAI Incorporated

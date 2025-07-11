@@ -59,9 +59,35 @@ create_system_user() {
 
 # Function to install uv package manager
 install_uv() {
-    echo_status "Installing uv package manager..."
+    echo_status "Checking uv package manager..."
     
-    if ! command -v uv &> /dev/null; then
+    # Check multiple possible locations for uv
+    UV_PATHS=(
+        "/usr/local/bin/uv"
+        "/root/.local/bin/uv"
+        "/home/$DISTILLER_USER/.local/bin/uv"
+        "$(which uv 2>/dev/null || echo '')"
+    )
+    
+    UV_FOUND=""
+    for uv_path in "${UV_PATHS[@]}"; do
+        if [ -n "$uv_path" ] && [ -x "$uv_path" ]; then
+            UV_FOUND="$uv_path"
+            break
+        fi
+    done
+    
+    if [ -n "$UV_FOUND" ]; then
+        echo_status "uv package manager found at: $UV_FOUND"
+        
+        # Ensure it's available system-wide
+        if [ "$UV_FOUND" != "/usr/local/bin/uv" ] && [ ! -x "/usr/local/bin/uv" ]; then
+            cp "$UV_FOUND" /usr/local/bin/uv
+            chmod +x /usr/local/bin/uv
+            echo_success "uv made available system-wide."
+        fi
+    else
+        echo_status "Installing uv package manager..."
         # Install uv using the official installer
         curl -LsSf https://astral.sh/uv/install.sh | sh
         
@@ -69,11 +95,12 @@ install_uv() {
         if [ -f "$HOME/.cargo/bin/uv" ]; then
             cp "$HOME/.cargo/bin/uv" /usr/local/bin/uv
             chmod +x /usr/local/bin/uv
+        elif [ -f "/root/.local/bin/uv" ]; then
+            cp "/root/.local/bin/uv" /usr/local/bin/uv
+            chmod +x /usr/local/bin/uv
         fi
         
         echo_success "uv package manager installed successfully."
-    else
-        echo_status "uv package manager is already installed."
     fi
 }
 
@@ -83,20 +110,15 @@ setup_python_environment() {
     
     cd "$INSTALL_DIR"
     
-    # Create virtual environment using uv
-    if [ ! -d "$VENV_DIR" ]; then
-        /usr/local/bin/uv venv "$VENV_DIR" --python python3.12 --system-site-packages
-        echo_success "Virtual environment created at $VENV_DIR"
-    else
-        echo_status "Virtual environment already exists at $VENV_DIR"
-    fi
-    
-    # Install dependencies
+    # Create virtual environment and install dependencies using uv sync
     echo_status "Installing Python dependencies..."
-    /usr/local/bin/uv pip install --requirement requirements.txt
+    /usr/local/bin/uv sync --python python3.11
     
-    # Install the package itself in development mode
-    /usr/local/bin/uv pip install --editable .
+    # Verify virtual environment was created
+    if [ ! -d "$VENV_DIR" ]; then
+        echo_error "Virtual environment creation failed!"
+        return 1
+    fi
     
     echo_success "Python dependencies installed successfully."
 }
@@ -161,12 +183,25 @@ configure_hardware_access() {
 configure_systemd_services() {
     echo_status "Configuring systemd services..."
     
-    # Reload systemd daemon
+    # Reload systemd daemon to pick up new service files
     systemctl daemon-reload
     
-    # Enable services but don't start them automatically
-    systemctl enable distiller-cm5-python.service
-    systemctl enable distiller-cm5-python-gui.service
+    # Verify service files exist before enabling
+    if [ -f "/lib/systemd/system/distiller-cm5-python.service" ]; then
+        systemctl enable distiller-cm5-python.service
+        echo_success "distiller-cm5-python.service enabled."
+    else
+        echo_error "Service file distiller-cm5-python.service not found!"
+        return 1
+    fi
+    
+    if [ -f "/lib/systemd/system/distiller-cm5-python-gui.service" ]; then
+        systemctl enable distiller-cm5-python-gui.service
+        echo_success "distiller-cm5-python-gui.service enabled."
+    else
+        echo_error "Service file distiller-cm5-python-gui.service not found!"
+        return 1
+    fi
     
     echo_success "SystemD services configured."
     echo_status "Services can be started with:"
@@ -192,7 +227,7 @@ display_post_install_info() {
     echo_status "Installation directory: $INSTALL_DIR"
     echo ""
     echo_status "For more information, see the documentation at:"
-    echo_status "  https://github.com/pamirai/distiller-cm5-python"
+    echo_status "  https://github.com/pamir-ai/distiller-cm5-python"
     echo ""
 }
 

@@ -137,7 +137,7 @@ display_post_removal_info() {
     echo_status "  - Process list: ps aux | grep distiller"
     echo ""
     echo_status "For support, visit:"
-    echo_status "  https://github.com/pamirai/distiller-cm5-python"
+    echo_status "  https://github.com/pamir-ai/distiller-cm5-python"
     echo ""
 }
 

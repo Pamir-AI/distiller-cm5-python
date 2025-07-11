@@ -28,7 +28,6 @@ override_dh_auto_install:
 	
 	# Copy configuration and documentation files
 	cp -r $(CURDIR)/pyproject.toml $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
-	cp -r $(CURDIR)/requirements.txt $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
 	cp -r $(CURDIR)/uv.lock $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
 	cp -r $(CURDIR)/README.md $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
 	cp -r $(CURDIR)/CLAUDE.md $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/

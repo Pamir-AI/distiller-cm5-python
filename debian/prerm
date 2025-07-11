@@ -70,16 +70,21 @@ stop_services() {
 cleanup_processes() {
     echo_status "Cleaning up any remaining processes..."
     
-    # Kill any remaining Python processes for this application
-    pkill -f "distiller-cm5-python" 2>/dev/null || true
-    pkill -f "distiller_cm5_python" 2>/dev/null || true
-    
-    # Wait a moment for processes to terminate
-    sleep 2
-    
-    # Force kill if still running
-    pkill -9 -f "distiller-cm5-python" 2>/dev/null || true
-    pkill -9 -f "distiller_cm5_python" 2>/dev/null || true
+    # More specific process targeting to avoid killing unrelated processes
+    # Only target processes running from the specific installation directory
+    if pgrep -f "/opt/distiller-cm5-python" >/dev/null 2>&1; then
+        echo_status "Found running processes, terminating gracefully..."
+        pkill -TERM -f "/opt/distiller-cm5-python" 2>/dev/null || true
+        
+        # Wait for graceful termination
+        sleep 3
+        
+        # Force kill if still running
+        if pgrep -f "/opt/distiller-cm5-python" >/dev/null 2>&1; then
+            echo_status "Forcing termination of remaining processes..."
+            pkill -KILL -f "/opt/distiller-cm5-python" 2>/dev/null || true
+        fi
+    fi
     
     echo_success "Process cleanup completed."
 }

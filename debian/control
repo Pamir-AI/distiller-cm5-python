@@ -16,9 +16,9 @@ Build-Depends: debhelper-compat (= 13),
                libsndfile1-dev,
                cmake
 Standards-Version: 4.6.2
-Homepage: https://github.com/pamirai/distiller-cm5-python
-Vcs-Git: https://github.com/pamirai/distiller-cm5-python.git
-Vcs-Browser: https://github.com/pamirai/distiller-cm5-python
+Homepage: https://github.com/pamir-ai/distiller-cm5-python
+Vcs-Git: https://github.com/pamir-ai/distiller-cm5-python.git
+Vcs-Browser: https://github.com/pamir-ai/distiller-cm5-python
 
 Package: distiller-cm5-python
 Architecture: any

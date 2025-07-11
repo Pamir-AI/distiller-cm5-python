@@ -1,6 +1,6 @@
 [Unit]
 Description=Distiller CM5 Python AI Assistant (CLI Mode)
-Documentation=https://github.com/pamirai/distiller-cm5-python
+Documentation=https://github.com/pamir-ai/distiller-cm5-python
 After=network.target distiller-cm5-sdk.service
 Wants=network.target
 ConditionPathExists=/opt/distiller-cm5-python/main.py
@@ -21,17 +21,15 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=distiller-cm5-python
 
-# Security settings
+# Security settings (relaxed for hardware access)
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/distiller-cm5-python /var/log/distiller-cm5-python /dev/spidev0.0 /dev/gpiomem /dev/serial0
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictRealtime=true
-RestrictNamespaces=true
 
 # Resource limits
 LimitNOFILE=65536
