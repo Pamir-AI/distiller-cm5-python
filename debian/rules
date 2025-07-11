@@ -1,0 +1,86 @@
+#!/usr/bin/make -f
+
+# Debian packaging rules for distiller-cm5-python
+# This file defines how to build and install the package
+
+# Enable all hardening options
+export DH_VERBOSE=1
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+
+# Package name
+PACKAGE_NAME = distiller-cm5-python
+INSTALL_DIR = /opt/$(PACKAGE_NAME)
+
+%:
+	dh $@ --with python3
+
+# Custom installation procedure
+override_dh_auto_install:
+	# Create installation directory
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)
+	
+	# Copy source code
+	cp -r $(CURDIR)/distiller_cm5_python $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	cp -r $(CURDIR)/main.py $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	cp -r $(CURDIR)/run.sh $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	cp -r $(CURDIR)/spin_up.sh $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	cp -r $(CURDIR)/install.sh $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	
+	# Copy configuration and documentation files
+	cp -r $(CURDIR)/pyproject.toml $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	cp -r $(CURDIR)/requirements.txt $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	cp -r $(CURDIR)/uv.lock $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	cp -r $(CURDIR)/README.md $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	cp -r $(CURDIR)/CLAUDE.md $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	
+	# Create directories for logs and configuration
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/var/log/$(PACKAGE_NAME)
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/etc/$(PACKAGE_NAME)
+	
+	# Create systemd service directory
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/lib/systemd/system
+	
+	# Install systemd service files
+	install -m 644 $(CURDIR)/debian/distiller-cm5-python.service $(CURDIR)/debian/$(PACKAGE_NAME)/lib/systemd/system/
+	install -m 644 $(CURDIR)/debian/distiller-cm5-python-gui.service $(CURDIR)/debian/$(PACKAGE_NAME)/lib/systemd/system/
+	
+	# Create wrapper scripts directory
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/usr/local/bin
+	
+	# Install wrapper scripts
+	install -m 755 $(CURDIR)/debian/distiller-cm5-python-cli $(CURDIR)/debian/$(PACKAGE_NAME)/usr/local/bin/
+	install -m 755 $(CURDIR)/debian/distiller-cm5-python-gui $(CURDIR)/debian/$(PACKAGE_NAME)/usr/local/bin/
+	
+	# Create sudoers directory
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/etc/sudoers.d
+	
+	# Install sudoers file
+	install -m 440 $(CURDIR)/debian/distiller-system $(CURDIR)/debian/$(PACKAGE_NAME)/etc/sudoers.d/
+
+# Skip dh_python3 since we use uv for dependency management
+override_dh_python3:
+	true
+
+# Skip automatic dependency detection
+override_dh_shlibdeps:
+	true
+
+# Skip dh_usrlocal since we install to /usr/local/bin
+override_dh_usrlocal:
+	true
+
+# Skip dh_installsystemd since we manually install service files
+override_dh_installsystemd:
+	true
+
+# Custom clean to remove build artifacts
+override_dh_auto_clean:
+	# Remove Python cache files
+	find . -name "*.pyc" -delete
+	find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+	
+	# Remove uv cache if it exists
+	rm -rf .uv_cache || true
+	
+	# Call default clean
+	dh_auto_clean

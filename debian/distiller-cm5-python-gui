@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# Distiller CM5 Python GUI Wrapper Script
+# This script provides a convenient way to run the Distiller CM5 Python
+# AI Assistant in GUI mode with proper environment setup.
+
+set -e
+
+# Configuration
+INSTALL_DIR="/opt/distiller-cm5-python"
+VENV_DIR="$INSTALL_DIR/.venv"
+PYTHON_BIN="$VENV_DIR/bin/python"
+MAIN_SCRIPT="$INSTALL_DIR/main.py"
+
+# Check if running as root
+if [ "$EUID" -eq 0 ]; then
+    echo "Running as distiller user for security..."
+    exec sudo -u distiller "$0" "$@"
+fi
+
+# Set up environment
+export PYTHONPATH="/opt/distiller-cm5-sdk/src:/opt/distiller-cm5-python:$PYTHONPATH"
+export LD_LIBRARY_PATH="/opt/distiller-cm5-sdk/lib:$LD_LIBRARY_PATH"
+export PYTHONUNBUFFERED=1
+
+# GUI-specific environment variables
+export QT_QPA_PLATFORM=xcb
+export DISPLAY=${DISPLAY:-:0}
+
+# Change to the application directory
+cd "$INSTALL_DIR"
+
+# Check if virtual environment exists
+if [ ! -f "$PYTHON_BIN" ]; then
+    echo "Error: Virtual environment not found at $VENV_DIR"
+    echo "Please ensure the distiller-cm5-python package is properly installed."
+    exit 1
+fi
+
+# Check if main script exists
+if [ ! -f "$MAIN_SCRIPT" ]; then
+    echo "Error: Main script not found at $MAIN_SCRIPT"
+    echo "Please ensure the distiller-cm5-python package is properly installed."
+    exit 1
+fi
+
+# Execute the application in GUI mode
+exec "$PYTHON_BIN" "$MAIN_SCRIPT" --gui "$@"

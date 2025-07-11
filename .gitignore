@@ -17,6 +17,22 @@ dist/
 build/
 *.egg-info/
 
+# Debian packaging artifacts
+*.deb
+*.dsc
+*.tar.xz
+*.tar.gz
+*.changes
+*.buildinfo
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/distiller-cm5-python/
+debian/tmp/
+debian/*.substvars
+debian/*.debhelper
+debian/*.debhelper.log
+
 # Virtual environments
 venv/
 env/
@@ -28,5 +44,8 @@ env/
 *.swp
 *.swo 
 
-# uv 
-uv.lockdebug_recording.wav
+# uv cache
+.uv_cache/
+
+# Audio files
+debug_recording.wav

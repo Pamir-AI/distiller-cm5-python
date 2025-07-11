@@ -1,0 +1,59 @@
+Source: distiller-cm5-python
+Section: utils
+Priority: optional
+Maintainer: PamirAI Incorporated <support@pamir.ai>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               python3-setuptools,
+               python3-dev,
+               curl,
+               ca-certificates,
+               build-essential,
+               pkg-config,
+               alsa-utils,
+               portaudio19-dev,
+               libasound2-dev,
+               libsndfile1-dev,
+               cmake
+Standards-Version: 4.6.2
+Homepage: https://github.com/pamirai/distiller-cm5-python
+Vcs-Git: https://github.com/pamirai/distiller-cm5-python.git
+Vcs-Browser: https://github.com/pamirai/distiller-cm5-python
+
+Package: distiller-cm5-python
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         python3,
+         python3-venv,
+         python3-dev,
+         systemd,
+         distiller-cm5-sdk,
+         alsa-utils,
+         portaudio19-dev,
+         libasound2-dev,
+         libsndfile1,
+         build-essential,
+         pkg-config,
+         curl,
+         ca-certificates,
+         network-manager,
+         cmake
+Description: Distiller CM5 Python AI Assistant Application
+ The Distiller CM5 Python project is a comprehensive AI assistant application
+ for the Distiller CM5 platform. It features a conversational interface that
+ supports both command-line and GUI modes.
+ .
+ Key Features:
+  • Dual interface architecture (CLI and Qt/QML GUI)
+  • LLM integration with local llama-cpp servers and remote providers
+  • MCP (Model Context Protocol) server support
+  • Hardware interfacing capabilities including audio, display, and LED control
+  • Speech-to-text processing with faster_whisper
+  • E-ink display control via distiller-cm5-sdk
+  • UART-based power management signaling
+  • Modular LLM integration with automatic server lifecycle management
+ .
+ This package provides the core Python application for running AI assistant
+ functionality on the Distiller CM5 platform, with support for both
+ standalone operation and integration with the broader Distiller ecosystem.

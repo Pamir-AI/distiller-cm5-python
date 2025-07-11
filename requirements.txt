@@ -15,3 +15,6 @@ pyaudio
 faster_whisper
 evdev
 numba
+sherpa_onnx
+soundfile
+sounddevice

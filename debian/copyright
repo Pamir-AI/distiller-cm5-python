@@ -1,0 +1,22 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: distiller-cm5-python
+Upstream-Contact: PamirAI Incorporated <support@pamir.ai>
+Source: https://github.com/pamirai/distiller-cm5-python
+
+Files: *
+Copyright: 2025 PamirAI Incorporated
+License: Proprietary
+
+License: Proprietary
+ This software is proprietary and confidential. All rights reserved.
+ .
+ This software is provided under a proprietary license and may not be
+ copied, modified, or distributed without explicit written permission
+ from PamirAI Incorporated.
+ .
+ For licensing inquiries, please contact:
+ PamirAI Incorporated
+ Email: support@pamir.ai
+ .
+ This software is designed specifically for the Distiller CM5 platform
+ and related hardware systems developed by PamirAI Incorporated.
