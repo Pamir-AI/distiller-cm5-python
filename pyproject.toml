@@ -21,6 +21,8 @@ dependencies = [
   "evdev",
   "fastapi>=0.104",
   "faster-whisper",
+  "fastmcp==2.10.4",
+  "lgpio==0.2.2",
   "llama-cpp-python>=0.3.9",
   "mcp",
   "nest-asyncio",
