@@ -230,9 +230,9 @@ class EInkRendererBridge(QObject):
             else:
                 frame_data = frame_data[:expected_size]
 
-        # Convert directly to bytes - SDK expects bytes, not List[int]
+        # Convert to list of integers - direct hardware driver expects List[int], not bytes
         # Remove inversion as it may be causing issues
-        return bytes(frame_data)
+        return list(frame_data)
 
     def cleanup(self):
         """Clean up e-ink display resources"""
