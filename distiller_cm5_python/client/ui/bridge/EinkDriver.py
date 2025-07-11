@@ -23,7 +23,7 @@ class EinkDriver:
     def __init__(self) -> None:
         """Initialize the SDK-based e-ink driver."""
         try:
-            self._sdk_display = Display(auto_init=False)
+            self._sdk_display = Display()
             # Get dimensions from SDK
             self.EPD_WIDTH, self.EPD_HEIGHT = self._sdk_display.get_dimensions()
             logger.info(f"Initialized SDK e-ink driver: {self.EPD_WIDTH}x{self.EPD_HEIGHT}")
@@ -39,16 +39,21 @@ class EinkDriver:
             except Exception as e:
                 logger.error(f"Error cleaning up SDK display: {e}")
     
-    def pic_display(self, new_data: List[int]) -> None:
+    def pic_display(self, new_data: bytes) -> None:
         """Display new data on the e-ink display using SDK.
 
         Args:
-            new_data: Flat list of integers representing pixel data
+            new_data: Bytes representing pixel data for e-ink display
         """
         try:
-            # Convert list to bytes
-            data_bytes = bytes(new_data)
-            self._sdk_display.display_image(data_bytes, DisplayMode.PARTIAL)
+            # Validate data size
+            expected_size = (self.EPD_WIDTH * self.EPD_HEIGHT) // 8
+            if len(new_data) != expected_size:
+                logger.error(f"Data size mismatch: got {len(new_data)}, expected {expected_size}")
+                raise ValueError(f"Data must be exactly {expected_size} bytes, got {len(new_data)}")
+            
+            logger.debug(f"Displaying {len(new_data)} bytes on {self.EPD_WIDTH}x{self.EPD_HEIGHT} display")
+            self._sdk_display.display_image(new_data, DisplayMode.FULL)
         except Exception as e:
             logger.error(f"SDK display failed: {e}")
             raise
@@ -71,16 +76,21 @@ class EinkDriver:
             logger.error(f"SDK initialization failed: {e}")
             raise
     
-    def pic_display_4g(self, datas: List[int]) -> None:
+    def pic_display_4g(self, datas: bytes) -> None:
         """Display 4-gray image using SDK.
         
         Args:
-            datas: Flat list of integers representing 4-gray pixel data
+            datas: Bytes representing 4-gray pixel data
         """
         try:
-            # Convert list to bytes
-            data_bytes = bytes(datas)
-            self._sdk_display.display_image(data_bytes, DisplayMode.FULL)
+            # Validate data size
+            expected_size = (self.EPD_WIDTH * self.EPD_HEIGHT) // 8
+            if len(datas) != expected_size:
+                logger.error(f"4G data size mismatch: got {len(datas)}, expected {expected_size}")
+                raise ValueError(f"4G data must be exactly {expected_size} bytes, got {len(datas)}")
+            
+            logger.debug(f"Displaying 4G {len(datas)} bytes on {self.EPD_WIDTH}x{self.EPD_HEIGHT} display")
+            self._sdk_display.display_image(datas, DisplayMode.FULL)
         except Exception as e:
             logger.error(f"SDK 4-gray display failed: {e}")
             raise
