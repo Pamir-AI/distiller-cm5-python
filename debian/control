@@ -14,7 +14,9 @@ Build-Depends: debhelper-compat (= 13),
                portaudio19-dev,
                libasound2-dev,
                libsndfile1-dev,
-               cmake
+               cmake,
+               libgpiod-dev,
+               python3-spidev
 Standards-Version: 4.6.2
 Homepage: https://github.com/pamir-ai/distiller-cm5-python
 Vcs-Git: https://github.com/pamir-ai/distiller-cm5-python.git
@@ -38,7 +40,9 @@ Depends: ${shlibs:Depends},
          curl,
          ca-certificates,
          network-manager,
-         cmake
+         cmake,
+         libgpiod2,
+         python3-spidev
 Description: Distiller CM5 Python AI Assistant Application
  The Distiller CM5 Python project is a comprehensive AI assistant application
  for the Distiller CM5 platform. It features a conversational interface that
@@ -50,9 +54,10 @@ Description: Distiller CM5 Python AI Assistant Application
   • MCP (Model Context Protocol) server support
   • Hardware interfacing capabilities including audio, display, and LED control
   • Speech-to-text processing with faster_whisper
-  • E-ink display control via distiller-cm5-sdk
+  • E-ink display control via distiller-cm5-sdk and direct SPI/GPIO access
   • UART-based power management signaling
   • Modular LLM integration with automatic server lifecycle management
+  • Direct hardware control for SPI and GPIO interfaces
  .
  This package provides the core Python application for running AI assistant
  functionality on the Distiller CM5 platform, with support for both

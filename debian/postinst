@@ -186,23 +186,7 @@ configure_systemd_services() {
     # Reload systemd daemon to pick up new service files
     systemctl daemon-reload
     
-    # Verify service files exist before enabling
-    if [ -f "/lib/systemd/system/distiller-cm5-python.service" ]; then
-        systemctl enable distiller-cm5-python.service
-        echo_success "distiller-cm5-python.service enabled."
-    else
-        echo_error "Service file distiller-cm5-python.service not found!"
-        return 1
-    fi
-    
-    if [ -f "/lib/systemd/system/distiller-cm5-python-gui.service" ]; then
-        systemctl enable distiller-cm5-python-gui.service
-        echo_success "distiller-cm5-python-gui.service enabled."
-    else
-        echo_error "Service file distiller-cm5-python-gui.service not found!"
-        return 1
-    fi
-    
+    # Note: Service enabling is handled automatically by debhelper during package installation
     echo_success "SystemD services configured."
     echo_status "Services can be started with:"
     echo_status "  sudo systemctl start distiller-cm5-python.service"

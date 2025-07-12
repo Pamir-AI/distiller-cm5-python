@@ -1,3 +1,12 @@
+distiller-cm5-python (1.0.0-2) stable; urgency=medium
+
+  * Fix systemd service installation by using debhelper instead of manual installation
+  * Add direct SPI and GPIO hardware control support
+  * Include libgpiod and python3-spidev dependencies for hardware access
+  * e-ink display control with direct hardware interfaces
+
+ -- PamirAI Incorporated <support@pamir.ai>  Fri, 11 Jul 2025 12:00:00 +0000
+
 distiller-cm5-python (1.0.0-1) stable; urgency=medium
 
   * Initial release of Distiller CM5 Python AI Assistant Application

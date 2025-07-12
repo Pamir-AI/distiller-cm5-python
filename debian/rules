@@ -36,12 +36,7 @@ override_dh_auto_install:
 	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/var/log/$(PACKAGE_NAME)
 	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/etc/$(PACKAGE_NAME)
 	
-	# Create systemd service directory
-	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/lib/systemd/system
-	
-	# Install systemd service files
-	install -m 644 $(CURDIR)/debian/distiller-cm5-python.service $(CURDIR)/debian/$(PACKAGE_NAME)/lib/systemd/system/
-	install -m 644 $(CURDIR)/debian/distiller-cm5-python-gui.service $(CURDIR)/debian/$(PACKAGE_NAME)/lib/systemd/system/
+	# Note: systemd service files are handled by dh_installsystemd
 	
 	# Create wrapper scripts directory
 	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/usr/local/bin
@@ -68,9 +63,10 @@ override_dh_shlibdeps:
 override_dh_usrlocal:
 	true
 
-# Skip dh_installsystemd since we manually install service files
+# Configure systemd service installation
 override_dh_installsystemd:
-	true
+	dh_installsystemd --name=distiller-cm5-python distiller-cm5-python.service
+	dh_installsystemd --name=distiller-cm5-python-gui distiller-cm5-python-gui.service
 
 # Custom clean to remove build artifacts
 override_dh_auto_clean:
