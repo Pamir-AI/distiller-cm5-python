@@ -1,0 +1,18 @@
+# Pamir AI Distiller CM5 udev rules
+# This file configures device permissions for the Distiller CM5 platform
+
+# UART device for power management and system communication
+# Owned by distiller user with read/write permissions
+KERNEL=="pamir-uart", OWNER="distiller", GROUP="distiller", MODE="0660"
+
+# GPIO character devices for LED and hardware control
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"
+
+# SPI devices for e-ink display communication
+KERNEL=="spidev*", GROUP="spi", MODE="0660"
+
+# I2C devices for sensor communication
+KERNEL=="i2c-*", GROUP="i2c", MODE="0660"
+
+# Audio devices for voice processing
+SUBSYSTEM=="sound", GROUP="audio", MODE="0664"

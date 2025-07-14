@@ -179,6 +179,112 @@ configure_hardware_access() {
     fi
 }
 
+# Function to download LLM model
+download_llm_model() {
+    echo_status "Checking LLM model file..."
+    
+    MODEL_DIR="$INSTALL_DIR/distiller_cm5_python/llm_server/models"
+    MODEL_FILE="qwen2.5-3b-instruct-q4_k_m.gguf"
+    MODEL_PATH="$MODEL_DIR/$MODEL_FILE"
+    MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf"
+    
+    # Create models directory if it doesn't exist
+    mkdir -p "$MODEL_DIR"
+    chown "$DISTILLER_USER:$DISTILLER_USER" "$MODEL_DIR"
+    
+    if [ ! -f "$MODEL_PATH" ]; then
+        echo_status "Model file not found at $MODEL_PATH. Downloading..."
+        echo_status "This may take several minutes depending on your internet connection..."
+        
+        # Check available disk space (model is ~2GB)
+        AVAILABLE_SPACE=$(df "$MODEL_DIR" | awk 'NR==2 {print $4}')
+        REQUIRED_SPACE=2097152  # 2GB in KB
+        
+        if [ "$AVAILABLE_SPACE" -lt "$REQUIRED_SPACE" ]; then
+            echo_error "Insufficient disk space. Need at least 2GB free space."
+            echo_error "Available: $(($AVAILABLE_SPACE / 1024))MB, Required: $(($REQUIRED_SPACE / 1024))MB"
+            return 1
+        fi
+        
+        # Download with progress bar and resume capability
+        if command -v wget >/dev/null 2>&1; then
+            sudo -u "$DISTILLER_USER" wget --progress=bar:force:noscroll --continue \
+                -O "$MODEL_PATH" "$MODEL_URL"
+        elif command -v curl >/dev/null 2>&1; then
+            sudo -u "$DISTILLER_USER" curl -L --progress-bar --continue-at - \
+                -o "$MODEL_PATH" "$MODEL_URL"
+        else
+            echo_error "Neither wget nor curl found. Cannot download model file."
+            echo_error "Please install wget or curl and run 'dpkg-reconfigure distiller-cm5-python'."
+            return 1
+        fi
+        
+        # Verify download completed successfully
+        if [ $? -ne 0 ] || [ ! -f "$MODEL_PATH" ]; then
+            echo_error "Failed to download the model file."
+            echo_error "You can manually download it later with:"
+            echo_error "  cd $MODEL_DIR"
+            echo_error "  wget -O $MODEL_FILE $MODEL_URL"
+            return 1
+        fi
+        
+        # Verify file size (should be around 2GB)
+        FILE_SIZE=$(stat -c%s "$MODEL_PATH" 2>/dev/null || echo "0")
+        MIN_SIZE=1073741824  # 1GB minimum (in case of different compression)
+        
+        if [ "$FILE_SIZE" -lt "$MIN_SIZE" ]; then
+            echo_error "Downloaded model file appears to be incomplete (size: $FILE_SIZE bytes)."
+            echo_error "Please try running 'dpkg-reconfigure distiller-cm5-python' to re-download."
+            rm -f "$MODEL_PATH"
+            return 1
+        fi
+        
+        # Set proper ownership
+        chown "$DISTILLER_USER:$DISTILLER_USER" "$MODEL_PATH"
+        chmod 644 "$MODEL_PATH"
+        
+        echo_success "Model file downloaded successfully."
+        echo_status "Model size: $(du -h "$MODEL_PATH" | cut -f1)"
+    else
+        echo_status "Model file already exists at $MODEL_PATH."
+        
+        # Verify existing file ownership
+        chown "$DISTILLER_USER:$DISTILLER_USER" "$MODEL_PATH"
+        chmod 644 "$MODEL_PATH"
+        
+        echo_status "Model size: $(du -h "$MODEL_PATH" | cut -f1)"
+    fi
+}
+
+# Function to configure udev rules
+configure_udev_rules() {
+    echo_status "Configuring udev rules for hardware access..."
+    
+    UDEV_RULES_FILE="/etc/udev/rules.d/99-pamir.rules"
+    
+    if [ -f "$UDEV_RULES_FILE" ]; then
+        # Reload udev rules to pick up new rules
+        echo_status "Reloading udev rules..."
+        udevadm control --reload-rules
+        
+        # Trigger udev for existing devices that match our rules
+        echo_status "Applying udev rules to existing devices..."
+        udevadm trigger --name-match=pamir-uart 2>/dev/null || true
+        udevadm trigger --subsystem-match=gpio 2>/dev/null || true
+        udevadm trigger --subsystem-match=spi 2>/dev/null || true
+        udevadm trigger --subsystem-match=sound 2>/dev/null || true
+        
+        # Wait for udev to settle
+        udevadm settle
+        
+        echo_success "udev rules configured and applied."
+        echo_status "Hardware devices will use proper permissions when connected."
+    else
+        echo_warning "udev rules file not found at $UDEV_RULES_FILE"
+        echo_warning "Hardware access may require manual permission configuration."
+    fi
+}
+
 # Function to configure systemd services
 configure_systemd_services() {
     echo_status "Configuring systemd services..."
@@ -209,6 +315,14 @@ display_post_install_info() {
     echo_status "Configuration directory: $CONFIG_DIR"
     echo_status "Log directory: $LOG_DIR"
     echo_status "Installation directory: $INSTALL_DIR"
+    echo_status "LLM models directory: $INSTALL_DIR/distiller_cm5_python/llm_server/models"
+    echo ""
+    echo_status "Hardware configuration:"
+    echo_status "  udev rules: /etc/udev/rules.d/99-pamir.rules"
+    echo_status "  Hardware devices configured for distiller user access"
+    echo ""
+    echo_status "Note: If model download failed during installation, you can:"
+    echo_status "  sudo dpkg-reconfigure distiller-cm5-python"
     echo ""
     echo_status "For more information, see the documentation at:"
     echo_status "  https://github.com/pamir-ai/distiller-cm5-python"
@@ -230,7 +344,9 @@ main() {
     install_uv
     setup_python_environment
     setup_directories
+    download_llm_model
     configure_hardware_access
+    configure_udev_rules
     configure_systemd_services
     display_post_install_info
     

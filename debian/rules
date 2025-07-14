@@ -50,6 +50,12 @@ override_dh_auto_install:
 	
 	# Install sudoers file
 	install -m 440 $(CURDIR)/debian/distiller-system $(CURDIR)/debian/$(PACKAGE_NAME)/etc/sudoers.d/
+	
+	# Create udev rules directory
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/etc/udev/rules.d
+	
+	# Install udev rules file
+	install -m 644 $(CURDIR)/debian/99-pamir.rules $(CURDIR)/debian/$(PACKAGE_NAME)/etc/udev/rules.d/
 
 # Skip dh_python3 since we use uv for dependency management
 override_dh_python3:
