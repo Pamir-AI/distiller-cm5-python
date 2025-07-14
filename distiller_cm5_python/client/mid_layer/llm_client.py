@@ -460,9 +460,17 @@ class LLMClient:
             return False
 
         try:
-            async with aiohttp.ClientSession() as session:
+            # Create timeout configuration for connection check
+            check_timeout = aiohttp.ClientTimeout(
+                total=10,  # Total timeout for connection check
+                connect=10,  # Connection timeout
+                sock_read=10,  # Read timeout
+                sock_connect=10  # Socket connection timeout
+            )
+            
+            async with aiohttp.ClientSession(timeout=check_timeout) as session:
                 async with session.get(
-                    endpoint, timeout=10, headers=headers
+                    endpoint, headers=headers
                 ) as response:
                     if response.status == 200:
                         return True
@@ -532,12 +540,19 @@ class LLMClient:
             "inference_configs": self.inference_configs,
         }
         try:
-            async with aiohttp.ClientSession() as session:
+            # Create timeout configuration for restore cache request
+            request_timeout = aiohttp.ClientTimeout(
+                total=self.timeout,  # Total timeout
+                connect=30,  # Connection timeout
+                sock_read=self.timeout,  # Read timeout
+                sock_connect=30  # Socket connection timeout
+            )
+            
+            async with aiohttp.ClientSession(timeout=request_timeout) as session:
                 async with session.post(
                     endpoint,
                     json=payload,
                     headers=self._get_headers(),
-                    timeout=self.timeout,
                 ) as response:
                     response_data = await response.json()
                     logger.debug(
@@ -566,12 +581,21 @@ class LLMClient:
         endpoint = self._get_endpoint(self.load_model_url)
         payload = {"model_name": self.model, "inference_configs": {"n_ctx": N_CTX}}
         try:
-            async with aiohttp.ClientSession() as session:
+            # Create timeout configuration for load model request
+            # Use longer timeout for model loading operations
+            load_timeout = max(self.timeout, 120)
+            request_timeout = aiohttp.ClientTimeout(
+                total=load_timeout,  # Total timeout for model loading
+                connect=30,  # Connection timeout
+                sock_read=load_timeout,  # Read timeout
+                sock_connect=30  # Socket connection timeout
+            )
+            
+            async with aiohttp.ClientSession(timeout=request_timeout) as session:
                 async with session.post(
                     endpoint,
                     json=payload,
                     headers=self._get_headers(),
-                    timeout=max(self.timeout, 120),
                 ) as response:
                     response_data = await response.json()
                     logger.debug(
@@ -614,9 +638,17 @@ class LLMClient:
 
         response_data = None
         try:
-            async with aiohttp.ClientSession() as session:
+            # Create timeout configuration for non-streaming requests
+            request_timeout = aiohttp.ClientTimeout(
+                total=self.timeout,  # Total timeout for non-streaming
+                connect=30,  # Connection timeout
+                sock_read=self.timeout,  # Read timeout
+                sock_connect=30  # Socket connection timeout
+            )
+            
+            async with aiohttp.ClientSession(timeout=request_timeout) as session:
                 async with session.post(
-                    endpoint, json=payload, headers=headers, timeout=self.timeout
+                    endpoint, json=payload, headers=headers
                 ) as response:
                     status_code = response.status
                     response_text = await response.text()
@@ -800,9 +832,18 @@ class LLMClient:
         current_content_type = EventType.MESSAGE  # Start expecting message content
 
         try:
-            async with aiohttp.ClientSession() as session:
+            # Create timeout configuration for streaming
+            # Use short connection timeout but no read timeout for streaming
+            streaming_timeout = aiohttp.ClientTimeout(
+                total=None,  # No total timeout for streaming
+                connect=30,  # Connection timeout
+                sock_read=None,  # No read timeout for streaming
+                sock_connect=30  # Socket connection timeout
+            )
+            
+            async with aiohttp.ClientSession(timeout=streaming_timeout) as session:
                 async with session.post(
-                    endpoint, json=payload, headers=headers, timeout=self.timeout
+                    endpoint, json=payload, headers=headers
                 ) as response:
                     # --- Initial Response Check ---
                     if response.status != 200:
