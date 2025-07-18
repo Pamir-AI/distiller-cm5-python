@@ -36,7 +36,7 @@ class InputMonitor(QObject):
         QObject.__init__(self)
         self.target_window = target_window
         self._input_device_path = (
-            "/dev/input/event1"  # Default, will be dynamically found
+            "/dev/input/event2"  # Default, will be dynamically found
         )
         self._input_thread = None
         self._stop_input_thread = threading.Event()
@@ -65,7 +65,7 @@ class InputMonitor(QObject):
         logger.warning(f"Could not find input device with name: '{device_name}'")
         return None
 
-    def start(self, device_name="Pamir AI Key Input"):
+    def start(self, device_name="Pamir AI Signal Aggregation Module"):
         """
         Finds the input device and starts the monitoring thread.
 
