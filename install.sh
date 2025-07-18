@@ -5,7 +5,7 @@ WORKING_DIR=$(pwd)
 if [ ! -d ".venv" ]; then
   echo "Virtual environment not found. Installing dependencies..."
   # Install dependencies using uv
-  uv pip install -r requirements.txt
+  uv sync
   if [ $? -ne 0 ]; then
     echo "Failed to install dependencies."
     exit 1
@@ -13,10 +13,11 @@ if [ ! -d ".venv" ]; then
   echo "Dependencies installed successfully."
 else
   echo "Virtual environment already exists."
+  uv sync
 fi
 
 # Check if the LLM model file exists
-MODEL_PATH="${WORKING_DIR}/llm_server/models/qwen2.5-3b-instruct-q4_k_m.gguf"
+MODEL_PATH="${WORKING_DIR}/distiller-cm5-python/llm_server/models/qwen2.5-3b-instruct-q4_k_m.gguf"
 if [ ! -f "$MODEL_PATH" ]; then
   echo "Model file not found at $MODEL_PATH. Downloading..."
   # Create the directory if it doesn't exist

@@ -16,21 +16,6 @@ if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     exit 0
 fi
 
-# Check if the .venv directory exists
-if [ ! -d ".venv" ]; then
-  echo "Virtual environment not found. Installing dependencies..."
-  # Install dependencies using uv
-  uv init
-  uv venv
-  uv pip install -r requirements.txt
-  if [ $? -ne 0 ]; then
-    echo "Failed to install dependencies."
-    exit 1
-  fi
-else
-  echo "Virtual environment found."
-fi
-
 # Activate the virtual environment
 source .venv/bin/activate
 
@@ -45,7 +30,7 @@ export PYTHONPATH="$PWD:$PYTHONPATH"
 
 # Run the main Python script
 echo "Running main.py..."
-python main.py "$@"
+python main.py --gui "$@"
 
 # Deactivate the virtual environment (optional, runs when script exits)
 # deactivate 
