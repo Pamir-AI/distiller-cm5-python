@@ -383,7 +383,7 @@ class EInkRenderer(QObject):
                 byte_val = 0
                 for bit in range(8):
                     x = x_byte * 8 + bit
-                    if x < width and binary[y, x]:
+                    if x < width and not binary[y, x]:  # Inverted logic: set bit for False (black)
                         byte_val |= 1 << (7 - bit)
                 output[y * bytes_per_row + x_byte] = byte_val
 

@@ -701,7 +701,7 @@ class EinkDriver:
         self.epd_lut()                  # 写入LUT波形表
     
     def pic_display_clear(self, poweroff: bool = False) -> None:
-        # Clear the display by setting all pixels to white (0xFF)
+        # Clear the display by setting all pixels to white (0x00)
         # Transfer old data
         self.epd_w21_write_cmd(0x10)
         if _ROCK:
@@ -710,7 +710,7 @@ class EinkDriver:
             lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
         self.safe_writebytes(self.oldData)
 
-        # Transfer new data, setting all to 0xFF (white or clear)
+        # Transfer new data, setting all to 0x00 (white or clear)
         self.epd_w21_write_cmd(0x13)
         if _ROCK:
             self.RockGPIO.output(self.RK_DC_PIN, Value.ACTIVE)
