@@ -1,0 +1,184 @@
+#!/bin/bash
+
+# Post-removal script for distiller-cm5-python
+# This script performs cleanup after package removal
+
+set -e
+
+# Package configuration
+PACKAGE_NAME="distiller-cm5-python"
+INSTALL_DIR="/opt/$PACKAGE_NAME"
+LOG_DIR="/var/log/$PACKAGE_NAME"
+CONFIG_DIR="/etc/$PACKAGE_NAME"
+DISTILLER_USER="distiller"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+echo_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+echo_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+echo_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Function to remove configuration files and logs
+remove_data_files() {
+    echo_status "Removing configuration files and logs..."
+    
+    # Remove configuration directory
+    if [ -d "$CONFIG_DIR" ]; then
+        rm -rf "$CONFIG_DIR"
+        echo_success "Configuration directory removed: $CONFIG_DIR"
+    fi
+    
+    # Remove log directory
+    if [ -d "$LOG_DIR" ]; then
+        rm -rf "$LOG_DIR"
+        echo_success "Log directory removed: $LOG_DIR"
+    fi
+    
+    # Remove installation directory
+    if [ -d "$INSTALL_DIR" ]; then
+        rm -rf "$INSTALL_DIR"
+        echo_success "Installation directory removed: $INSTALL_DIR"
+    fi
+}
+
+# Function to remove system user
+remove_system_user() {
+    echo_status "Checking system user '$DISTILLER_USER'..."
+    
+    if id "$DISTILLER_USER" &>/dev/null; then
+        # Check if user is used by other distiller packages
+        other_distiller_packages=$(dpkg -l | grep -c '^ii.*distiller-' || true)
+        
+        if [ "$other_distiller_packages" -le 1 ]; then
+            # Only this package is installed, safe to remove user
+            echo_status "Removing system user '$DISTILLER_USER'..."
+            userdel "$DISTILLER_USER" 2>/dev/null || true
+            echo_success "System user '$DISTILLER_USER' removed."
+        else
+            echo_status "System user '$DISTILLER_USER' is used by other distiller packages."
+            echo_status "User will be preserved."
+        fi
+    else
+        echo_status "System user '$DISTILLER_USER' does not exist."
+    fi
+}
+
+# Function to remove wrapper scripts
+remove_wrapper_scripts() {
+    echo_status "Removing wrapper scripts..."
+    
+    if [ -f "/usr/local/bin/distiller-cm5-python-cli" ]; then
+        rm -f "/usr/local/bin/distiller-cm5-python-cli"
+        echo_success "CLI wrapper script removed."
+    fi
+    
+    if [ -f "/usr/local/bin/distiller-cm5-python-gui" ]; then
+        rm -f "/usr/local/bin/distiller-cm5-python-gui"
+        echo_success "GUI wrapper script removed."
+    fi
+}
+
+# Function to remove sudoers configuration
+remove_sudoers_config() {
+    echo_status "Checking sudoers configuration..."
+    
+    # Check if other distiller packages are installed
+    other_distiller_packages=$(dpkg -l | grep -c '^ii.*distiller-' || true)
+    
+    if [ "$other_distiller_packages" -le 1 ]; then
+        # Only this package is installed, safe to remove sudoers config
+        if [ -f "/etc/sudoers.d/distiller-system" ]; then
+            rm -f "/etc/sudoers.d/distiller-system"
+            echo_success "Sudoers configuration removed."
+        fi
+    else
+        echo_status "Sudoers configuration is shared with other distiller packages."
+        echo_status "Configuration will be preserved."
+    fi
+}
+
+# Function to clean up systemd files
+cleanup_systemd() {
+    echo_status "Cleaning up systemd files..."
+    
+    # Remove service files (done by package manager, but ensure cleanup)
+    rm -f /lib/systemd/system/distiller-cm5-python.service
+    rm -f /lib/systemd/system/distiller-cm5-python-gui.service
+    
+    # Reload systemd daemon
+    systemctl daemon-reload
+    echo_success "SystemD cleanup completed."
+}
+
+# Function to display post-removal information
+display_post_removal_info() {
+    echo ""
+    echo_success "Distiller CM5 Python has been removed successfully!"
+    echo ""
+    echo_status "If you experience any issues, please check:"
+    echo_status "  - System logs: journalctl -u distiller-cm5-python*"
+    echo_status "  - Process list: ps aux | grep distiller"
+    echo ""
+    echo_status "For support, visit:"
+    echo_status "  https://github.com/pamir-ai/distiller-cm5-python"
+    echo ""
+}
+
+# Main removal sequence
+main() {
+    echo_status "Starting post-removal cleanup for $PACKAGE_NAME..."
+    
+    # Determine the removal action
+    case "$1" in
+        remove)
+            echo_status "Package removed (configuration files preserved)."
+            cleanup_systemd
+            display_post_removal_info
+            ;;
+        purge)
+            echo_status "Package purged (removing all files)."
+            remove_data_files
+            remove_wrapper_scripts
+            remove_sudoers_config
+            remove_system_user
+            cleanup_systemd
+            display_post_removal_info
+            ;;
+        upgrade|failed-upgrade)
+            echo_status "Package upgrade completed."
+            cleanup_systemd
+            ;;
+        abort-install|abort-upgrade)
+            echo_status "Package installation/upgrade aborted."
+            cleanup_systemd
+            ;;
+        *)
+            echo_status "Unknown removal action: $1"
+            cleanup_systemd
+            ;;
+    esac
+    
+    echo_success "Post-removal cleanup completed successfully."
+}
+
+# Execute main function
+main "$@"
+
+exit 0

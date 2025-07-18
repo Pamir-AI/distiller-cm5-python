@@ -371,3 +371,22 @@ class MCPClientBridge(BridgeCore):
             system_monitor.set_llm_model(model_name)
         except Exception as e:
             logger.error(f"Error setting LLM model: {e}")
+    
+    @pyqtSlot()
+    def reconnectToServer(self):
+        """Reconnect to the currently selected server."""
+        try:
+            if hasattr(self, 'connection_manager') and self.connection_manager.selected_server_path:
+                # Run the reconnection asynchronously
+                if self._loop and not self._loop.is_closed():
+                    asyncio.ensure_future(
+                        self.connection_manager.connect_to_selected_server(),
+                        loop=self._loop
+                    )
+                    logger.info("Reconnection attempt initiated")
+                else:
+                    logger.error("Event loop not available for reconnection")
+            else:
+                logger.warning("No server path available for reconnection")
+        except Exception as e:
+            logger.error(f"Error during reconnection: {e}")

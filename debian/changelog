@@ -1,0 +1,31 @@
+distiller-cm5-python (1.0.0-2) stable; urgency=medium
+
+  * Fix systemd service installation by using debhelper instead of manual installation
+  * Add direct SPI and GPIO hardware control support
+  * Include libgpiod and python3-spidev dependencies for hardware access
+  * e-ink display control with direct hardware interfaces
+
+ -- PamirAI Incorporated <support@pamir.ai>  Fri, 11 Jul 2025 12:00:00 +0000
+
+distiller-cm5-python (1.0.0-1) stable; urgency=medium
+
+  * Initial release of Distiller CM5 Python AI Assistant Application
+  * Dual interface architecture supporting both CLI and Qt/QML GUI modes
+  * LLM integration with local llama-cpp servers and remote providers
+  * MCP (Model Context Protocol) server support for extensible tool integration
+  * Hardware interfacing capabilities including audio, display, and LED control
+  * Speech-to-text processing with faster_whisper for voice interaction
+  * E-ink display control via distiller-cm5-sdk integration
+  * UART-based power management signaling for system integration
+  * Modular LLM integration with automatic server lifecycle management
+  * Comprehensive configuration system supporting multiple LLM providers
+  * SystemD service integration for CLI and GUI daemon modes
+  * Professional packaging with proper dependency management using uv
+  * Security features including dedicated system user and proper permissions
+  * Hardware abstraction layer with graceful degradation when unavailable
+  * Qt/QML-based voice assistant interface with visual feedback
+  * Multi-threaded architecture for responsive user interaction
+  * Comprehensive logging and error handling throughout the application
+  * Integration with broader Distiller CM5 ecosystem via shared SDK
+
+ -- PamirAI Incorporated <support@pamir.ai>  Thu, 10 Jul 2025 12:00:00 +0000

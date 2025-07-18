@@ -1,0 +1,359 @@
+#!/bin/bash
+
+# Post-installation script for distiller-cm5-python
+# This script sets up the system after package installation
+
+set -e
+
+# Package configuration
+PACKAGE_NAME="distiller-cm5-python"
+INSTALL_DIR="/opt/$PACKAGE_NAME"
+LOG_DIR="/var/log/$PACKAGE_NAME"
+CONFIG_DIR="/etc/$PACKAGE_NAME"
+VENV_DIR="$INSTALL_DIR/.venv"
+DISTILLER_USER="distiller"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+echo_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+echo_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+echo_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Function to create system user
+create_system_user() {
+    echo_status "Creating system user '$DISTILLER_USER'..."
+    
+    if ! id "$DISTILLER_USER" &>/dev/null; then
+        useradd --system --create-home --home-dir "$INSTALL_DIR" \
+                --shell /bin/bash --comment "Distiller CM5 System User" \
+                --user-group "$DISTILLER_USER"
+        
+        # Add user to required groups
+        usermod -a -G netdev,gpio,spi,dialout,audio "$DISTILLER_USER" 2>/dev/null || true
+        
+        echo_success "System user '$DISTILLER_USER' created successfully."
+    else
+        echo_status "System user '$DISTILLER_USER' already exists."
+        
+        # Ensure user is in required groups
+        usermod -a -G netdev,gpio,spi,dialout,audio "$DISTILLER_USER" 2>/dev/null || true
+    fi
+}
+
+# Function to install uv package manager
+install_uv() {
+    echo_status "Checking uv package manager..."
+    
+    # Check multiple possible locations for uv
+    UV_PATHS=(
+        "/usr/local/bin/uv"
+        "/root/.local/bin/uv"
+        "/home/$DISTILLER_USER/.local/bin/uv"
+        "$(which uv 2>/dev/null || echo '')"
+    )
+    
+    UV_FOUND=""
+    for uv_path in "${UV_PATHS[@]}"; do
+        if [ -n "$uv_path" ] && [ -x "$uv_path" ]; then
+            UV_FOUND="$uv_path"
+            break
+        fi
+    done
+    
+    if [ -n "$UV_FOUND" ]; then
+        echo_status "uv package manager found at: $UV_FOUND"
+        
+        # Ensure it's available system-wide
+        if [ "$UV_FOUND" != "/usr/local/bin/uv" ] && [ ! -x "/usr/local/bin/uv" ]; then
+            cp "$UV_FOUND" /usr/local/bin/uv
+            chmod +x /usr/local/bin/uv
+            echo_success "uv made available system-wide."
+        fi
+    else
+        echo_status "Installing uv package manager..."
+        # Install uv using the official installer
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        
+        # Make uv available system-wide
+        if [ -f "$HOME/.cargo/bin/uv" ]; then
+            cp "$HOME/.cargo/bin/uv" /usr/local/bin/uv
+            chmod +x /usr/local/bin/uv
+        elif [ -f "/root/.local/bin/uv" ]; then
+            cp "/root/.local/bin/uv" /usr/local/bin/uv
+            chmod +x /usr/local/bin/uv
+        fi
+        
+        echo_success "uv package manager installed successfully."
+    fi
+}
+
+# Function to setup Python environment
+setup_python_environment() {
+    echo_status "Setting up Python virtual environment..."
+    
+    cd "$INSTALL_DIR"
+    
+    # Create virtual environment and install dependencies using uv sync
+    echo_status "Installing Python dependencies..."
+    /usr/local/bin/uv sync --python python3.11
+    
+    # Verify virtual environment was created
+    if [ ! -d "$VENV_DIR" ]; then
+        echo_error "Virtual environment creation failed!"
+        return 1
+    fi
+    
+    echo_success "Python dependencies installed successfully."
+}
+
+# Function to setup directories and permissions
+setup_directories() {
+    echo_status "Setting up directories and permissions..."
+    
+    # Create log directory
+    mkdir -p "$LOG_DIR"
+    chown "$DISTILLER_USER:$DISTILLER_USER" "$LOG_DIR"
+    chmod 755 "$LOG_DIR"
+    
+    # Create config directory
+    mkdir -p "$CONFIG_DIR"
+    chown root:root "$CONFIG_DIR"
+    chmod 755 "$CONFIG_DIR"
+    
+    # Set ownership of installation directory
+    chown -R "$DISTILLER_USER:$DISTILLER_USER" "$INSTALL_DIR"
+    
+    # Set permissions for wrapper scripts
+    chmod +x /usr/local/bin/distiller-cm5-python-cli
+    chmod +x /usr/local/bin/distiller-cm5-python-gui
+    
+    echo_success "Directories and permissions configured."
+}
+
+# Function to configure hardware access
+configure_hardware_access() {
+    echo_status "Configuring hardware access..."
+    
+    # Set up GPIO access
+    if [ -e /dev/gpiomem ]; then
+        chown root:gpio /dev/gpiomem
+        chmod 660 /dev/gpiomem
+        echo_success "GPIO access configured."
+    else
+        echo_warning "GPIO device not found. This is normal on non-CM5 systems."
+    fi
+    
+    # Set up SPI access
+    if [ -e /dev/spidev0.0 ]; then
+        chown root:spi /dev/spidev0.0
+        chmod 660 /dev/spidev0.0
+        echo_success "SPI access configured."
+    else
+        echo_warning "SPI device not found. This is normal on non-CM5 systems."
+    fi
+    
+    # Set up UART access
+    if [ -e /dev/serial0 ]; then
+        chown root:dialout /dev/serial0
+        chmod 660 /dev/serial0
+        echo_success "UART access configured."
+    else
+        echo_warning "UART device not found. This is normal on non-CM5 systems."
+    fi
+}
+
+# Function to download LLM model
+download_llm_model() {
+    echo_status "Checking LLM model file..."
+    
+    MODEL_DIR="$INSTALL_DIR/distiller_cm5_python/llm_server/models"
+    MODEL_FILE="qwen2.5-3b-instruct-q4_k_m.gguf"
+    MODEL_PATH="$MODEL_DIR/$MODEL_FILE"
+    MODEL_URL="https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf"
+    
+    # Create models directory if it doesn't exist
+    mkdir -p "$MODEL_DIR"
+    chown "$DISTILLER_USER:$DISTILLER_USER" "$MODEL_DIR"
+    
+    if [ ! -f "$MODEL_PATH" ]; then
+        echo_status "Model file not found at $MODEL_PATH. Downloading..."
+        echo_status "This may take several minutes depending on your internet connection..."
+        
+        # Check available disk space (model is ~2GB)
+        AVAILABLE_SPACE=$(df "$MODEL_DIR" | awk 'NR==2 {print $4}')
+        REQUIRED_SPACE=2097152  # 2GB in KB
+        
+        if [ "$AVAILABLE_SPACE" -lt "$REQUIRED_SPACE" ]; then
+            echo_error "Insufficient disk space. Need at least 2GB free space."
+            echo_error "Available: $(($AVAILABLE_SPACE / 1024))MB, Required: $(($REQUIRED_SPACE / 1024))MB"
+            return 1
+        fi
+        
+        # Download with progress bar and resume capability
+        if command -v wget >/dev/null 2>&1; then
+            sudo -u "$DISTILLER_USER" wget --progress=bar:force:noscroll --continue \
+                -O "$MODEL_PATH" "$MODEL_URL"
+        elif command -v curl >/dev/null 2>&1; then
+            sudo -u "$DISTILLER_USER" curl -L --progress-bar --continue-at - \
+                -o "$MODEL_PATH" "$MODEL_URL"
+        else
+            echo_error "Neither wget nor curl found. Cannot download model file."
+            echo_error "Please install wget or curl and run 'dpkg-reconfigure distiller-cm5-python'."
+            return 1
+        fi
+        
+        # Verify download completed successfully
+        if [ $? -ne 0 ] || [ ! -f "$MODEL_PATH" ]; then
+            echo_error "Failed to download the model file."
+            echo_error "You can manually download it later with:"
+            echo_error "  cd $MODEL_DIR"
+            echo_error "  wget -O $MODEL_FILE $MODEL_URL"
+            return 1
+        fi
+        
+        # Verify file size (should be around 2GB)
+        FILE_SIZE=$(stat -c%s "$MODEL_PATH" 2>/dev/null || echo "0")
+        MIN_SIZE=1073741824  # 1GB minimum (in case of different compression)
+        
+        if [ "$FILE_SIZE" -lt "$MIN_SIZE" ]; then
+            echo_error "Downloaded model file appears to be incomplete (size: $FILE_SIZE bytes)."
+            echo_error "Please try running 'dpkg-reconfigure distiller-cm5-python' to re-download."
+            rm -f "$MODEL_PATH"
+            return 1
+        fi
+        
+        # Set proper ownership
+        chown "$DISTILLER_USER:$DISTILLER_USER" "$MODEL_PATH"
+        chmod 644 "$MODEL_PATH"
+        
+        echo_success "Model file downloaded successfully."
+        echo_status "Model size: $(du -h "$MODEL_PATH" | cut -f1)"
+    else
+        echo_status "Model file already exists at $MODEL_PATH."
+        
+        # Verify existing file ownership
+        chown "$DISTILLER_USER:$DISTILLER_USER" "$MODEL_PATH"
+        chmod 644 "$MODEL_PATH"
+        
+        echo_status "Model size: $(du -h "$MODEL_PATH" | cut -f1)"
+    fi
+}
+
+# Function to configure udev rules
+configure_udev_rules() {
+    echo_status "Configuring udev rules for hardware access..."
+    
+    UDEV_RULES_FILE="/etc/udev/rules.d/99-pamir.rules"
+    
+    if [ -f "$UDEV_RULES_FILE" ]; then
+        # Reload udev rules to pick up new rules
+        echo_status "Reloading udev rules..."
+        udevadm control --reload-rules
+        
+        # Trigger udev for existing devices that match our rules
+        echo_status "Applying udev rules to existing devices..."
+        udevadm trigger --name-match=pamir-uart 2>/dev/null || true
+        udevadm trigger --subsystem-match=gpio 2>/dev/null || true
+        udevadm trigger --subsystem-match=spi 2>/dev/null || true
+        udevadm trigger --subsystem-match=sound 2>/dev/null || true
+        
+        # Wait for udev to settle
+        udevadm settle
+        
+        echo_success "udev rules configured and applied."
+        echo_status "Hardware devices will use proper permissions when connected."
+    else
+        echo_warning "udev rules file not found at $UDEV_RULES_FILE"
+        echo_warning "Hardware access may require manual permission configuration."
+    fi
+}
+
+# Function to configure systemd services
+configure_systemd_services() {
+    echo_status "Configuring systemd services..."
+    
+    # Reload systemd daemon to pick up new service files
+    systemctl daemon-reload
+    
+    # Note: Service enabling is handled automatically by debhelper during package installation
+    echo_success "SystemD services configured."
+    echo_status "Services can be started with:"
+    echo_status "  sudo systemctl start distiller-cm5-python.service"
+    echo_status "  sudo systemctl start distiller-cm5-python-gui.service"
+}
+
+# Function to display post-installation information
+display_post_install_info() {
+    echo ""
+    echo_success "Distiller CM5 Python installation completed successfully!"
+    echo ""
+    echo_status "Available commands:"
+    echo_status "  distiller-cm5-python-cli    - Run in CLI mode"
+    echo_status "  distiller-cm5-python-gui    - Run in GUI mode"
+    echo ""
+    echo_status "SystemD services:"
+    echo_status "  distiller-cm5-python.service     - CLI daemon"
+    echo_status "  distiller-cm5-python-gui.service - GUI daemon"
+    echo ""
+    echo_status "Configuration directory: $CONFIG_DIR"
+    echo_status "Log directory: $LOG_DIR"
+    echo_status "Installation directory: $INSTALL_DIR"
+    echo_status "LLM models directory: $INSTALL_DIR/distiller_cm5_python/llm_server/models"
+    echo ""
+    echo_status "Hardware configuration:"
+    echo_status "  udev rules: /etc/udev/rules.d/99-pamir.rules"
+    echo_status "  Hardware devices configured for distiller user access"
+    echo ""
+    echo_status "Note: If model download failed during installation, you can:"
+    echo_status "  sudo dpkg-reconfigure distiller-cm5-python"
+    echo ""
+    echo_status "For more information, see the documentation at:"
+    echo_status "  https://github.com/pamir-ai/distiller-cm5-python"
+    echo ""
+}
+
+# Main installation sequence
+main() {
+    echo_status "Starting post-installation configuration for $PACKAGE_NAME..."
+    
+    # Check if we're on the right architecture
+    if [ "$(uname -m)" != "aarch64" ]; then
+        echo_warning "This package is designed for ARM64 architecture (CM5 platform)."
+        echo_warning "Some features may not work correctly on other architectures."
+    fi
+    
+    # Run installation steps
+    create_system_user
+    install_uv
+    setup_python_environment
+    setup_directories
+    download_llm_model
+    configure_hardware_access
+    configure_udev_rules
+    configure_systemd_services
+    display_post_install_info
+    
+    echo_success "Post-installation configuration completed successfully."
+}
+
+# Execute main function
+main "$@"
+
+exit 0

@@ -1,0 +1,39 @@
+[Unit]
+Description=Distiller CM5 Python AI Assistant (CLI Mode)
+Documentation=https://github.com/pamir-ai/distiller-cm5-python
+After=network.target distiller-cm5-sdk.service
+Wants=network.target
+ConditionPathExists=/opt/distiller-cm5-python/main.py
+ConditionPathExists=/opt/distiller-cm5-sdk
+
+[Service]
+Type=simple
+User=distiller
+Group=distiller
+WorkingDirectory=/opt/distiller-cm5-python
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/distiller-cm5-sdk/src:/opt/distiller-cm5-python
+Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
+ExecStart=/opt/distiller-cm5-python/.venv/bin/python main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=distiller-cm5-python
+
+# Security settings (relaxed for hardware access)
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

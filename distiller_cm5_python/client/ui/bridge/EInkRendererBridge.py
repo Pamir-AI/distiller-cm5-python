@@ -203,7 +203,7 @@ class EInkRendererBridge(QObject):
 
     def frame_to_eink_data(
         self, frame_data: bytearray, width: int, height: int
-    ) -> List[int]:
+    ) -> bytes:
         """
         Convert frame data directly to e-ink display format.
 
@@ -213,26 +213,26 @@ class EInkRendererBridge(QObject):
             height: Frame height
 
         Returns:
-            Data ready for e-ink display
+            Data ready for e-ink display as bytes
         """
-        # Calculate bytes per row in the source data
-        bytes_per_row = (width + 7) // 8
-        total_bytes = bytes_per_row * height
+        # Calculate expected size: SDK expects (width * height) // 8 bytes
+        expected_size = (width * height) // 8
+        
+        logger.debug(f"Converting frame data: got {len(frame_data)} bytes, expected {expected_size}")
 
         # Ensure we have the expected amount of data
-        if len(frame_data) != total_bytes:
+        if len(frame_data) != expected_size:
             logger.warning(
-                f"Unexpected data size. Got {len(frame_data)}, expected {total_bytes}"
+                f"Data size mismatch. Got {len(frame_data)}, expected {expected_size}"
             )
-            if len(frame_data) < total_bytes:
-                frame_data = frame_data + bytearray(total_bytes - len(frame_data))
+            if len(frame_data) < expected_size:
+                frame_data = frame_data + bytearray(expected_size - len(frame_data))
             else:
-                frame_data = frame_data[:total_bytes]
+                frame_data = frame_data[:expected_size]
 
-        # Invert bits (renderer: 1=WHITE, driver: 1=BLACK)
-        data_np = np.array(frame_data, dtype=np.uint8)
-        data_np = ~data_np  # Bitwise NOT to invert (1->0, 0->1)
-        return data_np.tolist()
+        # Convert to list of integers - direct hardware driver expects List[int], not bytes
+        # Remove inversion as it may be causing issues
+        return list(frame_data)
 
     def cleanup(self):
         """Clean up e-ink display resources"""
