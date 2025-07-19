@@ -14,7 +14,6 @@ Build-Depends: debhelper-compat (= 13),
                portaudio19-dev,
                libasound2-dev,
                libsndfile1-dev,
-               cmake,
                libgpiod-dev,
                python3-spidev
 Standards-Version: 4.6.2
@@ -39,7 +38,6 @@ Depends: ${shlibs:Depends},
          curl | wget,
          ca-certificates,
          network-manager,
-         cmake,
          libgpiod2,
          python3-spidev
 Description: Distiller CM5 Python AI Assistant Application
