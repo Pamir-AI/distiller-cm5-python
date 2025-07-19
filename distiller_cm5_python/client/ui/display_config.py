@@ -1,9 +1,9 @@
 config = {
     "display": {
-        "eink_adaptive_capture": True,  # Enable adaptive refresh rate
+        "eink_adaptive_capture": False,  # Enable adaptive refresh rate
         "eink_dithering_enabled": False,
         "eink_dithering_method": 1,  # 1=Floyd-Steinberg, 2=Ordered
-        "eink_full_refresh_interval": 15,
+        "eink_full_refresh_interval": 30,
         "eink_refresh_interval": 2000,  # Increased to 2000ms for better batching
         "eink_enabled": True,
         "eink_buffer_size": 1,  # Reduced buffer size to save memory
@@ -16,7 +16,7 @@ config = {
             "adaptive_block_size": 16,  # Block size for adaptive thresholding (must be odd)
             "adaptive_c": 5,  # Constant subtracted from block mean/median (can be negative)
         },
-        "dark_mode": True,  # Set dark mode as default
+        "dark_mode": False,  # Set dark mode as default
         "show_system_stats": True,  # Enable system monitor display
         "width": 240,
         "height": 416,
