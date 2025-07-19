@@ -113,7 +113,7 @@ class MCPClient:
 
         # use current python interpreter by default
         server_params = StdioServerParameters(
-            command=sys.executable, args=[server_script_path], env=None
+            command=sys.executable, args=[server_script_path], env=os.environ.copy()
         )
 
         try:

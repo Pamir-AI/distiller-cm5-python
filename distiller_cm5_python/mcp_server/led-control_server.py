@@ -1,12 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 MCP Server: Full LED Control
 
 This MCP server exposes tools to fully control the RGB LED on the Distiller CM5 device.
 Available tools:
   - set_led_color: Set the LED to a specific RGB color and brightness
-  - blink_led: Blink the LED with specified parameters
-  - clear_led: Turn off the LED
+  - clear_led: Turn off all LEDs
 
 Follow llms.txt guidelines for MCP server implementations.
 """
@@ -33,9 +32,9 @@ logger = logging.getLogger("LEDControlServer")
 
 # Initialize hardware LED interface
 try:
-    led = LED()
+    led = LED(use_sudo=True)
     led.connect()
-    logger.info("LED interface connected.")
+    logger.info("LED interface connected with sudo privileges.")
 except Exception as e:
     logger.error(f"Failed to initialize LED SDK: {e}")
     led = None  # Tools will error if used
@@ -64,25 +63,8 @@ async def list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
-            name="blink_led",
-            description="Blink the LED with the specified color, count, and timing.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "r": {"type": "integer", "description": "Red value (0-255)"},
-                    "g": {"type": "integer", "description": "Green value (0-255)"},
-                    "b": {"type": "integer", "description": "Blue value (0-255)"},
-                    "count": {"type": "integer", "description": "Number of blinks"},
-                    "on_time": {"type": "number", "description": "On duration (seconds)"},
-                    "off_time": {"type": "number", "description": "Off duration (seconds)"},
-                    "brightness": {"type": "number", "description": "Brightness scale (0.0-1.0)"}
-                },
-                "required": ["r", "g", "b", "count", "on_time", "off_time"]
-            }
-        ),
-        types.Tool(
             name="clear_led",
-            description="Turn off/clear the LED.",
+            description="Turn off all LEDs on the device.",
             inputSchema={"type": "object", "properties": {}, "required": []}
         )
     ]
@@ -106,35 +88,41 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
             g = args.get("g")
             b = args.get("b")
             brightness = args.get("brightness", 1.0)
-            success = led.set_led_color(r, g, b, brightness)
-            text = (
-                f"LED set to color (R:{r}, G:{g}, B:{b}) at brightness {brightness}" 
-                if success else "Failed to set LED color"
-            )
-            return [types.TextContent(type="text", text=text)]
-
-        elif name == "blink_led":
-            r = args.get("r")
-            g = args.get("g")
-            b = args.get("b")
-            count = args.get("count")
-            on_time = args.get("on_time")
-            off_time = args.get("off_time")
-            brightness = args.get("brightness", 0.5)
-            success = led.blink_led(
-                r=r, g=g, b=b, count=count,
-                on_time=on_time, off_time=off_time,
-                brightness=brightness
-            )
-            text = (
-                f"LED blinked (R:{r}, G:{g}, B:{b}) {count} times" 
-                if success else "Failed to blink LED"
-            )
+            
+            try:
+                success = led.set_led_color(r, g, b, brightness)
+                text = (
+                    f"LED set to color (R:{r}, G:{g}, B:{b}) at brightness {brightness}" 
+                    if success else "Failed to set LED color"
+                )
+            except Exception as e:
+                error_msg = f"Exception while setting LED color: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                text = error_msg
+            
             return [types.TextContent(type="text", text=text)]
 
         elif name == "clear_led":
-            success = led.set_led_color(0, 0, 0, brightness=0.0)
-            text = "LED turned off." if success else "Failed to clear LED"
+            try:
+                available_leds = led.get_available_leds()
+                failed_leds = []
+                
+                for led_id in available_leds:
+                    success = led.set_led_color(0, 0, 0, brightness=0.0, led_id=led_id)
+                    if not success:
+                        failed_leds.append(led_id)
+                
+                if not failed_leds:
+                    text = f"All {len(available_leds)} LEDs turned off successfully."
+                else:
+                    text = f"Failed to clear LEDs: {failed_leds}. Successfully cleared: {len(available_leds) - len(failed_leds)}/{len(available_leds)}"
+                    logger.warning(text)
+                    
+            except Exception as e:
+                error_msg = f"Exception while clearing LEDs: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                text = error_msg
+                
             return [types.TextContent(type="text", text=text)]
 
         else:
