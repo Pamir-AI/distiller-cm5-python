@@ -5,7 +5,7 @@
       "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
       "provider_type": "llama-cpp",
       "api_key": "",
-      "timeout": 150,
+      "timeout": 300,
       "temperature": 0.7,
       "top_p": 0.8,
       "top_k": 20,
@@ -33,7 +33,7 @@
   },
   "active_llm_provider": "llama-cpp",
   "logging": {
-    "level": "DEBUG",
+    "level": "INFO",
     "file_enabled": false,
     "file_path": "mcp_client.log"
   },
