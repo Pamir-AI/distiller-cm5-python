@@ -9,7 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-UART_DEVICE = "/dev/pamir-uart"
+UART_DEVICE = "/dev/pamir-sam"
 
 def send_power_status(status: int) -> bool:
     """
