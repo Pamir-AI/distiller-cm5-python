@@ -145,7 +145,7 @@ class EInkRenderer(QObject):
         # In text streaming mode, use longer debounce delay
         if self._text_streaming_mode:
             self._last_text_update = current_time
-            debounce_delay = 800  # 800ms debounce for text streaming
+            debounce_delay = 1500  # 1500ms debounce for text streaming
         else:
             debounce_delay = self._debounce_delay
             
