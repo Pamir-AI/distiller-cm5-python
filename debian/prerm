@@ -31,41 +31,6 @@ echo_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Function to stop and disable services
-stop_services() {
-    echo_status "Stopping and disabling systemd services..."
-    
-    # Stop services if they're running
-    if systemctl is-active --quiet distiller-cm5-python.service; then
-        echo_status "Stopping distiller-cm5-python.service..."
-        systemctl stop distiller-cm5-python.service
-        echo_success "distiller-cm5-python.service stopped."
-    fi
-    
-    if systemctl is-active --quiet distiller-cm5-python-gui.service; then
-        echo_status "Stopping distiller-cm5-python-gui.service..."
-        systemctl stop distiller-cm5-python-gui.service
-        echo_success "distiller-cm5-python-gui.service stopped."
-    fi
-    
-    # Disable services
-    if systemctl is-enabled --quiet distiller-cm5-python.service; then
-        echo_status "Disabling distiller-cm5-python.service..."
-        systemctl disable distiller-cm5-python.service
-        echo_success "distiller-cm5-python.service disabled."
-    fi
-    
-    if systemctl is-enabled --quiet distiller-cm5-python-gui.service; then
-        echo_status "Disabling distiller-cm5-python-gui.service..."
-        systemctl disable distiller-cm5-python-gui.service
-        echo_success "distiller-cm5-python-gui.service disabled."
-    fi
-    
-    # Reload systemd daemon
-    systemctl daemon-reload
-    echo_success "SystemD services stopped and disabled."
-}
-
 # Function to perform cleanup
 cleanup_processes() {
     echo_status "Cleaning up any remaining processes..."
@@ -112,22 +77,18 @@ main() {
     case "$1" in
         remove)
             echo_status "Package is being removed (configuration files will be preserved)."
-            stop_services
             cleanup_processes
             display_removal_info
             ;;
         purge)
             echo_status "Package is being purged (all files will be removed)."
-            stop_services
             cleanup_processes
             ;;
         upgrade|failed-upgrade)
             echo_status "Package is being upgraded."
-            stop_services
             ;;
         *)
             echo_status "Unknown removal action: $1"
-            stop_services
             cleanup_processes
             ;;
     esac

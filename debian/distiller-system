@@ -20,13 +20,6 @@ distiller ALL=(ALL) NOPASSWD: /usr/bin/gpio
 distiller ALL=(ALL) NOPASSWD: /bin/chown /dev/gpiomem
 distiller ALL=(ALL) NOPASSWD: /bin/chmod 666 /dev/gpiomem
 
-# Allow distiller user to manage system services related to distiller
-distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl start distiller-*
-distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop distiller-*
-distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart distiller-*
-distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable distiller-*
-distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl disable distiller-*
-
 # Allow distiller user to manage audio devices and ALSA
 distiller ALL=(ALL) NOPASSWD: /usr/bin/amixer
 distiller ALL=(ALL) NOPASSWD: /usr/bin/alsamixer

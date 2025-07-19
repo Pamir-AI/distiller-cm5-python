@@ -269,7 +269,7 @@ configure_udev_rules() {
         
         # Trigger udev for existing devices that match our rules
         echo_status "Applying udev rules to existing devices..."
-        udevadm trigger --name-match=pamir-uart 2>/dev/null || true
+        udevadm trigger --name-match=pamir-sam 2>/dev/null || true
         udevadm trigger --subsystem-match=gpio 2>/dev/null || true
         udevadm trigger --subsystem-match=spi 2>/dev/null || true
         udevadm trigger --subsystem-match=sound 2>/dev/null || true
@@ -285,20 +285,6 @@ configure_udev_rules() {
     fi
 }
 
-# Function to configure systemd services
-configure_systemd_services() {
-    echo_status "Configuring systemd services..."
-    
-    # Reload systemd daemon to pick up new service files
-    systemctl daemon-reload
-    
-    # Note: Service enabling is handled automatically by debhelper during package installation
-    echo_success "SystemD services configured."
-    echo_status "Services can be started with:"
-    echo_status "  sudo systemctl start distiller-cm5-python.service"
-    echo_status "  sudo systemctl start distiller-cm5-python-gui.service"
-}
-
 # Function to display post-installation information
 display_post_install_info() {
     echo ""
@@ -307,10 +293,6 @@ display_post_install_info() {
     echo_status "Available commands:"
     echo_status "  distiller-cm5-python-cli    - Run in CLI mode"
     echo_status "  distiller-cm5-python-gui    - Run in GUI mode"
-    echo ""
-    echo_status "SystemD services:"
-    echo_status "  distiller-cm5-python.service     - CLI daemon"
-    echo_status "  distiller-cm5-python-gui.service - GUI daemon"
     echo ""
     echo_status "Configuration directory: $CONFIG_DIR"
     echo_status "Log directory: $LOG_DIR"
@@ -347,7 +329,6 @@ main() {
     download_llm_model
     configure_hardware_access
     configure_udev_rules
-    configure_systemd_services
     display_post_install_info
     
     echo_success "Post-installation configuration completed successfully."

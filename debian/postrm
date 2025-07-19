@@ -114,19 +114,6 @@ remove_sudoers_config() {
     fi
 }
 
-# Function to clean up systemd files
-cleanup_systemd() {
-    echo_status "Cleaning up systemd files..."
-    
-    # Remove service files (done by package manager, but ensure cleanup)
-    rm -f /lib/systemd/system/distiller-cm5-python.service
-    rm -f /lib/systemd/system/distiller-cm5-python-gui.service
-    
-    # Reload systemd daemon
-    systemctl daemon-reload
-    echo_success "SystemD cleanup completed."
-}
-
 # Function to display post-removal information
 display_post_removal_info() {
     echo ""
@@ -149,7 +136,6 @@ main() {
     case "$1" in
         remove)
             echo_status "Package removed (configuration files preserved)."
-            cleanup_systemd
             display_post_removal_info
             ;;
         purge)
@@ -158,20 +144,16 @@ main() {
             remove_wrapper_scripts
             remove_sudoers_config
             remove_system_user
-            cleanup_systemd
             display_post_removal_info
             ;;
         upgrade|failed-upgrade)
             echo_status "Package upgrade completed."
-            cleanup_systemd
             ;;
         abort-install|abort-upgrade)
             echo_status "Package installation/upgrade aborted."
-            cleanup_systemd
             ;;
         *)
             echo_status "Unknown removal action: $1"
-            cleanup_systemd
             ;;
     esac
     
