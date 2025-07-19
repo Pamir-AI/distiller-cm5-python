@@ -670,6 +670,9 @@ PageBase {
 
         function onStatusChanged(newStatus) {
             console.log("QML: Status changed to:", newStatus);
+            // Update timestamp for any status change to prevent timeout
+            stateResetTimer.lastActionTimestamp = Date.now();
+            
             // Map status to state
             if (newStatus.toLowerCase().includes("thinking")) {
                 state = "thinking";
@@ -879,6 +882,8 @@ PageBase {
 
         Connections {
             function onConversationChanged() {
+                // Update timestamp to prevent timeout during conversation updates
+                stateResetTimer.lastActionTimestamp = Date.now();
                 conversationView.updateModel(bridge.get_conversation());
                 // Let updateModel handle scrolling to prevent race conditions
             }
@@ -886,6 +891,9 @@ PageBase {
             function onMessageReceived(message, eventId, timestamp, status) {
                 console.log("QML onMessageReceived:", status, eventId, message.substring(0, 50));
                 if (status === "in_progress") {
+                    // Update timestamp to prevent timeout during text streaming
+                    stateResetTimer.lastActionTimestamp = Date.now();
+                    
                     // Get current conversation
                     var conversation = bridge.get_conversation();
                     // If this is the first chunk of a new message
