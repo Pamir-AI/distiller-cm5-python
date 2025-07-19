@@ -69,6 +69,11 @@ class BridgeEventHandler:
         self.current_message_id = None
         self.message_chunks = []
 
+        # NEW: Track conversation turn state to prevent premature idle transitions
+        self.conversation_turn_active = False
+        self.pending_events = set()  # Track pending event IDs
+        self.last_event_time = 0
+        
         # Get conversation manager reference from bridge if possible
         if hasattr(signal_source, "conversation_manager"):
             self.signals.conversation_manager = signal_source.conversation_manager
@@ -77,6 +82,52 @@ class BridgeEventHandler:
 
         # Connect to the dispatcher
         self.dispatcher.message_dispatched.connect(self.handle_event)
+
+    def _start_conversation_turn(self, event_id: str) -> None:
+        """Start tracking a new conversation turn."""
+        self.conversation_turn_active = True
+        self.pending_events.add(event_id)
+        self.last_event_time = time.time()
+        logger.debug(f"Started conversation turn, pending events: {self.pending_events}")
+
+    def _complete_event(self, event_id: str) -> None:
+        """Mark an event as completed and check if conversation turn is finished."""
+        self.pending_events.discard(event_id)
+        self.last_event_time = time.time()
+        logger.debug(f"Completed event {event_id}, remaining pending: {self.pending_events}")
+
+    def _should_reset_to_idle(self) -> bool:
+        """
+        Determine if it's safe to reset to idle state.
+        Only reset when no events are pending and enough time has passed.
+        """
+        # Don't reset if we have pending events
+        if self.pending_events:
+            # However, if too much time has passed (30 seconds), force reset to prevent permanent stuck state
+            time_since_last_event = time.time() - self.last_event_time
+            if time_since_last_event > 30.0:
+                logger.warning(f"Forcing reset to idle after 30s timeout. Pending events: {self.pending_events}")
+                self.pending_events.clear()  # Clear stuck events
+                return True
+            return False
+            
+        # Don't reset if we're not in a conversation turn
+        if not self.conversation_turn_active:
+            return False
+            
+        # Give a small grace period (2 seconds) for potential follow-up events
+        time_since_last_event = time.time() - self.last_event_time
+        if time_since_last_event < 2.0:
+            return False
+            
+        return True
+
+    def _reset_to_idle_if_safe(self) -> None:
+        """Reset to idle only if it's safe to do so."""
+        if self._should_reset_to_idle() and self.is_connected:
+            self.conversation_turn_active = False
+            self.status_manager.update_status(StatusManager.STATUS_IDLE)
+            logger.debug("Reset to idle - conversation turn complete")
 
     def handle_event(self, event: MessageSchema) -> None:
         """
@@ -134,6 +185,8 @@ class BridgeEventHandler:
                     # Start new message stream
                     self.current_message_id = event.id
                     self.message_chunks = []
+                    # Start tracking this conversation turn
+                    self._start_conversation_turn(str(event.id))
 
                 # Accumulate message chunks
                 self.message_chunks.append(event.content)
@@ -164,9 +217,9 @@ class BridgeEventHandler:
                 self.current_message_id = None
                 self.message_chunks = []
 
-                # Update status to idle when message is complete
-                if self.is_connected:
-                    self.status_manager.update_status(StatusManager.STATUS_IDLE)
+                # Mark this event as completed and reset to idle only if safe
+                self._complete_event(str(event.id))
+                self._reset_to_idle_if_safe()
 
         elif (
             event.type == EventType.ACTION
@@ -182,6 +235,12 @@ class BridgeEventHandler:
                     # Start new action stream
                     self.current_message_id = event.id
                     self.message_chunks = []
+                    # Start tracking this conversation turn if not already active
+                    if not self.conversation_turn_active:
+                        self._start_conversation_turn(str(event.id))
+                    else:
+                        # Add to existing conversation turn
+                        self.pending_events.add(str(event.id))
 
                 # Accumulate action chunks
                 self.message_chunks.append(event.content)
@@ -211,9 +270,9 @@ class BridgeEventHandler:
                 self.current_message_id = None
                 self.message_chunks = []
 
-                # Update status when action is complete
-                if self.is_connected:
-                    self.status_manager.update_status(StatusManager.STATUS_IDLE)
+                # Mark this event as completed and reset to idle only if safe
+                self._complete_event(str(event.id))
+                self._reset_to_idle_if_safe()
 
         elif event.type == EventType.INFO:
             logger.debug(
@@ -237,10 +296,16 @@ class BridgeEventHandler:
             )
             if status_value == StatusType.IN_PROGRESS:
                 self.status_manager.update_status(StatusManager.STATUS_THINKING)
+                # Start tracking this conversation turn if not already active
+                if not self.conversation_turn_active:
+                    self._start_conversation_turn(str(event.id))
+                else:
+                    # Add to existing conversation turn
+                    self.pending_events.add(str(event.id))
             elif status_value == StatusType.SUCCESS:
-                # Update status when INFO event is complete
-                if self.is_connected:
-                    self.status_manager.update_status(StatusManager.STATUS_IDLE)
+                # Mark this event as completed and reset to idle only if safe
+                self._complete_event(str(event.id))
+                self._reset_to_idle_if_safe()
 
         elif event.type == EventType.WARNING:
             self.signals.warningReceived.emit(
