@@ -301,7 +301,7 @@ Rectangle {
                         return ;
                     }
                     // Only allow activation when connected and not processing
-                    if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool")
+                    if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool" || voiceInputArea.appState === "restoring_cache")
                         return ;
 
                     // When activating with Enter key
@@ -322,7 +322,7 @@ Rectangle {
                 height: ThemeManager.buttonHeight
                 isFlat: true
                 // Disable button when not connected or when processing/thinking/executing/restoring cache
-                enabled: (isConnected && voiceInputArea.appState !== "processing" && voiceInputArea.appState !== "thinking" && voiceInputArea.appState !== "executing_tool") || voiceInputArea.appState !== "restoring_cache"
+                enabled: isConnected && voiceInputArea.appState !== "processing" && voiceInputArea.appState !== "thinking" && voiceInputArea.appState !== "executing_tool" && voiceInputArea.appState !== "restoring_cache"
                 onClicked: {
                     if (voiceInputArea.appState === "restoring_cache") {
                         console.log("Voice button clicked during cache restoration - ignoring");
@@ -349,7 +349,7 @@ Rectangle {
                 // Handle key press/release for Enter/Return
                 Keys.onPressed: function(event) {
                     // Check if we're processing before handling key
-                    if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool") {
+                    if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool" || voiceInputArea.appState === "restoring_cache") {
                         event.accepted = true;
                         return ;
                     }
@@ -363,8 +363,8 @@ Rectangle {
                     }
                 }
                 Keys.onReleased: function(event) {
-                    // Check if we're processing before handling key
-                    if (!isConnected || (voiceInputArea.appState !== "listening" && voiceInputArea.appState !== "idle")) {
+                    // Check if we're processing before handling key - explicitly block cache restoration
+                    if (!isConnected || voiceInputArea.appState === "restoring_cache" || (voiceInputArea.appState !== "listening" && voiceInputArea.appState !== "idle")) {
                         event.accepted = true;
                         return ;
                     }

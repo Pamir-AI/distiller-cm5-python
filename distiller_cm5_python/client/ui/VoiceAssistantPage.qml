@@ -12,7 +12,7 @@ PageBase {
     property string _serverName: ""
     property string serverName: _serverName
     property bool isListening: state === "listening"
-    property bool isProcessing: ["processing", "thinking", "toolExecution", "cacheRestoring"].includes(state)
+    property bool isProcessing: ["processing", "thinking", "toolExecution"].includes(state)
     property bool isServerConnected: bridge && bridge.ready ? bridge.isConnected : false
     property string statusText: conversationView && conversationView.scrollModeActive ? "Scroll Mode (↑↓ to scroll)" : _statusText
     property string _statusText: getStatusTextForState(state)
@@ -276,7 +276,7 @@ PageBase {
         if (state === "cacheRestoring") {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                 console.log("Key press blocked - cache is being restored");
-                messageToast.showMessage("Please wait, cache restoration in progress...", 2000);
+                messageToast.showMessage("Please wait, cache restoration might take a few minutes...", 2000);
                 event.accepted = true;
                 return ;
             }
@@ -473,7 +473,8 @@ PageBase {
         running: true // Always running to check for stuck states
         onTriggered: {
             // Check for stuck processing state (was stateCheckTimer's job)
-            if (isProcessing && (Date.now() - lastActionTimestamp > 15000)) {
+            // Exclude cache restoration from timeout logic - it has its own lifecycle
+            if (isProcessing && state !== "cacheRestoring" && (Date.now() - lastActionTimestamp > 15000)) {
                 console.log("StateResetTimer triggered: Detected stuck state after inactivity");
                 voiceAssistantPage.state = "idle";
             }
@@ -624,7 +625,7 @@ PageBase {
                 console.log("Cache restoration in progress, disabling voice button");
                 state = "cacheRestoring";
                 // Show a toast message about the operation
-                messageToast.showMessage("Restoring model cache, please wait...", 3000);
+                messageToast.showMessage("Restoring model cache, might take a few minutes...", 3000);
             } else if (content && content.toLowerCase().includes("restored")) {
                 console.log("Cache restoration completed, re-enabling voice button");
                 state = "idle";
@@ -678,14 +679,9 @@ PageBase {
                 stateResetTimer.toolExecutionActive = true;
             } else if (newStatus.toLowerCase().includes("restoring_cache")) {
                 state = "cacheRestoring";
-                // Restart state reset timer with longer timeout for cache operations
-                stateResetTimer.interval = 60000;
-                // 60 seconds for cache restoration
-                stateResetTimer.restart();
+                // Cache restoration is now handled separately and won't be reset by timer
             } else if (newStatus === "idle" || newStatus === "Ready") {
                 state = "idle";
-                // Reset timer interval to normal
-                stateResetTimer.interval = 20000;
             } else if (newStatus.toLowerCase().includes("listening"))
                 state = "listening";
             else if (newStatus.toLowerCase().includes("error"))
@@ -1005,7 +1001,7 @@ PageBase {
             // Prevent voice toggling during cache restoration
             if (voiceAssistantPage.state === "cacheRestoring") {
                 console.log("Voice toggle ignored - cache is being restored");
-                messageToast.showMessage("Please wait, cache restoration in progress...", 2000);
+                messageToast.showMessage("Please wait, cache restoration might take a few minutes...", 2000);
                 return ;
             }
             if (bridge && bridge.ready && bridge.isConnected && voiceAssistantPage.state !== "processing" && voiceAssistantPage.state !== "thinking" && voiceAssistantPage.state !== "toolExecution") {
@@ -1022,7 +1018,7 @@ PageBase {
             // Prevent voice press during cache restoration
             if (voiceAssistantPage.state === "cacheRestoring") {
                 console.log("Voice press ignored - cache is being restored");
-                messageToast.showMessage("Please wait, cache restoration in progress...", 2000);
+                messageToast.showMessage("Please wait, cache restoration might take a few minutes...", 2000);
                 return ;
             }
             if (bridge && bridge.ready && bridge.isConnected && voiceAssistantPage.state !== "processing" && voiceAssistantPage.state !== "thinking" && voiceAssistantPage.state !== "toolExecution") {
