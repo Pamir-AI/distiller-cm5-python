@@ -1,9 +1,9 @@
 config = {
     "display": {
-        "eink_adaptive_capture": False,  # Enable adaptive refresh rate
+        "eink_adaptive_capture": True,  # Enable adaptive refresh rate
         "eink_dithering_enabled": False,
         "eink_dithering_method": 1,  # 1=Floyd-Steinberg, 2=Ordered
-        "eink_full_refresh_interval": 30,
+        "eink_full_refresh_interval": 15,
         "eink_refresh_interval": 2000,  # Increased to 2000ms for better batching
         "eink_enabled": True,
         "eink_buffer_size": 1,  # Reduced buffer size to save memory
