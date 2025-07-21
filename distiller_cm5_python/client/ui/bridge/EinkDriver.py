@@ -1,30 +1,12 @@
 import time
 import spidev
-import platform
-import os
 from typing import List
 import numpy as np
 from threading import Thread
 import logging
+import lgpio
 
 logger = logging.getLogger(__name__)
-
-# Check if we're on a Rockchip platform
-_ROCK = "rockchip" in platform.release()
-
-# Check if we're on Raspberry Pi - this works on Pi 5 which might not identify as 'raspberry'
-_RPI = (not _ROCK) and (
-    os.path.exists("/proc/device-tree/model")
-    and "raspberry" in open("/proc/device-tree/model", "r").read().lower()
-    or os.path.exists("/sys/firmware/devicetree/base/model")
-    and "raspberry" in open("/sys/firmware/devicetree/base/model", "r").read().lower()
-)
-
-if _RPI:
-    import lgpio
-elif _ROCK:
-    from gpiod.line import Direction, Value, Bias
-    from .rock_gpio import RockGPIO
 
 
 class EinkDriver:
@@ -295,25 +277,17 @@ class EinkDriver:
         0x00,0x00,0x00,0x00,0x00,0x00,0x00,
         ];
 
-        # Pin Def
-        if _ROCK:
-            self.RK_DC_PIN = "GPIO1_C6"
-            self.RK_RST_PIN = "GPIO1_B1"
-            self.RK_BUSY_PIN = "GPIO0_D3"
-        else:
-            self.DC_PIN = 7
-            self.RST_PIN = 13
-            self.BUSY_PIN = 9
+        # Raspberry Pi GPIO Pin Definitions
+        self.DC_PIN = 7
+        self.RST_PIN = 13
+        self.BUSY_PIN = 9
 
         self.EPD_WIDTH = 240
         self.EPD_HEIGHT = 416
 
-        if _ROCK:
-            self.RockGPIO = RockGPIO()
-        else:
-            # Initialize lgpio
-            self.chip = 0  # Default gpiochip number, adjust if needed
-            self.lgpio_handle = lgpio.gpiochip_open(self.chip)
+        # Initialize lgpio for Raspberry Pi
+        self.chip = 0  # Default gpiochip number
+        self.lgpio_handle = lgpio.gpiochip_open(self.chip)
 
         self.spi = self.EPD_GPIO_Init()
         self.epd_w21_init_4g()
@@ -335,22 +309,15 @@ class EinkDriver:
                 raise
 
     def cleanup(self) -> None:
-        if _ROCK:
-            self.RockGPIO.cleanup()
-        elif hasattr(self, "lgpio_handle"):
+        if hasattr(self, "lgpio_handle"):
             lgpio.gpiochip_close(self.lgpio_handle)
 
     def EPD_GPIO_Init(self) -> spidev.SpiDev:
-        if _RPI:
-            # Configure GPIO pins with lgpio
-            lgpio.gpio_claim_output(self.lgpio_handle, self.DC_PIN, 0)
-            lgpio.gpio_claim_output(self.lgpio_handle, self.RST_PIN, 0)
-            # For input with pull-up, flags=1 means pull-up
-            lgpio.gpio_claim_input(self.lgpio_handle, self.BUSY_PIN, lgpio.SET_PULL_UP)
-        else:
-            self.RockGPIO.setup(self.RK_DC_PIN, Direction.OUTPUT)
-            self.RockGPIO.setup(self.RK_RST_PIN, Direction.OUTPUT)
-            self.RockGPIO.setup(self.RK_BUSY_PIN, Direction.INPUT, bias=Bias.PULL_UP)
+        # Configure GPIO pins with lgpio
+        lgpio.gpio_claim_output(self.lgpio_handle, self.DC_PIN, 0)
+        lgpio.gpio_claim_output(self.lgpio_handle, self.RST_PIN, 0)
+        # For input with pull-up, flags=1 means pull-up
+        lgpio.gpio_claim_input(self.lgpio_handle, self.BUSY_PIN, lgpio.SET_PULL_UP)
 
         bus = 0
         device = 0
@@ -369,18 +336,12 @@ class EinkDriver:
 
     def epd_w21_write_cmd(self, command: int) -> None:
         self.SPI_Delay()
-        if _ROCK:
-            self.RockGPIO.output(self.RK_DC_PIN, Value.INACTIVE)  # Data mode
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 0)  # Low for command
+        lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 0)  # Low for command
         self.SPI_Write(command)
 
     def epd_w21_write_data(self, data: int) -> None:
         self.SPI_Delay()
-        if _ROCK:
-            self.RockGPIO.output(self.RK_DC_PIN, Value.ACTIVE)  # Data mode
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # High for data
+        lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # High for data
         self.SPI_Write(data)
 
     def delay_xms(self, xms: int) -> None:
@@ -388,16 +349,10 @@ class EinkDriver:
 
     def epd_w21_init(self) -> None:
         self.delay_xms(100)
-        if _ROCK:
-            self.RockGPIO.output(self.RK_RST_PIN, Value.INACTIVE)
-            self.delay_xms(20)
-            self.RockGPIO.output(self.RK_RST_PIN, Value.ACTIVE)
-            self.delay_xms(20)
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.RST_PIN, 0)  # Reset active low
-            self.delay_xms(20)
-            lgpio.gpio_write(self.lgpio_handle, self.RST_PIN, 1)  # Reset inactive
-            self.delay_xms(20)
+        lgpio.gpio_write(self.lgpio_handle, self.RST_PIN, 0)  # Reset active low
+        self.delay_xms(20)
+        lgpio.gpio_write(self.lgpio_handle, self.RST_PIN, 1)  # Reset inactive
+        self.delay_xms(20)
 
     def EPD_Display(self, image: List[int]) -> None:
         width = (self.EPD_WIDTH + 7) // 8
@@ -417,14 +372,9 @@ class EinkDriver:
         self.lcd_chkstatus()
 
     def lcd_chkstatus(self) -> None:
-        if _ROCK:
-            # Assuming LOW means busy
-            while self.RockGPIO.input(self.RK_BUSY_PIN) == Value.INACTIVE:
-                time.sleep(0.01)
-        else:
-            # For lgpio, 0 means low which indicates busy
-            while lgpio.gpio_read(self.lgpio_handle, self.BUSY_PIN) == 0:
-                time.sleep(0.01)  # Wait 10ms before checking again
+        # For lgpio, 0 means low which indicates busy
+        while lgpio.gpio_read(self.lgpio_handle, self.BUSY_PIN) == 0:
+            time.sleep(0.01)  # Wait 10ms before checking again
 
     def epd_sleep(self) -> None:
         self.epd_w21_write_cmd(0x02)  # Power off
@@ -580,18 +530,12 @@ class EinkDriver:
 
         # Send old data (0x10)
         self.epd_w21_write_cmd(0x10)
-        if _ROCK:
-            self.RockGPIO.output(self.RK_DC_PIN, Value.ACTIVE)
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
+        lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
         self.safe_writebytes(packed_msbs.tolist())
 
         # Send new data (0x13)
         self.epd_w21_write_cmd(0x13)
-        if _ROCK:
-            self.RockGPIO.output(self.RK_DC_PIN, Value.ACTIVE)
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
+        lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
         self.safe_writebytes(packed_lsbs.tolist())
 
         # Refresh command
@@ -610,18 +554,12 @@ class EinkDriver:
 
         # Transfer old data
         self.epd_w21_write_cmd(0x10)
-        if _ROCK:
-            self.RockGPIO.output(self.RK_DC_PIN, Value.ACTIVE)
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
+        lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
         self.safe_writebytes(self.oldData)
 
         # Transfer new data
         self.epd_w21_write_cmd(0x13)
-        if _ROCK:
-            self.RockGPIO.output(self.RK_DC_PIN, Value.ACTIVE)
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
+        lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
         self.safe_writebytes(new_data)
         self.oldData = list(new_data)
 
@@ -704,18 +642,12 @@ class EinkDriver:
         # Clear the display by setting all pixels to white (0x00)
         # Transfer old data
         self.epd_w21_write_cmd(0x10)
-        if _ROCK:
-            self.RockGPIO.output(self.RK_DC_PIN, Value.ACTIVE)
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
+        lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
         self.safe_writebytes(self.oldData)
 
         # Transfer new data, setting all to 0x00 (white or clear)
         self.epd_w21_write_cmd(0x13)
-        if _ROCK:
-            self.RockGPIO.output(self.RK_DC_PIN, Value.ACTIVE)
-        else:
-            lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
+        lgpio.gpio_write(self.lgpio_handle, self.DC_PIN, 1)  # Data mode
         self.safe_writebytes([0] * 12480)
         self.oldData = [0] * 12480
 
