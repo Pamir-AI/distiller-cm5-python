@@ -29,9 +29,6 @@ if not sys.platform.startswith('linux'):
 
 if config["display"]["eink_enabled"]:
     from distiller_cm5_python.client.ui.bridge.EInkRenderer import EInkRenderer
-    from distiller_cm5_python.client.ui.bridge.EInkRendererBridge import (
-        EInkRendererBridge,
-    )
 
 
 class App(QObject):  # Inherit from QObject to support signals/slots
@@ -76,7 +73,6 @@ class App(QObject):  # Inherit from QObject to support signals/slots
 
         # E-Ink Initialization
         self.eink_renderer = None
-        self.eink_bridge = None
 
         # Shutdown control
         self._shutdown_in_progress = False
@@ -179,17 +175,20 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             # Apply fixed size constraints to the root window after loading
             self._apply_window_constraints()
             # E-Ink Initialization Call
-            self._init_eink_renderer()
-            self._eink_initialized = True
+            success = self._init_eink_renderer()
+            self._eink_initialized = success
 
-            # Add a small delay to allow QML/FocusManager to potentially settle
-            await asyncio.sleep(0.2)  # Wait 200ms
-            logger.info("Proceeding to start input monitor after short delay.")
+            if success:
+                # Add a small delay to allow QML/FocusManager to potentially settle
+                await asyncio.sleep(0.2)  # Wait 200ms
+                logger.info("Proceeding to start input monitor after short delay.")
 
-            # Set the target window for the input monitor
-            self.input_monitor.set_target_window(self.main_window)
-            # Start the input monitor with default device name
-            self.input_monitor.start()
+                # Set the target window for the input monitor
+                self.input_monitor.set_target_window(self.main_window)
+                # Start the input monitor with default device name
+                self.input_monitor.start()
+            else:
+                logger.warning("E-Ink initialization failed, continuing without E-Ink display")
 
         logger.info("Application initialized successfully")
 
@@ -240,27 +239,15 @@ class App(QObject):  # Inherit from QObject to support signals/slots
 
     def _cleanup_eink(self):
         """Cleanup E-Ink resources."""
-
         try:
-            # Stop the E-Ink renderer if active
             if self.eink_renderer:
-                self.eink_renderer.stop()
-                logger.info("E-Ink renderer stopped.")
+                self.eink_renderer.cleanup()
+                logger.info("E-Ink renderer cleaned up.")
                 self.eink_renderer = None
-
-            # Clean up e-ink bridge if active
-            if self.eink_bridge:
-                self.eink_bridge.cleanup()
-                logger.info("E-Ink bridge cleaned up.")
-                self.eink_bridge = None
-
+            
             self._eink_initialized = False
         except Exception as e:
             logger.error(f"Error during E-Ink cleanup: {e}", exc_info=True)
-            # Ensure we clean up even if an error occurs
-            if self.eink_bridge:
-                self.eink_bridge.cleanup()
-                self.eink_bridge = None
             self.eink_renderer = None
 
     async def _initiate_shutdown(self):
@@ -463,135 +450,65 @@ class App(QObject):  # Inherit from QObject to support signals/slots
 
     # E-Ink Methods
     def _init_eink_renderer(self):
-        """Initialize the E-Ink renderer."""
-        # logger.info(f"config: {config}")
-
+        """Initialize the simplified E-Ink renderer."""
         if not config.get("display").get("eink_enabled"):
             logger.warning("E-Ink display mode disabled in configuration")
-            return
-
-        # Check if e-ink mode is enabled in config
-        eink_enabled = config.get("display").get("eink_enabled")
-
-        if not eink_enabled:
-            logger.warning("E-Ink display mode disabled in configuration")
-            return
-
-        logger.info("E-Ink display mode enabled")
-
-        # Get configuration for e-ink renderer with optimized defaults
-        capture_interval = config.get("display").get(
-            "eink_refresh_interval", 1000
-        )  # Default to 1000ms
-        buffer_size = config.get("display").get(
-            "eink_buffer_size", 1
-        )  # Default to 1 for memory optimization
-        dithering_enabled = config.get("display").get("eink_dithering_enabled", True)
-        dithering_method = config.get("display").get(
-            "eink_dithering_method", 1
-        )  # 1=Floyd-Steinberg, 2=Ordered
-        adaptive_capture = config.get("display").get(
-            "eink_adaptive_capture", True
-        )  # Enable adaptive refresh
-        threshold = config.get("display").get(
-            "eink_threshold", 128
-        )  # Threshold for black/white conversion
-
-        # Get B&W conversion details
-        bw_config = config.get("display").get("eink_bw_conversion", {})
-        bw_method = bw_config.get("method", 1)
-        bw_method_name = "Simple Threshold" if bw_method == 1 else "Adaptive Threshold"
-        use_gamma = bw_config.get("use_gamma", False)
-        gamma_value = bw_config.get("gamma_value", 0.7) if use_gamma else None
-
-        try:
-            # First initialize the e-ink bridge that connects to the hardware
-            self.eink_bridge = EInkRendererBridge(parent=self.app)
-            init_success = self.eink_bridge.initialize()
-
-            if not init_success:
-                logger.error("Failed to initialize e-ink bridge")
-                self.eink_bridge = None
-                return False
-
-            # Configure dithering with method
-            self.eink_bridge.set_dithering(dithering_enabled, dithering_method)
-
-            # Create the renderer instance with optimized settings
-            self.eink_renderer = EInkRenderer(
-                parent=self.app,
-                capture_interval=capture_interval,
-                buffer_size=buffer_size,
-            )
-
-            # Set adaptive capture mode
-            self.eink_renderer.set_adaptive_capture(adaptive_capture)
-
-            # Connect the signal to an async lambda that schedules the handler
-            # Use asyncio.create_task to run the async handler without blocking the signal emission
-            self.eink_renderer.frameReady.connect(
-                lambda data, w, h: asyncio.create_task(
-                    self._handle_eink_frame(data, w, h)
-                )
-            )
-
-            # Start capturing frames
-            self.eink_renderer.start()
-            
-            # Register the renderer with the bridge for text streaming notifications
-            self.bridge.set_eink_renderer(self.eink_renderer)
-            logger.info(
-                f"E-Ink renderer initialized with {capture_interval}ms interval, "
-                f"buffer_size={buffer_size}, dithering={'enabled' if dithering_enabled else 'disabled'} "
-                f"(method={dithering_method}), threshold={threshold}, "
-                f"B&W method={bw_method_name}"
-                + (f" with gamma={gamma_value}" if use_gamma else "")
-                + f", adaptive_capture={'enabled' if adaptive_capture else 'disabled'}"
-            )
-
-            self._eink_initialized = True
-            return True
-
-        except Exception as e:
-            logger.error(f"Error initializing E-Ink renderer: {e}", exc_info=True)
-            # Clean up resources on failure
-            if self.eink_bridge:
-                self.eink_bridge.cleanup()
-                self.eink_bridge = None
-            self.eink_renderer = None
             return False
 
-    async def _handle_eink_frame(self, frame_data, width, height):
-        """
-        Handle a new frame from the E-Ink renderer asynchronously.
-        This method forwards the frame to the e-ink bridge for display in a separate thread.
-
-        Args:
-            frame_data: The binary data for the frame
-            width: The width of the frame
-            height: The height of the frame
-        """
-        logger.debug(
-            f"E-Ink frame received: {width}x{height}, {len(frame_data)} bytes. Offloading to bridge."
-        )
-
-        # Forward the frame to the e-ink bridge if available, using a separate thread
-        if self.eink_bridge and self.eink_bridge.initialized:
-            try:
-                # Run the potentially blocking bridge call in a separate thread
-                await asyncio.to_thread(
-                    self.eink_bridge.handle_frame, frame_data, width, height
-                )
-                logger.debug("E-Ink frame successfully handled by bridge.")
-            except Exception as e:
-                logger.error(
-                    f"Error calling eink_bridge.handle_frame in thread: {e}",
-                    exc_info=True,
-                )
-        else:
-            logger.warning(
-                "E-Ink bridge not available or not initialized, skipping frame handling."
+        logger.info("E-Ink display mode enabled")
+        
+        try:
+            # Create the E-Ink renderer
+            self.eink_renderer = EInkRenderer(parent=self.app)
+            
+            # Initialize the hardware
+            if not self.eink_renderer.initialize():
+                logger.error("Failed to initialize E-Ink renderer")
+                self.eink_renderer = None
+                return False
+            
+            # Set the target window for rendering
+            if self.main_window:
+                self.eink_renderer.set_target_window(self.main_window)
+            else:
+                logger.warning("Main window not available for E-Ink rendering")
+            
+            # Start rendering
+            if not self.eink_renderer.start():
+                logger.error("Failed to start E-Ink renderer")
+                self.eink_renderer.cleanup()
+                self.eink_renderer = None
+                return False
+            
+            # Register the renderer with the bridge for text streaming notifications
+            if hasattr(self.bridge, 'set_eink_renderer'):
+                self.bridge.set_eink_renderer(self.eink_renderer)
+            
+            # Get config for logging
+            capture_interval = config["display"]["eink_refresh_interval"]
+            adaptive_capture = config["display"]["eink_adaptive_capture"]
+            threshold = config["display"]["eink_threshold"]
+            gamma_value = config["display"]["eink_bw_conversion"]["gamma_value"]
+            
+            logger.info(
+                f"EInkRenderer initialized with {capture_interval}ms interval, "
+                f"adaptive_capture={'enabled' if adaptive_capture else 'disabled'}, "
+                f"threshold={threshold}, gamma={gamma_value}"
             )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error initializing E-Ink renderer: {e}", exc_info=True)
+            if self.eink_renderer:
+                try:
+                    self.eink_renderer.cleanup()
+                except:
+                    pass
+                self.eink_renderer = None
+            return False
+
+    # _handle_eink_frame method removed - now handled internally by SimplifiedEInkRenderer
 
     def _emergency_exit_handler(self):
         """Emergency exit handler registered with atexit.
@@ -722,7 +639,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         """Slot callable from QML to force an e-ink render update."""
         if self.eink_renderer and self._eink_initialized:
             logger.debug("QML triggered E-Ink update")
-            self.eink_renderer.force_render_update()
+            self.eink_renderer.force_update()
         else:
             logger.warning(
                 "Attempted to trigger E-Ink update, but renderer is not ready."

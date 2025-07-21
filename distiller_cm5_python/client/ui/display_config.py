@@ -1,35 +1,37 @@
+"""
+E-Ink display configuration for Raspberry Pi.
+"""
+
 config = {
     "display": {
-        "eink_adaptive_capture": True,  # Enable adaptive refresh rate
-        "eink_dithering_enabled": False,
-        "eink_dithering_method": 1,  # 1=Floyd-Steinberg, 2=Ordered
-        "eink_full_refresh_interval": 15,
-        "eink_refresh_interval": 2000,  # Increased to 2000ms for better batching
+        # Core E-Ink Settings
         "eink_enabled": True,
-        "eink_buffer_size": 1,  # Reduced buffer size to save memory
-        "eink_threshold": 150,  # Threshold for black/white conversion (0-255)
-        "eink_save_capture": False,  # Save screen captures for debugging
-        "eink_bw_conversion": {
-            "method": 1,  # 1=Simple Threshold, 2=Adaptive Threshold
-            "use_gamma": True,  # Apply gamma correction before thresholding
-            "gamma_value": 0.9,  # Gamma correction value (0.5-1.0, lower = darker)
-            "adaptive_block_size": 16,  # Block size for adaptive thresholding (must be odd)
-            "adaptive_c": 5,  # Constant subtracted from block mean/median (can be negative)
-        },
-        "dark_mode": False,  # Set dark mode as default
-        "show_system_stats": True,  # Enable system monitor display
         "width": 240,
         "height": 416,
+        # Performance Settings
+        "eink_refresh_interval": 1000,  # Milliseconds between captures
+        "eink_adaptive_capture": True,  # Automatically adjust refresh rate based on activity
+        "eink_full_refresh_interval": 15,  # Full refresh every N frames
+        # Image Processing Settings - Optimized for UI content
+        "eink_threshold": 128,  # Black/white threshold (0-255)
+        "eink_bw_conversion": {
+            "use_gamma": True,  # Apply gamma correction for better E-Ink contrast
+            "gamma_value": 0.8,  # (0.7-0.9 recommended)
+        },
+        # Hardware Settings
+        "Full_Refresh_LUT_MODE": True,  # Use full refresh LUT mode for better quality
+        # Debug Settings
+        "eink_save_capture": True,  # Save screen captures for debugging
+        # UI Settings
+        "dark_mode": False,
+        "show_system_stats": True,
         "font": {
-            "primary_font": "fonts/MartianMonoNerdFont-CondensedBold.ttf",  # Default font for UI elements
+            "primary_font": "fonts/MartianMonoNerdFont-CondensedBold.ttf",
             "font_size_small": 12,
             "font_size_normal": 14,
             "font_size_medium": 16,
             "font_size_large": 18,
             "font_size_xlarge": 20,
         },
-        "Full_Refresh_LUT_MODE": True,
     }
 }
-
-# TODO: revisit to see better options

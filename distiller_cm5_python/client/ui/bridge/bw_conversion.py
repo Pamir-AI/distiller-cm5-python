@@ -3,7 +3,7 @@ import logging
 
 # Try to import numba for optimization
 try:
-    from numba import jit, prange, float32, int32, int64, boolean
+    from numba import jit
 
     NUMBA_AVAILABLE = True
     logger = logging.getLogger(__name__)
@@ -13,158 +13,128 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("Numba not available: Using standard BW conversion functions")
 
-    # Create dummy decorators for when numba is not available
+    # Create dummy decorator for when numba is not available
     def jit(*args, **kwargs):
         def decorator(func):
             return func
 
         return decorator
 
-    prange = range
-
-
-class BwConversionMethod:
-    """Enumeration of available black and white conversion methods."""
-
-    SIMPLE_THRESHOLD = 1
-    ADAPTIVE_THRESHOLD = 2
-
 
 @jit(nopython=True, cache=True)
 def apply_gamma_correction(pixels, gamma_value):
     """
-    Apply gamma correction to grayscale image.
+    Apply gamma correction to grayscale image for better E-Ink contrast.
 
     Args:
         pixels: Numpy array of grayscale image (0-255)
-        gamma_value: Gamma value to apply (typically 0.5-1.0)
+        gamma_value: Gamma value to apply (typically 0.7-0.9 for E-Ink)
 
     Returns:
         Numpy array with gamma correction applied
     """
-    # Make a copy to avoid modifying original
-    corrected = pixels.copy()
-
     # Scale to 0-1, apply gamma, scale back to 0-255
-    max_val = 255.0
-    corrected = ((corrected / max_val) ** gamma_value) * max_val
-
+    corrected = ((pixels / 255.0) ** gamma_value) * 255.0
     return corrected
 
 
 @jit(nopython=True, cache=True)
-def simple_threshold(pixels, threshold):
+def floyd_steinberg_dither(pixels, threshold=128):
     """
-    Apply simple global thresholding to a grayscale image.
+    Apply Floyd-Steinberg dithering for optimal E-Ink conversion.
+    This is the best method for UI content with text and graphics.
 
     Args:
         pixels: Numpy array of grayscale image (0-255)
-        threshold: Global threshold value (0-255)
+        threshold: Threshold for black/white conversion (0-255)
 
     Returns:
-        Binary numpy array (values 0 or 1)
-    """
-    return (pixels <= threshold).astype(np.uint8)
-
-
-# Adaptive thresholding cannot be fully optimized with Numba due to complex operations
-# We'll create an optimized helper function
-@jit(nopython=True, parallel=True, cache=True)
-def _compute_block_means(pixels, block_size):
-    """
-    Compute mean values for each block in the image.
-    Optimized with Numba.
-
-    Args:
-        pixels: Numpy array of grayscale image (0-255)
-        block_size: Size of local blocks for adaptive thresholding
-
-    Returns:
-        Numpy array of local means
+        Binary numpy array (values True=white, False=black)
     """
     height, width = pixels.shape
-    means = np.zeros((height, width), dtype=np.float32)
+    dithered = pixels.astype(np.float32)
 
-    half_block = block_size // 2
+    # Process all rows except the last one
+    for y in range(height - 1):
+        for x in range(1, width - 1):
+            old_pixel = dithered[y, x]
+            new_pixel = 255.0 if old_pixel >= threshold else 0.0
+            dithered[y, x] = new_pixel
 
-    # Process each pixel
-    for y in prange(height):
-        for x in range(width):
-            # Define block boundaries with proper border handling
-            y_start = max(0, y - half_block)
-            y_end = min(height, y + half_block + 1)
-            x_start = max(0, x - half_block)
-            x_end = min(width, x + half_block + 1)
+            quant_error = old_pixel - new_pixel
 
-            # Compute mean of the block
-            block_sum = 0.0
-            count = 0
-            for by in range(y_start, y_end):
-                for bx in range(x_start, x_end):
-                    block_sum += pixels[by, bx]
-                    count += 1
+            # Distribute error to neighboring pixels (Floyd-Steinberg weights)
+            dithered[y, x + 1] += quant_error * 7.0 / 16.0
+            dithered[y + 1, x - 1] += quant_error * 3.0 / 16.0
+            dithered[y + 1, x] += quant_error * 5.0 / 16.0
+            dithered[y + 1, x + 1] += quant_error * 1.0 / 16.0
 
-            means[y, x] = block_sum / count
+    # Handle the last row separately (no pixels below to distribute error to)
+    y = height - 1
+    for x in range(1, width - 1):
+        old_pixel = dithered[y, x]
+        new_pixel = 255.0 if old_pixel >= threshold else 0.0
+        dithered[y, x] = new_pixel
 
-    return means
+        quant_error = old_pixel - new_pixel
+        dithered[y, x + 1] += quant_error * 7.0 / 16.0
 
-
-def adaptive_threshold(pixels, block_size, c):
-    """
-    Apply adaptive thresholding to grayscale image.
-    Each pixel is compared to the mean of its surrounding block.
-
-    Args:
-        pixels: Numpy array of grayscale image (0-255)
-        block_size: Size of local blocks (must be odd)
-        c: Constant subtracted from mean (can be negative)
-
-    Returns:
-        Binary numpy array (values 0 or 1)
-    """
-    # Ensure block size is odd
-    if block_size % 2 == 0:
-        block_size += 1
-
-    # If Numba available, compute means using optimized function
-    block_means = _compute_block_means(pixels, block_size)
-
-    # Apply threshold: pixel is 1 if it's >= (mean - c)
-    return (pixels >= (block_means - c)).astype(np.uint8)
+    # Convert to boolean array (True=white, False=black)
+    return dithered >= threshold
 
 
 def convert_to_bw(pixels, config):
     """
-    Convert a grayscale image to black and white using the specified method.
+    Convert a grayscale image to black and white using optimal E-Ink method.
+    Uses gamma correction + Floyd-Steinberg dithering for best UI results.
 
     Args:
         pixels: Numpy array of grayscale image (0-255)
         config: Dictionary containing conversion parameters from display_config
 
     Returns:
-        Binary numpy array (values 0 or 1)
+        Binary numpy array (values True=white, False=black)
     """
     # Get configuration settings
     bw_config = config.get("eink_bw_conversion", {})
-    method = bw_config.get("method", BwConversionMethod.SIMPLE_THRESHOLD)
-    use_gamma = bw_config.get("use_gamma", False)
-    gamma_value = bw_config.get("gamma_value", 0.7)
+    use_gamma = bw_config.get(
+        "use_gamma", True
+    )  # Default to True for better E-Ink contrast
+    gamma_value = bw_config.get("gamma_value", 0.8)  # Optimized for E-Ink UI content
     threshold = config.get("eink_threshold", 128)
-    adaptive_block_size = bw_config.get("adaptive_block_size", 16)
-    adaptive_c = bw_config.get("adaptive_c", 5)
 
     # Make sure we're working with a copy
-    pixels = pixels.copy()
+    pixels = pixels.copy().astype(np.float32)
 
-    # Apply gamma correction if enabled
+    # Apply gamma correction for better E-Ink contrast
     if use_gamma:
         pixels = apply_gamma_correction(pixels, gamma_value)
 
-    # Apply the selected conversion method
-    if method == BwConversionMethod.SIMPLE_THRESHOLD:
-        return simple_threshold(pixels, threshold)
-    elif method == BwConversionMethod.ADAPTIVE_THRESHOLD:
-        return adaptive_threshold(pixels, adaptive_block_size, adaptive_c)
+    # Apply Floyd-Steinberg dithering for optimal E-Ink results
+    return floyd_steinberg_dither(pixels, threshold)
+
+
+# Simplified conversion function for direct use
+def convert_grayscale_to_1bit(pixels, gamma=0.8, threshold=128, dithering=True):
+    """
+    Direct conversion function for grayscale to 1-bit E-Ink format.
+
+    Args:
+        pixels: Numpy array of grayscale image (0-255)
+        gamma: Gamma correction value (0.7-0.9 recommended for E-Ink)
+        threshold: Black/white threshold (0-255)
+        dithering: Whether to apply Floyd-Steinberg dithering
+
+    Returns:
+        Binary numpy array (True=white, False=black)
+    """
+    pixels = pixels.astype(np.float32)
+
+    # Apply gamma correction
+    pixels = apply_gamma_correction(pixels, gamma)
+
+    if dithering:
+        return floyd_steinberg_dither(pixels, threshold)
     else:
-        # Fallback to simple threshold if unknown method
-        return simple_threshold(pixels, threshold)
+        # Simple threshold without dithering
+        return pixels >= threshold
