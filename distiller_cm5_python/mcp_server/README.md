@@ -1,10 +1,20 @@
 # MCP Server Implementations
 
-This directory contains various example implementations of servers adhering to the Model Context Protocal (MCP). Each server typically exposes a specific set of tools or resources related to a particular domain or device.
+This directory contains various example implementations of servers adhering to the Model Context Protocol (MCP). Each server typically exposes a specific set of tools or resources related to a particular domain or device.
 
 These servers are designed to be launched independently and communicated with by an MCP client (like the one in the `../client` directory), often via standard input/output (stdio).
 
-## TODO for next release: Use uv env control to manage server
+## Dependencies Management
+
+All dependencies are managed through the project's `pyproject.toml` using **uv**:
+
+```bash
+# Navigate to project root first
+cd distiller-cm5-python
+
+# Install all dependencies
+uv sync
+```
 
 
 ## Included Example Servers
@@ -16,20 +26,23 @@ These servers are designed to be launched independently and communicated with by
 
 ## Usage
 
-Each server script can typically be run directly using Python:
+Each server script can be run using **uv** which handles all dependencies automatically:
 
 ```bash
-# Example for LED control server
-python distiller_cm5_python/mcp_server/led-control_server.py
+# Navigate to project root first
+cd distiller-cm5-python
 
-# Example for medical assistant server (requires FastMCP)
-python distiller_cm5_python/mcp_server/medical_assistant_server.py
+# Example for LED control server
+uv run python distiller_cm5_python/mcp_server/led-control_server.py
+
+# Example for medical assistant server
+uv run python distiller_cm5_python/mcp_server/medical_assistant_server.py
 
 # Example for talk server
-python distiller_cm5_python/mcp_server/talk_server.py
+uv run python distiller_cm5_python/mcp_server/talk_server.py
 
 # Example for wifi server
-python distiller_cm5_python/mcp_server/wifi_server.py
+uv run python distiller_cm5_python/mcp_server/wifi_server.py
 ```
 
 An MCP client (like the one started via `main.py --server-script /path/to/server.py`) can then connect to the launched server process using the stdio transport mechanism provided by the `mcp` library.
@@ -52,16 +65,19 @@ The medical assistant server provides system prompts for different medical assis
 
 Each prompt provides a comprehensive system prompt that can be used to configure AI assistants for specific medical use cases. The prompts are parameter-less to ensure compatibility with different MCP client implementations.
 
-To install dependencies for the medical assistant server:
-```bash
-pip install -r distiller_cm5_python/mcp_server/requirements.txt
-```
 
 ## Dependencies
 
-- `mcp` library (likely installed from the parent project or a central location).
-- `fastmcp` library (for `medical_assistant_server.py`).
-- `distiller_cm5_sdk` (specifically `piper` for `talk_server.py` and LED control for `led-control_server.py`).
-- Specific system utilities depending on the server's functionality (e.g., `nmcli` for `wifi_server.py` on Linux).
-- `nest_asyncio` (used by most servers).
-- Additional dependencies listed in `requirements.txt` for the medical assistant server. 
+All dependencies are automatically managed through `pyproject.toml` and installed with **uv**:
+
+- `mcp`: Core MCP library for protocol implementation
+- `fastmcp`: Enhanced MCP server framework (for `medical_assistant_server.py`) 
+- `distiller_cm5_sdk`: Hardware control SDK (`piper` for TTS, LED control)
+- `nest_asyncio`: Async event loop utilities
+- Plus additional dependencies as specified in the project's `pyproject.toml`
+
+### System Requirements
+- `nmcli`: Required for `wifi_server.py` on Linux systems  
+- Appropriate permissions (e.g., `sudo`) for network operations
+
+To add or modify dependencies, edit the project's `pyproject.toml` and run `uv sync`.

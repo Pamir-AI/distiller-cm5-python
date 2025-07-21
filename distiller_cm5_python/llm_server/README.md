@@ -26,28 +26,32 @@ The server loads GGUF-format LLM files and exposes HTTP endpoints for:
 
 ## Setup
 
-1.  **Install Dependencies**:
+1.  **Install Dependencies using uv**:
     ```bash
     # Navigate to the project root first
-    # pip install -r requirements.txt # Assuming a project-level requirements file
-    # Or install specific dependencies if needed:
-    pip install fastapi uvicorn "llama-cpp-python[server]" jinja2 pydantic
+    cd distiller-cm5-python
+    
+    # Install all dependencies from pyproject.toml
+    uv sync
     ```
-    Ensure you have the necessary build tools for `llama-cpp-python` (like C++ compilers). Refer to the `llama-cpp-python` documentation for details.
+    All required dependencies including FastAPI, uvicorn, llama-cpp-python, Jinja2, and pydantic are automatically managed through `pyproject.toml`. Ensure you have the necessary build tools for `llama-cpp-python` (like C++ compilers). Refer to the `llama-cpp-python` documentation for details.
 
 2.  **Place Models**: Download your desired LLM models in GGUF format and place them inside the `llm_server/models/` directory relative to the project root.
 
 ## Running the Server
 
-The recommended way to run the server is directly using Python, which processes the command-line arguments for configuration:
+The recommended way to run the server is using **uv**, which handles all dependencies automatically:
 
 ```bash
 # Navigate to the project root directory
-python -m distiller_cm5_python.llm_server.server [OPTIONS]
+cd distiller-cm5-python
+
+# Run with uv
+uv run python -m distiller_cm5_python.llm_server.server [OPTIONS]
 ```
 Or if running from within the `llm_server` directory:
 ```bash
-python server.py [OPTIONS]
+uv run python server.py [OPTIONS]
 ```
 
 Available options:
@@ -56,11 +60,14 @@ Available options:
 - `--model-name`: Default GGUF model file to load from the `models/` directory (e.g., `qwen2.5-3b-instruct-q4_k_m.gguf`). Defaults might be specified in the script.
 - `--log-level`: Logging level (`debug`, `info`, `warning`, `error`) (default: `info`).
 
-Alternatively, you can use `uvicorn` for development (note: this bypasses the `--model-name` and `--log-level` arguments from `server.py`):
+Alternatively, you can use `uvicorn` with **uv** for development (note: this bypasses the `--model-name` and `--log-level` arguments from `server.py`):
 
 ```bash
 # Navigate to the project root directory
-uvicorn distiller_cm5_python.llm_server.server:app --host 127.0.0.1 --port 8000 --reload
+cd distiller-cm5-python
+
+# Run uvicorn with uv
+uv run uvicorn distiller_cm5_python.llm_server.server:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ## API Endpoints

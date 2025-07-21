@@ -1,5 +1,38 @@
 # Distiller CM5 Python
 
+A comprehensive AI assistant application for the Distiller CM5 platform featuring conversational interface, LLM integration, MCP server support, and hardware interfacing capabilities.
+
+## Installation & Dependencies
+
+This project uses **uv** for fast, modern Python package management with `pyproject.toml`:
+
+### Prerequisites
+- Python 3.11+ 
+- uv package manager ([Install uv](https://docs.astral.sh/uv/getting-started/installation/))
+
+### Quick Setup
+```bash
+# Clone the repository
+git clone <repository-url>
+cd distiller-cm5-python
+
+# Install dependencies using uv
+uv sync
+
+# Run the application
+uv run python main.py
+# or for GUI mode
+uv run python main.py --gui
+```
+
+### Alternative Installation
+```bash
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -e .
+```
+
 ## How to Switch Model
 
 To switch to a different model, follow these steps:
@@ -13,9 +46,11 @@ To switch to a different model, follow these steps:
    "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf"
    ```
    to your model file name
-5. Reboot or manually trigger to test:
+5. Run the application to test:
    ```bash
    cd distiller-cm5-python
+   uv run python main.py
+   # or using the provided scripts
    ./run.sh
    ```
 
@@ -32,6 +67,31 @@ To add custom prompts, follow the example at:
 Once you reboot or manually rerun, you can find your customized LLM with customized prompt in the selection page.
 
 **Note:** The longer the prompt, the longer it takes to cache.
+
+## Development
+
+### Development Dependencies
+All dependencies are managed through `pyproject.toml`. For development:
+
+```bash
+# Install with development dependencies (if any)
+uv sync --dev
+
+# Run linting
+uv run ruff check distiller_cm5_python/
+
+# Run type checking  
+uv run pyright distiller_cm5_python/
+
+# Build distribution
+uv build
+```
+
+### Project Structure
+- `distiller_cm5_python/client/` - UI and client application
+- `distiller_cm5_python/llm_server/` - Local LLM server implementation  
+- `distiller_cm5_python/mcp_server/` - MCP protocol servers
+- `distiller_cm5_python/utils/` - Utilities and configuration
 
 ## SDKs and Installation
 

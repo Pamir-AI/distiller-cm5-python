@@ -2,7 +2,25 @@
 
 This directory contains the client-side components responsible for interacting with an MCP server. The client can be launched via the main project entry point (`main.py` in the project root), which supports both a Graphical User Interface (GUI) and a Command-Line Interface (CLI).
 
-Refer to the main project `README.md` for instructions on how to run the client.
+## Quick Start
+
+All dependencies are managed through `pyproject.toml`. Install and run using **uv**:
+
+```bash
+# From project root
+cd distiller-cm5-python
+
+# Install dependencies
+uv sync
+
+# Run GUI mode
+uv run python main.py --gui
+
+# Run CLI mode  
+uv run python main.py
+```
+
+Refer to the main project `README.md` for complete installation instructions.
 
 ## Interfaces
 
@@ -50,17 +68,23 @@ The client offers two primary ways to interact with the MCP server:
 
 ## Usage
 
-To run the client (either GUI or CLI), use the main entry point script located in the project root directory:
+To run the client (either GUI or CLI), use **uv** with the main entry point:
 
 ```bash
 # Navigate to the project root directory first
-cd /path/to/distiller-cm5-python
+cd distiller-cm5-python
+
+# Install dependencies first (if not done already)
+uv sync
 
 # To run the GUI
-python main.py --gui [OTHER_OPTIONS]
+uv run python main.py --gui [OTHER_OPTIONS]
 
 # To run the CLI
-python main.py [OPTIONS_WITHOUT_--gui]
+uv run python main.py [OPTIONS_WITHOUT_--gui]
+
+# Get help
+uv run python main.py --help
 ```
 
-Refer to the main project `README.md` or run `python main.py --help` for a full list of available options. 
+All dependencies are automatically managed through `pyproject.toml` when using **uv**. 
