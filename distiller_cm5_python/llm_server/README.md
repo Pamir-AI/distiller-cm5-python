@@ -85,3 +85,11 @@ uvicorn distiller_cm5_python.llm_server.server:app --host 127.0.0.1 --port 8000 
 - `llama-cpp-python`: Python bindings for `llama.cpp`.
 - `Jinja2`: Used for formatting prompts based on model chat templates.
 - `pydantic`: Data validation (used by FastAPI). 
+
+to update llama-cpp-python under uv env, try : 
+```bash
+uv pip install llama-cpp-python==0.3.14
+
+# or if show no version match try
+uv pip install llama-cpp-python==0.3.14 --index-strategy unsafe-best-match
+```
