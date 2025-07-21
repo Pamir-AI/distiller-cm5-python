@@ -38,6 +38,7 @@ app = FastAPI(
 MODEL_NAME = None
 MODEL = None
 CURRENT_CACHE = None  # Track current cache to invalidate when model changes
+CURRENT_INFERENCE_CONFIGS = None  # Track current inference configurations
 
 # Define request and response models
 class Message(BaseModel):
@@ -49,6 +50,7 @@ class Message(BaseModel):
 class SetModel(BaseModel):
     model_name: str
     load_model_configs: Dict[str, Any] = dict()
+    inference_configs: Optional[Dict[str, Any]] = None
 
 
 class ToolParameter(BaseModel):
@@ -238,10 +240,33 @@ async def list_models():
         raise HTTPException(status_code=500, detail=f"Error listing models: {str(e)}")
 
 
+@app.get("/getCurrentModel")
+async def get_current_model():
+    """Get the currently loaded model and its configuration."""
+    if MODEL_NAME is None:
+        return {
+            "status": "no_model",
+            "model": None,
+            "message": "No model currently loaded"
+        }
+    return {
+        "status": "ok",
+        "model": MODEL_NAME,
+        "provider": "llama-cpp",
+        "context_length": MODEL.n_ctx() if MODEL else None,
+        "inference_configs": CURRENT_INFERENCE_CONFIGS
+    }
+
+
 @app.post("/setModel")
 async def set_model(request: SetModel):
+    global CURRENT_INFERENCE_CONFIGS
     try:
         load_model(request.model_name, request.load_model_configs)
+        # Store inference configs if provided
+        if request.inference_configs:
+            CURRENT_INFERENCE_CONFIGS = request.inference_configs
+            logger.info(f"Updated inference configs: {CURRENT_INFERENCE_CONFIGS}")
         return {"status": "ok", "message": "model is change to " + request.model_name}
     except Exception as e:
         logger.error(f"Error setting model: {e}")
@@ -264,7 +289,7 @@ def load_model(model_name, load_model_configs: dict[str, Any]):
 
     MODEL = Llama(
         model_path=str(model_path),
-        verbose=False,
+        verbose=True,
         n_gpu_layers=0,
         n_ctx=load_model_configs["n_ctx"],
     )

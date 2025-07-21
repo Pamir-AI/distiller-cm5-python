@@ -28,6 +28,12 @@ if [ ! -f "$MODEL_PATH" ]; then
     echo "Failed to download the model file."
     exit 1
   fi
+  # Download the model file
+  wget -O "$MODEL_PATH" https://huggingface.co/mradermacher/Qwen3-0.6B-Medical-Expert-i1-GGUF/resolve/main/Qwen3-0.6B-Medical-Expert.i1-Q6_K.gguf
+  if [ $? -ne 0 ]; then
+    echo "Failed to download the model file."
+    exit 1
+  fi
   echo "Model file downloaded successfully."
 else
   echo "Model file already exists at $MODEL_PATH."

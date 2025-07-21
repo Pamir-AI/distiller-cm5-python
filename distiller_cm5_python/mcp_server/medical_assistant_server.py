@@ -1,76 +1,96 @@
 #!/usr/bin/env python3
 """
-Medical Assistant MCP Server
+Medical Assistant MCP Server (Standard Implementation)
 
-This FastMCP server provides system prompts for medical assistants.
-It focuses on providing well-crafted system prompts for different medical assistant scenarios.
-
-Available prompts:
-  - general_medical_assistant: General medical assistant system prompt
-  - clinical_documentation_general: System prompt for general clinical documentation
-  - clinical_documentation_cardiology: System prompt for cardiology clinical documentation
-  - clinical_documentation_emergency: System prompt for emergency clinical documentation
-  - patient_education_general: System prompt for general patient education
-  - patient_education_diabetes: System prompt for diabetes patient education
-  - patient_education_hypertension: System prompt for hypertension patient education
-  - medical_research_general: System prompt for general medical research
-  - diagnostic_support_general: System prompt for general diagnostic support
-  - medication_guidance_general: System prompt for general medication guidance
-
-Follow llms.txt guidelines for MCP server implementations.
+This standard MCP server provides a patient education prompt
+with support for LLM model preferences.
 """
 
 import asyncio
 import logging
 from datetime import datetime
 
-# FastMCP imports
-from fastmcp import FastMCP, Context
-from fastmcp.prompts.prompt import Message, PromptMessage, TextContent
-
-from fastmcp.utilities.logging import get_logger
+# Standard MCP imports
+from mcp.server import Server, NotificationOptions
+from mcp.server.models import InitializationOptions
+from mcp.server.stdio import stdio_server
+from mcp.types import Resource, Prompt, PromptArgument, TextContent, PromptMessage
 
 # Setup logging
-logger = get_logger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Initialize FastMCP server
-mcp = FastMCP("MedicalAssistant")
+# Create MCP server instance
+server = Server("MedicalAssistant")
 
-# Medical assistant system prompts (parameter-less to avoid validation issues)
-@mcp.prompt()
-def general_medical_assistant() -> str:
-    """General medical assistant system prompt."""
-    return """You are a knowledgeable medical assistant designed to provide helpful, accurate, and evidence-based medical information. Your role is to:
+# Medical assistant prompts
+@server.list_prompts()
+async def list_prompts() -> list[Prompt]:
+    """List available medical assistant prompts."""
+    return [
+        Prompt(
+            name="patient_education",
+            description="Patient education assistant prompt",
+            arguments=[]
+        )
+    ]
 
-**Primary Responsibilities:**
-- Provide general medical information and health education
-- Explain medical concepts in understandable terms
-- Assist with medical terminology and definitions
-- Support healthcare decision-making with factual information
-- Offer guidance on when to seek professional medical care
+@server.get_prompt()
+async def get_prompt(name: str, arguments: dict = {}) -> PromptMessage:
+    """Get a specific medical assistant prompt."""
+    
+    if name == "patient_education":
+        return PromptMessage(
+            role="system",
+            content=TextContent(
+                type="text",
+                text="""You are a patient education specialist designed to explain medical conditions and treatments in simple, understandable language. Your role is to:
 
-**Key Guidelines:**
-- Always emphasize that you are not a replacement for professional medical advice
-- Encourage users to consult healthcare providers for diagnosis and treatment
-- Provide evidence-based information from reputable medical sources
-- Be clear about the limitations of your knowledge
-- Maintain patient confidentiality and privacy standards
-- Use clear, compassionate, and professional communication
+- Break down complex medical concepts
+- Provide clear explanations of diagnoses and procedures
+- Offer practical health management tips
+- Create easy-to-follow care instructions
 
-**Important Disclaimers:**
-- You cannot diagnose medical conditions
-- You cannot prescribe medications or treatments
-- You cannot provide emergency medical care
-- Always recommend consulting qualified healthcare professionals for medical concerns
+Always encourage patients to discuss questions with their healthcare providers."""
+            )
+        )
+    
+    else:
+        raise ValueError(f"Unknown prompt: {name}")
 
-**Response Format:**
-- Provide clear, structured information
-- Include relevant medical context when appropriate
-- Suggest follow-up questions or considerations
-- Reference the need for professional medical consultation when applicable
-
-Remember: Your goal is to educate and inform, not to replace professional medical care."""
+async def run():
+    """Run the MCP server."""
+    logger.info("Starting Medical Assistant MCP Server...")
+    async with stdio_server() as (reader, writer):
+        await server.run(
+            reader,
+            writer,
+            InitializationOptions(
+                server_name="MedicalAssistant",
+                server_version="0.1.0",
+                capabilities=server.get_capabilities(
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={
+                        "llm_preferences": {
+                            "provider": "llama-cpp",
+                            "model": "Qwen3-0.6B-Medical-Expert.i1-Q6_K.gguf",
+                            "inference_configs": {
+                                "temperature": 0.3,
+                                "max_tokens": 4096,
+                                "top_p": 0.9,
+                                "repetition_penalty": 1.1
+                            }
+                        }
+                    },
+                )
+            )
+        )
 
 if __name__ == "__main__":
-    logger.info("Starting Medical Assistant MCP Server...")
-    mcp.run() 
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        logger.info("Medical Assistant Server stopped by user.") 

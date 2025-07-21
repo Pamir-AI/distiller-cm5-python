@@ -147,7 +147,16 @@ async def run():
                 server_version="0.1.0",
                 capabilities=server.get_capabilities(
                     notification_options=NotificationOptions(),
-                    experimental_capabilities={},
+                    experimental_capabilities={
+                        "llm_preferences": {
+                            "provider": "llama-cpp",
+                            "model": "qwen2.5-3b-instruct-q4_k_m.gguf",
+                            "inference_configs": {
+                                "temperature": 0.7,
+                                "max_tokens": 2048
+                            }
+                        }
+                    },
                 )
             )
         )

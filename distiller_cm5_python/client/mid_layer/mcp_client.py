@@ -77,6 +77,10 @@ class MCPClient:
 
         # Initialize available tools, resources, and prompts
         self.available_tools = []
+        
+        # Track original model configuration for restoration
+        self.original_model_config = None
+        self.llm_preferences = None
         self.available_resources = []  # Store for potential future use/inspection
         self.available_prompts = []  # Store for potential future use/inspection
 
@@ -134,6 +138,24 @@ class MCPClient:
 
             init_result = await self.session.initialize()
             self.server_name = init_result.serverInfo.name
+            
+            # Check for LLM preferences in experimental capabilities
+            self.llm_preferences = None
+            if hasattr(init_result, 'capabilities') and hasattr(init_result.capabilities, 'experimental'):
+                experimental = init_result.capabilities.experimental
+                if isinstance(experimental, dict) and 'llm_preferences' in experimental:
+                    self.llm_preferences = experimental['llm_preferences']
+                    logger.info(f"Found LLM preferences from MCP server: {self.llm_preferences}")
+            
+            # Try alternative location for experimental capabilities
+            if not self.llm_preferences and hasattr(init_result, 'experimental_capabilities'):
+                if isinstance(init_result.experimental_capabilities, dict) and 'llm_preferences' in init_result.experimental_capabilities:
+                    self.llm_preferences = init_result.experimental_capabilities['llm_preferences']
+                    logger.info(f"Found LLM preferences (alt location): {self.llm_preferences}")
+            
+            # Apply LLM preferences if found
+            if self.llm_preferences:
+                await self._apply_llm_preferences()
 
             # If the server reports a generic "cli" name, use our utility to get a better name
             if self.server_name == "cli":
@@ -544,9 +566,88 @@ class MCPClient:
             logger.error(f"Unexpected error in process_query: {e}", exc_info=True)
             raise
 
+    async def _apply_llm_preferences(self):
+        """Apply LLM preferences from the MCP server."""
+        if not self.llm_preferences:
+            return
+            
+        try:
+            # Save current model configuration before switching
+            if self.llm_provider.provider_type == "llama-cpp":
+                # Get current model config via HTTP
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"{self.llm_provider.server_url}/getCurrentModel") as response:
+                        if response.status == 200:
+                            self.original_model_config = await response.json()
+                            logger.info(f"Saved original model config: {self.original_model_config}")
+            
+            # Apply new model preferences
+            model_name = self.llm_preferences.get('model')
+            provider = self.llm_preferences.get('provider', 'llama-cpp')
+            inference_configs = self.llm_preferences.get('inference_configs', {})
+            
+            if provider == 'llama-cpp' and model_name:
+                # Switch model via HTTP API
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    set_model_data = {
+                        "model_name": model_name,
+                        "load_model_configs": {"n_ctx": 4096},  # Default context
+                        "inference_configs": inference_configs
+                    }
+                    async with session.post(
+                        f"{self.llm_provider.server_url}/setModel",
+                        json=set_model_data,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        if response.status == 200:
+                            logger.info(f"Successfully switched to model: {model_name}")
+                            # Update local model name
+                            self.llm_provider.model = model_name
+                        else:
+                            error_text = await response.text()
+                            logger.error(f"Failed to switch model: {error_text}")
+                        
+        except Exception as e:
+            logger.error(f"Failed to apply LLM preferences: {e}")
+            # Continue with default model if switching fails
+    
+    async def _restore_original_model(self):
+        """Restore the original model configuration."""
+        if not self.original_model_config or self.original_model_config.get('status') == 'no_model':
+            return
+            
+        try:
+            original_model = self.original_model_config.get('model')
+            if original_model and self.llm_provider.provider_type == "llama-cpp":
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    set_model_data = {
+                        "model_name": original_model,
+                        "load_model_configs": {"n_ctx": 4096}
+                    }
+                    async with session.post(
+                        f"{self.llm_provider.server_url}/setModel",
+                        json=set_model_data,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        if response.status == 200:
+                            logger.info(f"Restored original model: {original_model}")
+                            self.llm_provider.model = original_model
+                        else:
+                            error_text = await response.text()
+                            logger.error(f"Failed to restore model: {error_text}")
+        except Exception as e:
+            logger.error(f"Failed to restore original model: {e}")
+
     async def cleanup(self):
         """Clean up resources used by the client."""
         logger.info("Starting MCP client cleanup")
+        
+        # Restore original model if we switched
+        if self.original_model_config:
+            await self._restore_original_model()
 
         # Cancel all running tasks first
         await self._cancel_all_running_tasks()
