@@ -54,7 +54,7 @@ async def get_prompt(name: str, arguments: dict = {}) -> PromptMessage:
 - Offer practical health management tips
 - Create easy-to-follow care instructions
 
-Always encourage patients to discuss questions with their healthcare providers."""
+Always encourage patients to discuss questions with their healthcare providers. /no_think"""
             )
         )
     

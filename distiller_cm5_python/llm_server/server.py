@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import hashlib
+import asyncio
 from typing import Dict, List, Any, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -330,25 +331,56 @@ def _stream_chat_completion(messages, tools, inference_configs):
     seed = inference_configs.get("seed", 12345)  # Use consistent default seed
     MODEL.set_seed(seed)
     
-    response_stream = MODEL.create_chat_completion(
-        messages=messages,
-        tools=tools,
-        temperature=inference_configs["temperature"],
-        max_tokens=inference_configs["max_tokens"],
-        top_k=inference_configs["top_k"],
-        top_p=inference_configs["top_p"],
-        min_p=inference_configs["min_p"],
-        repeat_penalty=inference_configs["repetition_penalty"],
-        stop=inference_configs["stop"],
-        stream=True,
-    )
+    try:
+        response_stream = MODEL.create_chat_completion(
+            messages=messages,
+            tools=tools,
+            temperature=inference_configs["temperature"],
+            max_tokens=inference_configs["max_tokens"],
+            top_k=inference_configs["top_k"],
+            top_p=inference_configs["top_p"],
+            min_p=inference_configs["min_p"],
+            repeat_penalty=inference_configs["repetition_penalty"],
+            stop=inference_configs["stop"],
+            stream=True,
+        )
 
-    chunk_count = 0
-    for chunk in response_stream:
-        chunk_count += 1
-        # Convert dictionary to JSON string before yielding
-        yield f"data: {json.dumps(chunk)}\n\n"
-    logger.debug(f"Streaming finished after {chunk_count} chunks.")
+        chunk_count = 0
+        for chunk in response_stream:
+            chunk_count += 1
+            # Convert dictionary to JSON string before yielding
+            yield f"data: {json.dumps(chunk)}\n\n"
+        logger.debug(f"Streaming finished after {chunk_count} chunks.")
+        
+        # Send proper SSE termination
+        yield "data: [DONE]\n\n"
+        
+    except Exception as e:
+        logger.error(f"Error during streaming: {e}")
+        # Send error chunk before closing
+        error_chunk = {
+            "error": {
+                "type": "server_error",
+                "message": str(e)
+            }
+        }
+        yield f"data: {json.dumps(error_chunk)}\n\n"
+        yield "data: [DONE]\n\n"
+
+
+async def _async_stream_wrapper(messages, tools, inference_configs):
+    """Async wrapper for streaming to ensure proper connection handling"""
+    loop = asyncio.get_event_loop()
+    
+    # Run the sync generator in a thread to avoid blocking
+    async def generate():
+        for chunk in _stream_chat_completion(messages, tools, inference_configs):
+            yield chunk
+            # Small delay to allow proper flushing
+            await asyncio.sleep(0)
+    
+    async for chunk in generate():
+        yield chunk
 
 
 def format_prompt(messages, tools):
@@ -482,7 +514,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
         if stream:
             logger.debug("Starting stream response generation.")
             return StreamingResponse(
-                _stream_chat_completion(messages, tools, request.inference_configs),
+                _async_stream_wrapper(messages, tools, request.inference_configs),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
