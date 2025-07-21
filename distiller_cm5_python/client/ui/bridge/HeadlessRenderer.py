@@ -306,7 +306,6 @@ class HeadlessRenderer(QObject):
     def _convert_to_eink_format(self, image):
         """
         Convert QImage to E-Ink compatible 1-bit format.
-        Simplified version focusing on optimal conversion for UI content.
         """
         # Convert to grayscale
         if image.format() != QImage.Format.Format_Grayscale8:
@@ -322,6 +321,9 @@ class HeadlessRenderer(QObject):
         pixels = np.frombuffer(ptr, dtype=np.uint8).reshape(
             height, image.bytesPerLine()
         )[:, :width]
+
+        # Horizontal flip
+        pixels = np.fliplr(pixels)
 
         # Apply gamma correction for better E-Ink contrast
         gamma_value = config["display"]["eink_bw_conversion"].get("gamma_value", 0.8)
@@ -339,7 +341,7 @@ class HeadlessRenderer(QObject):
                 byte_val = 0
                 for bit in range(8):
                     x = x_byte * 8 + bit
-                    if x < width and not binary[y, x]:  # Inverted: set bit for black
+                    if x < width and binary[y, x]:
                         byte_val |= 1 << (7 - bit)
                 output[y * bytes_per_row + x_byte] = byte_val
 
