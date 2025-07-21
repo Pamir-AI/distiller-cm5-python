@@ -639,8 +639,7 @@ class EinkDriver:
             time.sleep(0.01)  # Wait 10ms before checking again
 
     def epd_sleep(self) -> None:
-        self.epd_w21_write_cmd(0x02)  # Power off
-        self.lcd_chkstatus()  # Implement this to check the display's busy status
+        self.power_off() # Power off the display
 
         self.epd_w21_write_cmd(0x07)  # Deep sleep
         self.epd_w21_write_data(0xA5)
@@ -952,6 +951,6 @@ class EinkDriver:
             self.lcd_chkstatus()  # Check the display status
 
             if poweroff:
-                self.power_off()  # Optionally power off the display after clearing
+                self.epd_sleep()  # Power off the display
 
         self.queue_command(refresh_and_poweroff_sequence)
