@@ -107,6 +107,7 @@ class HeadlessRenderer(QObject):
             )
             self._rendering_active = True
             self._last_update_time = time.time()
+            # Start timer even if offscreen surface creation failed - fallback methods will handle
             self._capture_timer.start(self._capture_interval)
 
     def stop(self):
@@ -260,22 +261,70 @@ class HeadlessRenderer(QObject):
             return None
 
     def _render_with_grab(self):
-        """Fallback: try grabWindow method."""
+        """Fallback: try multiple grab methods."""
         try:
             if not self._target_window:
-                logger.debug("No target window available for grabWindow")
+                logger.debug("No target window available for grab methods")
                 return None
 
+            # Method 1: Try grabWindow
             if hasattr(self._target_window, "grabWindow"):
-                image = self._target_window.grabWindow()
-                if image and not image.isNull():
-                    logger.debug("Successfully rendered using grabWindow")
-                    return image
-            else:
-                logger.debug("Target window does not support grabWindow method")
+                try:
+                    image = self._target_window.grabWindow()
+                    if image and not image.isNull():
+                        logger.debug("Successfully rendered using grabWindow")
+                        return image
+                except Exception as e:
+                    logger.debug(f"grabWindow failed: {e}")
+
+            # Method 2: Try QQuickWindow's own grab method for headless
+            if hasattr(self._target_window, "contentItem"):
+                try:
+                    content_item = self._target_window.contentItem()
+                    if content_item:
+                        # Force process any pending events
+                        QApplication.processEvents()
+                        
+                        # Try direct QQuickItem grab
+                        if hasattr(content_item, "grabToImage"):
+                            grab_result = content_item.grabToImage()
+                            # grabToImage is async, but in offscreen mode it should be immediate
+                            if grab_result:
+                                QApplication.processEvents()  # Process the grab
+                                image = grab_result.image()
+                                if image and not image.isNull():
+                                    logger.debug("Successfully rendered using contentItem.grabToImage")
+                                    return image
+                except Exception as e:
+                    logger.debug(f"contentItem.grabToImage failed: {e}")
+
+            # Method 3: Try manual rendering for offscreen platform
+            try:
+                if hasattr(self._target_window, "contentItem"):
+                    content_item = self._target_window.contentItem()
+                    if content_item:
+                        # Create image directly
+                        image = QImage(self._width, self._height, QImage.Format.Format_ARGB32)
+                        image.fill(0xFFFFFFFF)  # White background
+                        
+                        # Basic rendering attempt
+                        from PyQt6.QtGui import QPainter
+                        painter = QPainter(image)
+                        # This likely won't work in offscreen mode, but worth trying
+                        if hasattr(content_item, "render"):
+                            content_item.render(painter)
+                            painter.end()
+                            logger.debug("Successfully rendered using manual QPainter method")
+                            return image
+                        painter.end()
+                        
+            except Exception as e:
+                logger.debug(f"Manual rendering failed: {e}")
+
+            logger.debug("All grab methods failed")
 
         except Exception as e:
-            logger.debug(f"grabWindow method failed: {e}")
+            logger.debug(f"Grab methods failed: {e}")
 
         return None
 
