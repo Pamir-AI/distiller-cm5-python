@@ -11,9 +11,6 @@ ListView {
     property bool visualFocus: false
     // For focus management
     property bool scrollModeActive: false
-    // Track if scroll mode is active
-    // Expose scrolling animation for FocusManager
-    property alias scrollAnimation: smoothScrollAnimation
 
     // Signal to notify when scroll mode changes
     signal scrollModeChanged(bool active)
@@ -165,16 +162,6 @@ ListView {
                 event.accepted = true;
             }
         }
-    }
-
-    // Animation with zero duration for compatibility with code expecting the animation
-    NumberAnimation {
-        id: smoothScrollAnimation
-
-        target: conversationView
-        property: "contentY"
-        duration: 0 // No animation for e-ink
-        easing.type: Easing.Linear
     }
 
     // Visual instruction when in focus but not in scroll mode

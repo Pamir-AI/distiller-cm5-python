@@ -2,8 +2,6 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    // Subtle overlay for hover effects
-    // No animations for e-ink display
     // Standard button height
     // Text on accent background: Black/White
     // Lighter version of accent color
@@ -25,8 +23,6 @@ QtObject {
     readonly property real borderRadius: 6
     // Border radius for rectangles
     readonly property real borderWidth: 2
-    // Border width
-    readonly property real animationDuration: 0
     // Padding
     readonly property real paddingSmall: 4
     readonly property real paddingNormal: 8

@@ -261,9 +261,6 @@ Rectangle {
             model: availableServers
             clip: true
             visible: !isLoading
-            // Add highlight to the current item
-            highlightFollowsCurrentItem: true
-            highlightMoveDuration: 0 // Disable animation for e-ink display
 
             // Empty state message
             Text {

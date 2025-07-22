@@ -60,7 +60,6 @@ PageBase {
             var found = findChild(child, objectName);
             if (found)
                 return found;
-
         }
         return null;
     }
@@ -77,7 +76,6 @@ PageBase {
 
             if (header.closeButton && header.closeButton.navigable)
                 focusableItems.push(header.closeButton);
-
         }
         // Add conversation view for keyboard scrolling
         if (conversationView && conversationView.navigable)
@@ -123,7 +121,7 @@ PageBase {
         // This is a reset operation, not restore
         focusTimer.start();
         // Force a check immediately after resetting focus
-        Qt.callLater(function() {
+        Qt.callLater(function () {
             if (FocusManager.currentFocusItems.length === 0) {
                 console.log("No focus items available after reset, forcing recollection");
                 collectFocusItems();
@@ -242,7 +240,6 @@ PageBase {
         if (isServerConnected) {
             if (state === "disconnected")
                 state = "idle";
-
         } else {
             state = "disconnected";
         }
@@ -258,10 +255,9 @@ PageBase {
             console.log("Setting initial focus to server select button");
             FocusManager.setFocusToItem(header.serverSelectButton);
             // Delay enabling of conversationView navigability
-            Qt.callLater(function() {
+            Qt.callLater(function () {
                 if (conversationView)
                     conversationView.navigable = true;
-
             });
         } else if (voiceInputArea && voiceInputArea.voiceButton && voiceInputArea.voiceButton.navigable) {
             // Fall back to voice button if server select button isn't available
@@ -269,7 +265,7 @@ PageBase {
         }
     }
     // Override key handling to ignore certain keys during cache restoration
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         // Log key presses
         console.log("Key Pressed:", event.key, " | Current Focus:", FocusManager.currentFocusItems[FocusManager.currentFocusIndex] ? FocusManager.currentFocusItems[FocusManager.currentFocusIndex].objectName : "None", " | Scroll Mode:", conversationScrollMode);
         // During cache restoration, block keys that could change state
@@ -278,7 +274,7 @@ PageBase {
                 console.log("Key press blocked - cache is being restored");
                 messageToast.showMessage("Please wait, cache restoration might take a few minutes...", 2000);
                 event.accepted = true;
-                return ;
+                return;
             }
         }
     }
@@ -295,7 +291,6 @@ PageBase {
                     target: voiceInputArea
                     enabled: false
                 }
-
             },
             State {
                 name: "idle"
@@ -309,7 +304,6 @@ PageBase {
                     target: voiceAssistantPage
                     _statusText: "Tap to Talk"
                 }
-
             },
             State {
                 name: "listening"
@@ -323,7 +317,6 @@ PageBase {
                     target: voiceAssistantPage
                     _statusText: "Listening..."
                 }
-
             },
             State {
                 name: "processing"
@@ -337,7 +330,6 @@ PageBase {
                     target: voiceAssistantPage
                     _statusText: "Processing..."
                 }
-
             },
             State {
                 name: "thinking"
@@ -351,7 +343,6 @@ PageBase {
                     target: voiceAssistantPage
                     _statusText: "Processing..."
                 }
-
             },
             State {
                 name: "toolExecution"
@@ -365,7 +356,6 @@ PageBase {
                     target: voiceAssistantPage
                     _statusText: "Processing..."
                 }
-
             },
             State {
                 name: "cacheRestoring"
@@ -379,7 +369,6 @@ PageBase {
                     target: voiceAssistantPage
                     _statusText: "Restoring cache..."
                 }
-
             },
             State {
                 name: "error"
@@ -393,72 +382,33 @@ PageBase {
                     target: voiceAssistantPage
                     _statusText: "Error Occurred"
                 }
-
             }
         ]
-        transitions: [
-            Transition {
-                from: "*"
-                to: "idle"
-
-                ScriptAction {
-                    script: {
-                        stateResetTimer.toolExecutionActive = false;
-                        conversationView.setResponseInProgress(false);
-                        if (voiceInputArea && voiceInputArea.resetState)
-                            voiceInputArea.resetState();
-
-                    }
-                }
-
-            },
-            Transition {
-                from: "*"
-                to: "listening"
-
-                ScriptAction {
-                    script: {
-                        transcribedText = "";
-                        voiceInputArea.transcribedText = "";
-                        if (voiceInputArea && voiceInputArea.setAppState)
-                            voiceInputArea.setAppState("listening");
-
-                        stateResetTimer.lastActionTimestamp = Date.now();
-                    }
-                }
-
-            },
-            Transition {
-                from: "listening"
-                to: "processing"
-
-                ScriptAction {
-                    script: {
-                        conversationView.setResponseInProgress(true);
-                        if (voiceInputArea && voiceInputArea.setAppState)
-                            voiceInputArea.setAppState("processing");
-
-                        stateResetTimer.lastActionTimestamp = Date.now();
-                    }
-                }
-
-            },
-            Transition {
-                from: "*"
-                to: "error"
-
-                ScriptAction {
-                    script: {
-                        stateResetTimer.toolExecutionActive = false;
-                        conversationView.setResponseInProgress(false);
-                        if (voiceInputArea && voiceInputArea.setErrorState)
-                            voiceInputArea.setErrorState();
-
-                    }
-                }
-
+        // State change handlers moved to onStateChanged
+        onStateChanged: {
+            if (state === "idle") {
+                stateResetTimer.toolExecutionActive = false;
+                conversationView.setResponseInProgress(false);
+                if (voiceInputArea && voiceInputArea.resetState)
+                    voiceInputArea.resetState();
+            } else if (state === "listening") {
+                transcribedText = "";
+                voiceInputArea.transcribedText = "";
+                if (voiceInputArea && voiceInputArea.setAppState)
+                    voiceInputArea.setAppState("listening");
+                stateResetTimer.lastActionTimestamp = Date.now();
+            } else if (state === "processing") {
+                conversationView.setResponseInProgress(true);
+                if (voiceInputArea && voiceInputArea.setAppState)
+                    voiceInputArea.setAppState("processing");
+                stateResetTimer.lastActionTimestamp = Date.now();
+            } else if (state === "error") {
+                stateResetTimer.toolExecutionActive = false;
+                conversationView.setResponseInProgress(false);
+                if (voiceInputArea && voiceInputArea.setErrorState)
+                    voiceInputArea.setErrorState();
             }
-        ]
+        }
     }
 
     // Consolidated failsafe timer for state management and stuck detection
@@ -605,7 +555,6 @@ PageBase {
             // Add the function information to the conversation view
             if (conversationView)
                 conversationView.updateModel(bridge.get_conversation());
-
         }
 
         // Handler for observation events
@@ -614,7 +563,6 @@ PageBase {
             // Add the observation to the conversation view
             if (conversationView)
                 conversationView.updateModel(bridge.get_conversation());
-
         }
 
         // Handler for cache events
@@ -640,7 +588,6 @@ PageBase {
             // Add the cache operation to the conversation view
             if (conversationView)
                 conversationView.updateModel(bridge.get_conversation());
-
         }
 
         // Handler for plan events
@@ -649,7 +596,6 @@ PageBase {
             // Add the plan to the conversation view
             if (conversationView)
                 conversationView.updateModel(bridge.get_conversation());
-
         }
 
         // Handler for raw message schema objects
@@ -657,7 +603,6 @@ PageBase {
             // Update conversation view with latest messages
             if (conversationView)
                 conversationView.updateModel(bridge.get_conversation());
-
         }
 
         function onRecordingStateChanged(is_recording) {
@@ -672,7 +617,7 @@ PageBase {
             console.log("QML: Status changed to:", newStatus);
             // Update timestamp for any status change to prevent timeout
             stateResetTimer.lastActionTimestamp = Date.now();
-            
+
             // Map status to state
             if (newStatus.toLowerCase().includes("thinking")) {
                 state = "thinking";
@@ -720,7 +665,6 @@ PageBase {
             }
             if (errorMessage.toLowerCase().includes("connect") || errorMessage.toLowerCase().includes("server") || errorMessage.toLowerCase().includes("timeout"))
                 reconnectionTimer.start();
-
         }
 
         function onIsConnectedChanged(connected) {
@@ -728,7 +672,6 @@ PageBase {
             if (connected) {
                 if (state === "disconnected")
                     state = "idle";
-
             } else {
                 state = "disconnected";
             }
@@ -792,10 +735,9 @@ PageBase {
             else
                 console.log("Failed to initiate system shutdown - bridge not available");
         }
-        onShowToastMessage: function(message, duration) {
+        onShowToastMessage: function (message, duration) {
             if (messageToast)
                 messageToast.showMessage(message, duration);
-
         }
     }
 
@@ -803,7 +745,7 @@ PageBase {
     ServerListDialog {
         id: serverListDialog
 
-        onServerSelected: function(serverPath, serverName) {
+        onServerSelected: function (serverPath, serverName) {
             if (bridge && bridge.ready) {
                 // Set the selected server and connect to it
                 bridge.setServerPath(serverPath);
@@ -826,10 +768,9 @@ PageBase {
 
                     // Move focus to voice button after successful server selection
                     if (voiceInputArea && voiceInputArea.voiceButton && voiceInputArea.voiceButton.navigable)
-                        Qt.callLater(function() {
-                        FocusManager.setFocusToItem(voiceInputArea.voiceButton);
-                    });
-
+                        Qt.callLater(function () {
+                            FocusManager.setFocusToItem(voiceInputArea.voiceButton);
+                        });
                 }
             }
             // Restore focus after dialog closes
@@ -838,12 +779,11 @@ PageBase {
         }
         onDialogClosed: {
             // Reinitialize focus items in the parent page when dialog closes
-            Qt.callLater(function() {
+            Qt.callLater(function () {
                 collectFocusItems();
                 // Restore focus to a default item
                 if (voiceInputArea && voiceInputArea.voiceButton && voiceInputArea.voiceButton.navigable)
                     FocusManager.setFocusToItem(voiceInputArea.voiceButton);
-
             });
         }
     }
@@ -874,10 +814,6 @@ PageBase {
                 updateModel(bridge.get_conversation());
             else
                 updateModel([]);
-            // Disable scrolling animations for smoother experience
-            if (scrollAnimation)
-                scrollAnimation.duration = 0;
-
         }
 
         Connections {
@@ -885,7 +821,7 @@ PageBase {
                 // Update timestamp to prevent timeout during conversation updates
                 stateResetTimer.lastActionTimestamp = Date.now();
                 conversationView.updateModel(bridge.get_conversation());
-                // Let updateModel handle scrolling to prevent race conditions
+            // Let updateModel handle scrolling to prevent race conditions
             }
 
             function onMessageReceived(message, eventId, timestamp, status) {
@@ -893,7 +829,7 @@ PageBase {
                 if (status === "in_progress") {
                     // Update timestamp to prevent timeout during text streaming
                     stateResetTimer.lastActionTimestamp = Date.now();
-                    
+
                     // Get current conversation
                     var conversation = bridge.get_conversation();
                     // If this is the first chunk of a new message
@@ -919,7 +855,7 @@ PageBase {
                     // Reset UI state now that the response is complete
                     voiceAssistantPage.state = "idle";
                     // Final scroll to bottom after response completion
-                    Qt.callLater(function() {
+                    Qt.callLater(function () {
                         if (!conversationView.scrollModeActive) {
                             conversationView.scrollToBottom();
                         }
@@ -939,7 +875,6 @@ PageBase {
 
             target: bridge && bridge.ready ? bridge : null
         }
-
     }
 
     MessageToast {
@@ -972,45 +907,38 @@ PageBase {
         isProcessing: voiceAssistantPage.isProcessing
         isConnected: voiceAssistantPage.isServerConnected && serverName && serverName.length > 0 && serverName !== "No Server"
         showStatusHint: true
-        onAppStateUpdated: function(newState) {
+        onAppStateUpdated: function (newState) {
             console.log("VoiceInputArea state changed to: " + newState);
             // Map to appropriate state in the state machine
             if (newState === "listening") {
                 if (voiceAssistantPage.state !== "listening")
                     voiceAssistantPage.state = "listening";
-
             } else if (newState === "processing") {
                 if (voiceAssistantPage.state !== "processing")
                     voiceAssistantPage.state = "processing";
-
             } else if (newState === "thinking") {
                 if (voiceAssistantPage.state !== "thinking")
                     voiceAssistantPage.state = "thinking";
-
             } else if (newState === "executing_tool") {
                 if (voiceAssistantPage.state !== "toolExecution")
                     voiceAssistantPage.state = "toolExecution";
-
             } else if (newState === "restoring_cache") {
                 if (voiceAssistantPage.state !== "cacheRestoring")
                     voiceAssistantPage.state = "cacheRestoring";
-
             } else if (newState === "error") {
                 if (voiceAssistantPage.state !== "error")
                     voiceAssistantPage.state = "error";
-
             } else if (newState === "idle") {
                 if (voiceAssistantPage.state !== "idle" && voiceAssistantPage.isServerConnected)
                     voiceAssistantPage.state = "idle";
-
             }
         }
-        onVoiceToggled: function(listening) {
+        onVoiceToggled: function (listening) {
             // Prevent voice toggling during cache restoration
             if (voiceAssistantPage.state === "cacheRestoring") {
                 console.log("Voice toggle ignored - cache is being restored");
                 messageToast.showMessage("Please wait, cache restoration might take a few minutes...", 2000);
-                return ;
+                return;
             }
             if (bridge && bridge.ready && bridge.isConnected && voiceAssistantPage.state !== "processing" && voiceAssistantPage.state !== "thinking" && voiceAssistantPage.state !== "toolExecution") {
                 if (listening) {
@@ -1022,23 +950,23 @@ PageBase {
                 }
             }
         }
-        onVoicePressed: function() {
+        onVoicePressed: function () {
             // Prevent voice press during cache restoration
             if (voiceAssistantPage.state === "cacheRestoring") {
                 console.log("Voice press ignored - cache is being restored");
                 messageToast.showMessage("Please wait, cache restoration might take a few minutes...", 2000);
-                return ;
+                return;
             }
             if (bridge && bridge.ready && bridge.isConnected && voiceAssistantPage.state !== "processing" && voiceAssistantPage.state !== "thinking" && voiceAssistantPage.state !== "toolExecution") {
                 bridge.startRecording();
                 voiceAssistantPage.state = "listening";
             }
         }
-        onVoiceReleased: function() {
+        onVoiceReleased: function () {
             // Prevent voice release during cache restoration
             if (voiceAssistantPage.state === "cacheRestoring") {
                 console.log("Voice release ignored - cache is being restored");
-                return ;
+                return;
             }
             if (bridge && bridge.ready && bridge.isConnected && voiceAssistantPage.state === "listening") {
                 bridge.stopAndTranscribe();
