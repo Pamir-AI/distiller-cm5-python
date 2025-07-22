@@ -286,6 +286,54 @@ class MCPClientBridge(BridgeCore):
             logger.error(f"Error getting system stats: {e}")
             return {"cpu": "N/A", "ram": "N/A", "temp": "N/A", "llm": "Local"}
 
+    @pyqtSlot(result="QVariantMap")
+    def getBatteryInfo(self):
+        """Get battery information for UI display."""
+        try:
+            # Lazy import to avoid circular imports
+            from distiller_cm5_python.utils.battery_monitor import get_battery_info
+
+            # Return battery info dictionary
+            return get_battery_info()
+        except Exception as e:
+            logger.error(f"Error getting battery info: {e}")
+            return {
+                "capacity": 100,
+                "status": "Unknown",
+                "isCharging": False,
+                "isLow": False,
+                "isCritical": False,
+                "iconName": "battery-full",
+                "color": "#00AA00",
+                "voltage": 0.0,
+                "current": 0.0,
+                "temperature": 0.0,
+                "present": True,
+                "technology": "Unknown",
+                "shouldShowWarning": False,
+                "shouldShutdown": False
+            }
+
+    @pyqtSlot(result=bool)
+    def sendPowerShutdownSignal(self):
+        """Send BTN_POWER packet via UART for coordinated system shutdown."""
+        try:
+            # Lazy import to avoid circular imports
+            from distiller_cm5_python.utils.uart_utils import send_btn_power_packet
+            
+            logger.info("Sending BTN_POWER packet for coordinated shutdown")
+            success = send_btn_power_packet()
+            
+            if success:
+                logger.info("BTN_POWER packet sent successfully")
+            else:
+                logger.error("Failed to send BTN_POWER packet")
+                
+            return success
+        except Exception as e:
+            logger.error(f"Error sending power shutdown signal: {e}")
+            return False
+
     @pyqtSlot()
     def closeApplication(self):
         """

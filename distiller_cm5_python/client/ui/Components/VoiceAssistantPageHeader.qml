@@ -213,6 +213,139 @@ Rectangle {
                 anchors.fill: parent
                 spacing: ThemeManager.spacingSmall
 
+                // Battery Status Section
+                Rectangle {
+                    id: batteryStatsSection
+                    width: parent.width
+                    height: batteryStatsColumn.height + ThemeManager.spacingSmall * 2
+                    color: ThemeManager.backgroundColor
+                    border.width: ThemeManager.borderWidth
+                    border.color: ThemeManager.black
+                    radius: ThemeManager.borderRadius
+
+                    property var batteryInfo: bridge && bridge.ready ? bridge.getBatteryInfo() : {}
+
+                    Column {
+                        id: batteryStatsColumn
+
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: ThemeManager.spacingSmall
+                        spacing: ThemeManager.spacingSmall
+
+                        Row {
+                            width: parent.width
+                            spacing: ThemeManager.spacingSmall
+
+                            Text {
+                                text: "Battery:"
+                                font: FontManager.small
+                                color: ThemeManager.textColor
+                                width: parent.width * 0.3
+                                horizontalAlignment: Text.AlignLeft
+                                renderType: Text.NativeRendering
+                            }
+
+                            Row {
+                                width: parent.width * 0.6
+                                spacing: ThemeManager.spacingTiny
+                                
+                                Text {
+                                    text: (batteryStatsSection.batteryInfo.capacity || 100) + "% (" + (batteryStatsSection.batteryInfo.status || "Unknown") + ")"
+                                    font: FontManager.small
+                                    color: ThemeManager.textColor
+                                    horizontalAlignment: Text.AlignLeft
+                                    elide: Text.ElideRight
+                                    renderType: Text.NativeRendering
+                                }
+                                
+                                // Visual indicator for low/critical battery using 1-bit patterns
+                                Text {
+                                    visible: batteryStatsSection.batteryInfo.isCritical || batteryStatsSection.batteryInfo.isLow
+                                    text: batteryStatsSection.batteryInfo.isCritical ? "!!!" : "!"
+                                    font: FontManager.small
+                                    color: ThemeManager.textColor
+                                    horizontalAlignment: Text.AlignLeft
+                                    renderType: Text.NativeRendering
+                                }
+                            }
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: ThemeManager.spacingSmall
+
+                            Text {
+                                text: "Voltage:"
+                                font: FontManager.small
+                                color: ThemeManager.textColor
+                                width: parent.width * 0.3
+                                horizontalAlignment: Text.AlignLeft
+                                renderType: Text.NativeRendering
+                            }
+
+                            Text {
+                                text: (batteryStatsSection.batteryInfo.voltage || 0).toFixed(2) + "V"
+                                font: FontManager.small
+                                color: ThemeManager.textColor
+                                width: parent.width * 0.6
+                                horizontalAlignment: Text.AlignLeft
+                                elide: Text.ElideRight
+                                renderType: Text.NativeRendering
+                            }
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: ThemeManager.spacingSmall
+
+                            Text {
+                                text: "Current:"
+                                font: FontManager.small
+                                color: ThemeManager.textColor
+                                width: parent.width * 0.3
+                                horizontalAlignment: Text.AlignLeft
+                                renderType: Text.NativeRendering
+                            }
+
+                            Text {
+                                text: (batteryStatsSection.batteryInfo.current || 0).toFixed(2) + "A"
+                                font: FontManager.small
+                                color: ThemeManager.textColor
+                                width: parent.width * 0.6
+                                horizontalAlignment: Text.AlignLeft
+                                elide: Text.ElideRight
+                                renderType: Text.NativeRendering
+                            }
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: ThemeManager.spacingSmall
+
+                            Text {
+                                text: "Temp:"
+                                font: FontManager.small
+                                color: ThemeManager.textColor
+                                width: parent.width * 0.3
+                                horizontalAlignment: Text.AlignLeft
+                                renderType: Text.NativeRendering
+                            }
+
+                            Text {
+                                text: (batteryStatsSection.batteryInfo.temperature || 0).toFixed(1) + "°C"
+                                font: FontManager.small
+                                color: ThemeManager.textColor
+                                width: parent.width * 0.6
+                                horizontalAlignment: Text.AlignLeft
+                                elide: Text.ElideRight
+                                renderType: Text.NativeRendering
+                            }
+                        }
+                    }
+                }
+
                 // System Stats Section
                 Rectangle {
                     width: parent.width
@@ -483,8 +616,11 @@ Rectangle {
             if (bridge && bridge.ready) {
                 // Signal app shutdown via UART
                 header.closeAppClicked();
-                // Then execute system shutdown
-                bridge.executeSystemCommand("shutdown now");
+                // Send BTN_POWER packet for coordinated shutdown
+                var success = bridge.sendPowerShutdownSignal();
+                if (!success) {
+                    console.log("Warning: Failed to send power shutdown signal via UART");
+                }
             }
         }
     }
