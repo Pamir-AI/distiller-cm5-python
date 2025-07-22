@@ -22,6 +22,7 @@ class EInkRenderer(QObject):
         # Get configuration
         self._capture_interval = config["display"]["eink_refresh_interval"]
         self._adaptive_capture = config["display"]["eink_adaptive_capture"]
+        self._timer_based_mode = config["display"].get("eink_timer_based_mode", False)
 
         # Initialize headless renderer for screen capture
         self._headless_renderer: HeadlessRenderer = HeadlessRenderer(
@@ -34,11 +35,15 @@ class EInkRenderer(QObject):
 
         # Connect the renderer to the bridge
         self._headless_renderer.frameReady.connect(self._handle_frame)
+        
+        # Connect display completion signal for event-driven mode
+        self._eink_bridge.displayComplete.connect(self._on_display_complete)
 
         self._initialized = False
         self._rendering_active = False
+        self._event_driven_capture_pending = False
 
-        logger.info("EInkRenderer initialized")
+        logger.info(f"EInkRenderer initialized (mode: {'timer-based' if self._timer_based_mode else 'event-driven'})")
 
     def initialize(self):
         """Initialize the E-Ink hardware."""
@@ -72,9 +77,19 @@ class EInkRenderer(QObject):
             return False
 
         if not self._rendering_active:
-            self._headless_renderer.start()
             self._rendering_active = True
-            logger.info("EInkRenderer started")
+            
+            if self._timer_based_mode:
+                # Timer-based mode: use the existing timer mechanism
+                self._headless_renderer.start()
+                logger.info("EInkRenderer started in timer-based mode")
+            else:
+                # Event-driven mode: capture first frame after a short delay
+                logger.info("EInkRenderer started in event-driven mode")
+                # Use QTimer to capture first frame after event loop is ready
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(100, self._capture_next_frame)
+                
             return True
 
         return True
@@ -108,11 +123,17 @@ class EInkRenderer(QObject):
 
     def _handle_frame(self, frame_data, width, height):
         """Handle a new frame from the headless renderer."""
-        logger.debug(f"Processing frame: {width}x{height}, {len(frame_data)} bytes")
+        logger.info(f"Frame received: {width}x{height}, {len(frame_data)} bytes, event_driven_mode={not self._timer_based_mode}")
 
         # Forward to E-Ink bridge for display
         if self._eink_bridge and self._eink_bridge.initialized:
             try:
+                # For event-driven mode, we need to ensure the display isn't busy
+                if not self._timer_based_mode and hasattr(self._eink_bridge, 'eink_driver') and self._eink_bridge.eink_driver:
+                    if self._eink_bridge.eink_driver.is_busy():
+                        logger.warning("Display is busy, skipping frame")
+                        return
+                
                 # Use asyncio.to_thread for non-blocking operation
                 asyncio.create_task(
                     asyncio.to_thread(
@@ -138,3 +159,26 @@ class EInkRenderer(QObject):
 
         self._initialized = False
         logger.info("EInkRenderer cleaned up")
+    
+    def _capture_next_frame(self):
+        """Capture the next frame in event-driven mode."""
+        if not self._rendering_active or self._timer_based_mode:
+            return
+            
+        # Mark that we're waiting for a capture
+        self._event_driven_capture_pending = True
+        
+        logger.debug("Requesting frame capture in event-driven mode")
+        
+        # Request a single frame capture from the headless renderer
+        if self._headless_renderer:
+            self._headless_renderer.force_update()
+        else:
+            logger.error("No headless renderer available for capture")
+    
+    def _on_display_complete(self):
+        """Called when the e-ink display completes a refresh."""
+        if not self._timer_based_mode and self._rendering_active:
+            # In event-driven mode, capture the next frame
+            logger.debug("Display complete, capturing next frame")
+            self._capture_next_frame()

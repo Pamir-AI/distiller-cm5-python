@@ -3,7 +3,7 @@ import time
 from typing import List, Optional, Tuple
 from threading import Lock
 from enum import Enum
-from PyQt6.QtCore import QObject, pyqtSlot, QTimer
+from PyQt6.QtCore import QObject, pyqtSlot, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage
 from .EinkDriver import EinkDriver
 from ..display_config import config
@@ -23,6 +23,9 @@ class EInkRendererBridge(QObject):
     Bridge between EInkRenderer and the e-ink display driver.
     Handles format conversion, dithering, and proper e-ink initialization sequence.
     """
+    
+    # Signal emitted when the e-ink display completes a refresh
+    displayComplete = pyqtSignal()
 
     def __init__(self, parent=None):
         """Initialize the e-ink renderer bridge"""
@@ -55,6 +58,16 @@ class EInkRendererBridge(QObject):
         logger.info(
             f"E-Ink display will do full refresh every {self._full_refresh_interval} frames"
         )
+    
+    def _on_driver_complete(self):
+        """Called by the driver when display refresh completes."""
+        # Emit the Qt signal - this will be thread-safe as Qt handles cross-thread signals
+        self.displayComplete.emit()
+    
+    def _on_display_complete(self):
+        """Handler for display completion signal from renderer."""
+        # This method will be implemented in EInkRenderer to trigger next capture
+        pass
 
     def initialize(self):
         """Initialize the e-ink display driver with proper sequence"""
@@ -67,6 +80,9 @@ class EInkRendererBridge(QObject):
             with self.driver_lock:
                 # Initialize the driver
                 self.eink_driver = EinkDriver()
+                
+                # Hook up the completion callback to emit our Qt signal
+                self.eink_driver.set_completion_callback(self._on_driver_complete)
 
                 try:
                     self.eink_driver.epd_w21_init()
