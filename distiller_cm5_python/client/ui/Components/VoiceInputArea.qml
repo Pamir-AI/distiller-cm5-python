@@ -21,12 +21,15 @@ Rectangle {
     property alias resetButton: resetButton
     // Flag to track cache restore state specifically
     property bool cacheRestoring: appState === "restoring_cache"
+    // Hold-to-talk properties
+    property bool isHolding: false // Track if hold is active
+    property var holdStartTime: null // Track when hold started
 
     // Signals
     signal voiceToggled(bool listening)
-    signal voicePressed()
-    signal voiceReleased()
-    signal resetClicked() // New signal for reset button
+    signal voicePressed
+    signal voiceReleased
+    signal resetClicked // New signal for reset button
     signal appStateUpdated(string newState) // Renamed signal to avoid conflict with appStateChanged
 
     // Get appropriate hint text for current state
@@ -36,7 +39,7 @@ Rectangle {
 
         switch (appState) {
         case "idle":
-            return "Tap to speak";
+            return "Hold to talk";
         case "listening":
             return "Listening...";
         case "processing":
@@ -108,6 +111,11 @@ Rectangle {
     // Functions to manage state
     function resetState() {
         console.log("VoiceInputArea: Resetting state");
+        // Reset hold-to-talk state
+        isHolding = false;
+        holdStartTime = null;
+        minimumHoldTimer.stop();
+
         setAppState("idle");
         transcribedText = "";
         // Reset button states
@@ -201,6 +209,15 @@ Rectangle {
         onTriggered: {
             resetState();
         }
+    }
+
+    // Timer for minimum hold duration (500ms)
+    Timer {
+        id: minimumHoldTimer
+
+        interval: 500 // Minimum hold duration
+        repeat: false
+        running: false
     }
 
     // Hint text that shows when any button is in focus
@@ -318,64 +335,61 @@ Rectangle {
                     }
                 }
 
-                width: ThemeManager.buttonHeight
-                height: ThemeManager.buttonHeight
-                isFlat: true
-                // Disable button when not connected or when processing/thinking/executing/restoring cache
-                enabled: isConnected && voiceInputArea.appState !== "processing" && voiceInputArea.appState !== "thinking" && voiceInputArea.appState !== "executing_tool" && voiceInputArea.appState !== "restoring_cache"
-                onClicked: {
+                // Key press handler for hold-to-talk
+                function onKeyPress() {
+                    // Block during cache restoration
                     if (voiceInputArea.appState === "restoring_cache") {
-                        console.log("Voice button clicked during cache restoration - ignoring");
-                        checked = false; // Ensure unchecked state
-                        enabled = false; // Explicitly disable
-                        return ;
+                        console.log("VoiceButton.onKeyPress(): Blocked during cache restoration");
+                        return;
                     }
                     // Only allow interaction when connected and not in any processing state
                     if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool" || voiceInputArea.appState === "restoring_cache")
-                        return ;
+                        return;
 
-                    // Toggle listening state
-                    console.log("VoiceButton.onClicked(), current state: " + checked);
-                    if (!isListening) {
-                        // Start listening
+                    if (!voiceInputArea.isHolding && !isListening) {
+                        // Start hold-to-talk
+                        console.log("VoiceButton.onKeyPress(): Starting hold-to-talk");
+                        voiceInputArea.isHolding = true;
+                        voiceInputArea.holdStartTime = Date.now();
+                        minimumHoldTimer.start();
                         voiceInputArea.voicePressed();
                         setAppState("listening");
-                    } else {
-                        // Stop listening
+                        voiceButton.pressed = true; // Set visual pressed state
+                    }
+                }
+
+                // Key release handler for hold-to-talk
+                function onKeyRelease() {
+                    voiceButton.pressed = false; // Clear visual pressed state
+
+                    if (!voiceInputArea.isHolding)
+                        return;
+
+                    console.log("VoiceButton.onKeyRelease(): Ending hold-to-talk");
+                    voiceInputArea.isHolding = false;
+
+                    // Check if minimum hold time was met
+                    var holdDuration = Date.now() - voiceInputArea.holdStartTime;
+                    if (holdDuration < 500) {
+                        console.log("VoiceButton.onKeyRelease(): Hold duration too short (" + holdDuration + "ms), ignoring");
+                        // Reset to idle without processing
+                        setAppState("idle");
+                        return;
+                    }
+
+                    // Stop recording and process
+                    if (isListening) {
                         voiceInputArea.voiceReleased();
                         setAppState("processing");
                     }
                 }
-                // Handle key press/release for Enter/Return
-                Keys.onPressed: function(event) {
-                    // Check if we're processing before handling key
-                    if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool" || voiceInputArea.appState === "restoring_cache") {
-                        event.accepted = true;
-                        return ;
-                    }
-                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                        event.accepted = true;
-                        if (!isListening) {
-                            // Start listening
-                            voiceInputArea.voicePressed();
-                            setAppState("listening");
-                        }
-                    }
-                }
-                Keys.onReleased: function(event) {
-                    // Check if we're processing before handling key - explicitly block cache restoration
-                    if (!isConnected || voiceInputArea.appState === "restoring_cache" || (voiceInputArea.appState !== "listening" && voiceInputArea.appState !== "idle")) {
-                        event.accepted = true;
-                        return ;
-                    }
-                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                        if (isListening) {
-                            // Stop listening
-                            voiceInputArea.voiceReleased();
-                            setAppState("processing");
-                        }
-                    }
-                }
+ 
+				width: ThemeManager.buttonHeight
+				height: ThemeManager.buttonHeight
+				isFlat: true
+				// Disable button when not connected or when processing/thinking/executing/restoring cache
+				enabled: isConnected && voiceInputArea.appState !== "processing" && voiceInputArea.appState !== "thin
+king" && voiceInputArea.appState !== "executing_tool" && voiceInputArea.appState !== "restoring_cache"
                 backgroundColor: ThemeManager.backgroundColor // Solid color based on theme
                 buttonRadius: width / 2
 
