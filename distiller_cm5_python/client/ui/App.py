@@ -190,6 +190,11 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             else:
                 logger.warning("E-Ink initialization failed, continuing without E-Ink display")
 
+        # Set the target window for the input monitor
+        self.input_monitor.set_target_window(self.main_window)
+        # Start the input monitor with default device name
+        self.input_monitor.start()
+
         logger.info("Application initialized successfully")
 
     async def run(self):
