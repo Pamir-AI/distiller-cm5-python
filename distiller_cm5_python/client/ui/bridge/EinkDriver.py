@@ -1,6 +1,6 @@
 import time
 import spidev
-from typing import List
+from typing import List, Optional, Callable
 import numpy as np
 from threading import Thread, Lock
 import asyncio
@@ -487,6 +487,11 @@ class EinkDriver:
         # Start the SPI worker thread
         self._spi_worker = Thread(target=self._spi_worker_thread, daemon=True)
         self._spi_worker.start()
+        
+        # Thread-safe busy flag and completion callback
+        self._is_busy = False
+        self._busy_lock = Lock()
+        self._completion_callback: Optional[Callable[[], None]] = None
 
     def safe_writebytes(self, data, chunk_size=4096):
         """Queue data for async SPI writing."""
@@ -555,6 +560,31 @@ class EinkDriver:
 
         self._write_queue.put(("command", command_func))
 
+    def is_busy(self) -> bool:
+        """Thread-safe getter for busy status."""
+        with self._busy_lock:
+            return self._is_busy
+    
+    def set_completion_callback(self, callback: Optional[Callable[[], None]]) -> None:
+        """Set a callback to be invoked when the display refresh completes.
+        
+        Args:
+            callback: A callable that takes no arguments, or None to clear the callback
+        """
+        with self._busy_lock:
+            self._completion_callback = callback
+            
+    def _set_busy(self, busy: bool) -> None:
+        """Internal method to set busy flag and invoke callback if needed."""
+        with self._busy_lock:
+            self._is_busy = busy
+            if not busy and self._completion_callback:
+                # Invoke callback when transitioning from busy to idle
+                try:
+                    self._completion_callback()
+                except Exception as e:
+                    logger.error(f"Error in completion callback: {e}", exc_info=True)
+    
     def cleanup(self) -> None:
         # Stop the SPI worker thread
         if hasattr(self, "_running"):
@@ -635,7 +665,13 @@ class EinkDriver:
 
     def lcd_chkstatus(self) -> None:
         # For lgpio, 0 means low which indicates busy
+        start_time = time.time()
+        timeout = 5.0  # 5 second timeout to prevent infinite blocking
+        
         while lgpio.gpio_read(self.lgpio_handle, self.BUSY_PIN) == 0:
+            if time.time() - start_time > timeout:
+                logger.warning(f"Display busy timeout after {timeout}s - hardware may be disconnected")
+                break
             time.sleep(0.01)  # Wait 10ms before checking again
 
     def epd_sleep(self) -> None:
@@ -774,6 +810,9 @@ class EinkDriver:
         if len(datas) != 24960:
             raise ValueError("datas must be a flat list of 24960 integers")
 
+        # Set busy flag at the start of display operation
+        self._set_busy(True)
+        
         # Convert to NumPy array and reshape to (12480, 2)
         datas_np = np.array(datas, dtype=np.uint8).reshape(12480, 2)
         byte0, byte1 = datas_np[:, 0], datas_np[:, 1]
@@ -812,6 +851,8 @@ class EinkDriver:
             self.epd_w21_write_cmd(0x12)
             self.delay_xms(1)  # Necessary delay for the display refresh
             self.lcd_chkstatus()  # Check the display status
+            # Clear busy flag and invoke callback
+            self._set_busy(False)
 
         self.queue_command(refresh_sequence)
 
@@ -824,6 +865,9 @@ class EinkDriver:
         if len(new_data) != 12480:
             raise ValueError("new_data must be a flat list of 12480 integers")
 
+        # Set busy flag at the start of display operation
+        self._set_busy(True)
+        
         # Queue the display sequence for async execution
         def display_sequence():
             # Transfer old data
@@ -849,6 +893,8 @@ class EinkDriver:
             self.epd_w21_write_cmd(0x12)
             self.delay_xms(1)  # Necessary delay for the display refresh
             self.lcd_chkstatus()  # Check if the display is ready
+            # Clear busy flag and invoke callback
+            self._set_busy(False)
 
         self.queue_command(refresh_sequence)
 
@@ -925,6 +971,9 @@ class EinkDriver:
     def pic_display_clear(self, poweroff: bool = False) -> None:
         """Clear the display using async SPI communication."""
 
+        # Set busy flag at the start of clear operation
+        self._set_busy(True)
+        
         # Queue the clear sequence for async execution
         def clear_sequence():
             # Transfer old data
@@ -953,5 +1002,8 @@ class EinkDriver:
 
             if poweroff:
                 self.power_off()  # Optionally power off the display after clearing
+            
+            # Clear busy flag and invoke callback
+            self._set_busy(False)
 
         self.queue_command(refresh_and_poweroff_sequence)

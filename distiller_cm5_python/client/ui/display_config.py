@@ -11,7 +11,8 @@ config = {
         # Performance Settings
         "eink_refresh_interval": 1000,  # Milliseconds between captures
         "eink_adaptive_capture": True,  # Automatically adjust refresh rate based on activity
-        "eink_full_refresh_interval": 15,  # Full refresh every N frames
+        "eink_full_refresh_interval": 30,  # Full refresh every N frames
+        "eink_timer_based_mode": False,  # Use timer-based capture (False = event-driven mode)
         # Image Processing Settings - Optimized for UI content
         "eink_threshold": 128,  # Black/white threshold (0-255)
         "eink_bw_conversion": {
