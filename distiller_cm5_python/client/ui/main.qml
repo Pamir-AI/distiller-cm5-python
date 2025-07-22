@@ -81,10 +81,23 @@ ApplicationWindow {
                         }
                     } else {
                         // Normal enter key handling
-                        FocusManager.handleEnterKey();
+                        FocusManager.handleEnterKeyPress();
                     }
                 }
             }
+
+            Keys.onReleased: function (event) {
+				console.log("Key Released:", event.key, " | Current Focus:", 
+				FocusManager.currentItem ? FocusManager.currentItem.objectName : "None");
+				// Handle Enter key release for hold-to-talk
+				if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+					event.accepted = true;
+					if (!FocusManager.scrollModeActive) {
+    					FocusManager.handleEnterKeyRelease();
+					}
+				}
+			}
+
             // Explicitly grab focus whenever anything else tries to take it
             onActiveFocusChanged: {
                 if (!activeFocus)

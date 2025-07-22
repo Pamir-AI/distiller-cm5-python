@@ -144,18 +144,34 @@ class InputMonitor(QObject):
                     try:
                         for event in dev.read():  # Read available events
                             if event.type == evdev.ecodes.EV_KEY:
-                                # Only process key down events (value=1) for simplicity
-                                if event.value == 1:  # Key press
+                                # Process key events
+                                if event.value in (
+                                    0,
+                                    1,
+                                ):  # Key press (1) or release (0)
                                     qt_key = key_map.get(event.code)
                                     if qt_key and target_window:
                                         logger.debug(
-                                            f"Input Event: Code={event.code}, Mapped Qt Key={qt_key}"
+                                            f"Input Event: Code={event.code}, Value={event.value}, Mapped Qt Key={qt_key}"
                                         )
-                                        press_event = QKeyEvent(
-                                            QKeyEvent.Type.KeyPress,
-                                            qt_key,
-                                            Qt.KeyboardModifier.NoModifier,
-                                        )
+                                        if event.value == 1:  # Key press
+                                            press_event = QKeyEvent(
+                                                QKeyEvent.Type.KeyPress,
+                                                qt_key,
+                                                Qt.KeyboardModifier.NoModifier,
+                                            )
+                                        elif event.value == 0:  # Key release
+                                            press_event = QKeyEvent(
+                                                QKeyEvent.Type.KeyRelease,
+                                                qt_key,
+                                                Qt.KeyboardModifier.NoModifier,
+                                            )
+                                        else:
+                                            logger.warning(
+                                                f"Unexpected event value: {event.value} for key {event.code}"
+                                            )
+                                            continue
+                                        # Post the event to the target window
                                         QApplication.postEvent(
                                             target_window, press_event
                                         )

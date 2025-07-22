@@ -392,4 +392,43 @@ QtObject {
             exitSpecialMode();
         }
     }
+
+    // Handle Enter key press for hold-to-talk
+    function handleEnterKeyPress() {
+        if (currentFocusItems.length === 0 || currentFocusIndex < 0) {
+            console.log("FocusManager: No item focused for key press");
+            return;
+        }
+        var item = currentFocusItems[currentFocusIndex];
+        if (!item) {
+            console.error("FocusManager: Focused item is null for key press");
+            return;
+        }
+        
+        // For hold-to-talk, call onKeyPress if available, otherwise fall back to activate
+        if (item.onKeyPress && typeof item.onKeyPress === "function") {
+            item.onKeyPress();
+        } else {
+            // Fallback to old behavior for other components
+            handleEnterKey();
+        }
+    }
+    
+    // Handle Enter key release for hold-to-talk
+    function handleEnterKeyRelease() {
+        if (currentFocusItems.length === 0 || currentFocusIndex < 0) {
+            console.log("FocusManager: No item focused for key release");
+            return;
+        }
+        var item = currentFocusItems[currentFocusIndex];
+        if (!item) {
+            console.error("FocusManager: Focused item is null for key release");
+            return;
+        }
+        
+        // Call onKeyRelease if available
+        if (item.onKeyRelease && typeof item.onKeyRelease === "function") {
+            item.onKeyRelease();
+        }
+    }
 }
