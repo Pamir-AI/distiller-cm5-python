@@ -9,14 +9,12 @@ ScrollView {
     property int wheelScrollLines: 3
     property int touchScrollSensitivity: 1
     property int keyNavigationSpeed: 40
-    // Expose the scroll animation for external use but set duration to 0
-    property alias scrollAnimation: scrollAnimation
 
     clip: true
     // Disable the internal keyboard handling since we'll handle it through FocusManager
     Keys.enabled: false
     contentWidth: availableWidth
-    // Keyboard navigation support - direct movement without animation
+    // Keyboard navigation support
     Keys.onPressed: function(event) {
         var contentItem = root.contentItem;
         if (event.key === Qt.Key_PageDown) {
@@ -38,16 +36,6 @@ ScrollView {
             contentItem.contentY = Math.max(contentItem.contentY - keyNavigationSpeed, 0);
             event.accepted = true;
         }
-    }
-
-    // Animation with zero duration for compatibility with code expecting the animation
-    NumberAnimation {
-        id: scrollAnimation
-
-        target: root.contentItem
-        property: "contentY"
-        duration: 0
-        easing.type: Easing.Linear
     }
 
     // Edge indicators - simplified to static elements

@@ -165,15 +165,7 @@ QtObject {
             // Make sure we don't exceed content bounds
             var maxY = Math.max(0, currentScrollView.contentItem.contentHeight - currentScrollView.height);
             var targetY = Math.max(0, Math.min(maxY, yPos));
-            // Use animation for smooth scrolling
-            if (currentScrollView.scrollAnimation) {
-                currentScrollView.scrollAnimation.stop();
-                currentScrollView.scrollAnimation.from = currentScrollView.contentItem.contentY;
-                currentScrollView.scrollAnimation.to = targetY;
-                currentScrollView.scrollAnimation.start();
-            } else {
-                currentScrollView.contentItem.contentY = targetY;
-            }
+            currentScrollView.contentItem.contentY = targetY;
         } catch (e) {
             console.error("Error scrolling to position: " + e);
         }
@@ -259,14 +251,7 @@ QtObject {
             return ;
 
         var newY = Math.max(0, currentScrollView.contentItem.contentY - scrollStep);
-        if (currentScrollView.scrollAnimation) {
-            currentScrollView.scrollAnimation.stop();
-            currentScrollView.scrollAnimation.from = currentScrollView.contentItem.contentY;
-            currentScrollView.scrollAnimation.to = newY;
-            currentScrollView.scrollAnimation.start();
-        } else {
-            currentScrollView.contentItem.contentY = newY;
-        }
+        currentScrollView.contentItem.contentY = newY;
     }
 
     // Move focus down
@@ -325,14 +310,7 @@ QtObject {
 
         var maxY = Math.max(0, currentScrollView.contentItem.contentHeight - currentScrollView.height);
         var newY = Math.min(maxY, currentScrollView.contentItem.contentY + scrollStep);
-        if (currentScrollView.scrollAnimation) {
-            currentScrollView.scrollAnimation.stop();
-            currentScrollView.scrollAnimation.from = currentScrollView.contentItem.contentY;
-            currentScrollView.scrollAnimation.to = newY;
-            currentScrollView.scrollAnimation.start();
-        } else {
-            currentScrollView.contentItem.contentY = newY;
-        }
+        currentScrollView.contentItem.contentY = newY;
     }
 
     // Switch to slider adjustment mode
