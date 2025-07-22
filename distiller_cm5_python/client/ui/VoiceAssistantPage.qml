@@ -91,6 +91,9 @@ PageBase {
             if (voiceInputArea.resetButton && voiceInputArea.resetButton.navigable)
                 focusableItems.push(voiceInputArea.resetButton);
 
+            // Add the battery indicator
+            if (voiceInputArea.batteryIndicator && voiceInputArea.batteryIndicator.navigable)
+                focusableItems.push(voiceInputArea.batteryIndicator);
         }
         // Initialize focus manager with proper activation handling
         FocusManager.initializeFocusItems(focusableItems, conversationView);
@@ -977,9 +980,12 @@ PageBase {
             // Show confirmation dialog, unless cache is restoring
             if (voiceAssistantPage.state === "cacheRestoring") {
                 messageToast.showMessage("Cannot reset during cache restoration", 2000);
-                return ;
+                return;
             }
             restartConfirmDialog.open();
+        }
+        onBatteryInfoRequested: function (message) {
+            messageToast.showMessage(message, 3000);
         }
     }
 
@@ -1069,4 +1075,98 @@ PageBase {
         }
     }
 
+    // Battery warning dialog
+    BatteryWarningDialog {
+        id: batteryWarningDialog
+
+        onShutdownRequested: {
+            console.log("Critical battery shutdown requested");
+            messageToast.showMessage("Shutting down due to critical battery...", 3000);
+
+            // Signal critical battery shutdown
+            if (bridge && bridge.ready) {
+                // Send BTN_POWER packet for coordinated shutdown
+                var success = bridge.sendPowerShutdownSignal();
+                if (!success) {
+                    console.log("Warning: Failed to send power shutdown signal via UART");
+                }
+            }
+        }
+
+        onAcknowledged: {
+            batteryWarningDialog.close();
+        }
+    }
+
+    // Battery monitoring timer
+    Timer {
+        id: batteryMonitorTimer
+        interval: 10000 // Check every 10 seconds
+        repeat: true
+        running: true
+
+        property bool lowBatteryWarningShown: false
+        property bool criticalBatteryWarningShown: false
+
+        onTriggered: {
+            if (bridge && bridge.ready) {
+                var batteryInfo = bridge.getBatteryInfo();
+
+                // Check for critical battery (≤1%)
+                if (batteryInfo.isCritical && !batteryInfo.isCharging) {
+                    if (!criticalBatteryWarningShown) {
+                        console.log("Critical battery detected: " + batteryInfo.capacity + "%");
+                        batteryWarningDialog.batteryLevel = batteryInfo.capacity;
+                        batteryWarningDialog.isCritical = true;
+                        batteryWarningDialog.isCharging = batteryInfo.isCharging;
+                        batteryWarningDialog.open();
+                        criticalBatteryWarningShown = true;
+
+                        // Auto-shutdown after 30 seconds if not charging
+                        criticalShutdownTimer.start();
+                    }
+                } else
+                // Check for low battery (≤15%)
+                if (batteryInfo.isLow && !batteryInfo.isCharging) {
+                    if (!lowBatteryWarningShown && !criticalBatteryWarningShown) {
+                        console.log("Low battery detected: " + batteryInfo.capacity + "%");
+                        batteryWarningDialog.batteryLevel = batteryInfo.capacity;
+                        batteryWarningDialog.isCritical = false;
+                        batteryWarningDialog.isCharging = batteryInfo.isCharging;
+                        batteryWarningDialog.open();
+                        lowBatteryWarningShown = true;
+                    }
+                } else
+                // Reset warnings if charging or battery level improved
+                if (batteryInfo.isCharging || batteryInfo.capacity > 20) {
+                    lowBatteryWarningShown = false;
+                    if (batteryInfo.capacity > 5) {
+                        criticalBatteryWarningShown = false;
+                        criticalShutdownTimer.stop();
+                    }
+                }
+            }
+        }
+    }
+
+    // Critical battery auto-shutdown timer
+    Timer {
+        id: criticalShutdownTimer
+        interval: 30000 // 30 seconds
+        repeat: false
+        running: false
+
+        onTriggered: {
+            console.log("Auto-shutdown due to critical battery");
+            messageToast.showMessage("Auto-shutdown: Critical battery level", 2000);
+
+            if (bridge && bridge.ready) {
+                // Send BTN_POWER packet for coordinated shutdown
+                var success = bridge.sendPowerShutdownSignal();
+                if (!success) {
+                    console.log("Warning: Failed to send power shutdown signal via UART");
+                }
+            }
+        }
+    }
 }

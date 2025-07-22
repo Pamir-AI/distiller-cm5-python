@@ -19,6 +19,7 @@ Rectangle {
     // Expose button as property
     property alias voiceButton: voiceButton
     property alias resetButton: resetButton
+    property alias batteryIndicator: batteryIndicator
     // Flag to track cache restore state specifically
     property bool cacheRestoring: appState === "restoring_cache"
     // Hold-to-talk properties
@@ -31,6 +32,7 @@ Rectangle {
     signal voiceReleased
     signal resetClicked // New signal for reset button
     signal appStateUpdated(string newState) // Renamed signal to avoid conflict with appStateChanged
+    signal batteryInfoRequested(string message) // New signal for battery info display
 
     // Get appropriate hint text for current state
     function getStateHint() {
@@ -233,6 +235,8 @@ Rectangle {
                 return voiceInputArea.stateHint;
             else if (resetButton.visualFocus)
                 return "Reset App";
+            else if (batteryIndicator.visualFocus)
+                return "Battery Status";
             else
                 return "";
         }
@@ -242,7 +246,7 @@ Rectangle {
         horizontalAlignment: Text.AlignHCenter
         z: 20 // Make sure it appears above everything
         // Show hint text whenever the app is not idle, or if a button has focus (and hint is enabled)
-        visible: showStatusHint && (appState !== "idle" || (voiceButton.visualFocus || resetButton.visualFocus))
+        visible: showStatusHint && (appState !== "idle" || (voiceButton.visualFocus || resetButton.visualFocus || batteryIndicator.visualFocus))
     }
 
     // Transcribed text display
@@ -293,10 +297,12 @@ Rectangle {
         z: 20 // Above background rectangles
 
         Row {
-            anchors.centerIn: parent
-            spacing: ThemeManager.spacingLarge * 0.8 // Slightly reduced spacing for tighter fit
+            anchors.left: parent.left
+            anchors.leftMargin: ThemeManager.spacingSmall
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: ThemeManager.spacingSmall
 
-            // 1st button: Voice/Mic button in the center position
+            // 1st button: Voice/Mic button in the left corner
             AppButton {
                 // This allows the binding to checked: voiceInputArea.isListening to work
                 // We don't force the checked state here to let the binding handle it
@@ -451,7 +457,7 @@ king" && voiceInputArea.appState !== "executing_tool" && voiceInputArea.appState
 
             }
 
-            // 2nd button: Reset button
+            // 2nd button: Reset button besides voice button
             AppButton {
                 id: resetButton
 
@@ -499,13 +505,30 @@ king" && voiceInputArea.appState !== "executing_tool" && voiceInputArea.appState
 
         }
 
-    }
-
-    Behavior on height {
-        NumberAnimation {
-            duration: 100
+		// 3rd button: Battery indicator in the right corner
+        BatteryIndicator {
+            id: batteryIndicator
+            
+            anchors.right: parent.right
+            anchors.rightMargin: ThemeManager.spacingSmall
+            anchors.verticalCenter: parent.verticalCenter
+            compact: true
+            navigable: true
+            
+            onBatteryClicked: {
+                // Open system stats popup when battery is clicked
+                if (bridge && bridge.ready) {
+                    console.log("Battery indicator clicked - opening stats");
+                    var info = bridge.getBatteryInfo();
+                    var message = "Battery: " + info.capacity + "% (" + info.status + ")";
+                    
+                    // Emit signal for parent to handle
+                    voiceInputArea.batteryInfoRequested(message);
+                } else {
+                    voiceInputArea.batteryInfoRequested("Battery info unavailable");
+                }
+            }
         }
 
     }
-
 }
