@@ -23,7 +23,7 @@ class ConversationManager:
         # Batch update mechanism
         self._update_pending = False
         self._last_update_time = 0
-        self._update_interval = 0.5  # seconds, for batching UI updates
+        self._update_interval = 0.2  # seconds
 
     def _schedule_update(self):
         """Schedule a batched UI update if not already pending."""
