@@ -555,7 +555,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         else:
             logger.error("Failed to start ASR recording")
 
-    MIN_AUDIO_BYTES_THRESHOLD = 16000  # Approx 0.5 seconds at 16kHz/16bit/mono
+    MIN_AUDIO_BYTES_THRESHOLD = 8000  # 0.25s at 16kHz/16bit/mono
 
     @pyqtSlot()
     def stopAndTranscribe(self):
