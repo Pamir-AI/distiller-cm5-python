@@ -728,7 +728,7 @@ PageBase {
         onServerSelectClicked: {
             previousFocusedItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
             // Show server list dialog instead of confirmation
-            serverListDialog.open();
+            getServerListDialog().open();
         }
         onCloseAppClicked: {
             console.log("System shutdown requested...");
@@ -744,51 +744,62 @@ PageBase {
         }
     }
 
-    // Server list dialog
-    ServerListDialog {
-        id: serverListDialog
+    // Lazy-loaded dialogs
+    property var serverListDialog: null
+    
+    function getServerListDialog() {
+        if (!serverListDialog) {
+            var component = Qt.createComponent("Components/ServerListDialog.qml");
+            if (component.status === Component.Ready) {
+                serverListDialog = component.createObject(voiceAssistantPage);
+                
+                serverListDialog.serverSelected.connect(function(serverPath, serverName) {
+                    if (bridge && bridge.ready) {
+                        // Set the selected server and connect to it
+                        bridge.setServerPath(serverPath);
+                        // This returns an error message if connection fails, or empty string on success
+                        var connectionResult = bridge.connectToServer();
+                        if (connectionResult) {
+                            // Connection failed, show error message
+                            console.error("Connection failed: " + connectionResult);
+                            messageToast.showMessage("Connection failed: " + connectionResult, 5000);
+                            state = "error";
+                        } else {
+                            // Short delay to ensure UI is updated first
 
-        onServerSelected: function (serverPath, serverName) {
-            if (bridge && bridge.ready) {
-                // Set the selected server and connect to it
-                bridge.setServerPath(serverPath);
-                // This returns an error message if connection fails, or empty string on success
-                var connectionResult = bridge.connectToServer();
-                if (connectionResult) {
-                    // Connection failed, show error message
-                    console.error("Connection failed: " + connectionResult);
-                    messageToast.showMessage("Connection failed: " + connectionResult, 5000);
-                    state = "error";
-                } else {
-                    // Short delay to ensure UI is updated first
+                            // Connection successful, update server name
+                            _serverName = serverName;
+                            state = "idle";
+                            // Get conversation if available
+                            if (conversationView)
+                                conversationView.updateModel(bridge.get_conversation());
 
-                    // Connection successful, update server name
-                    _serverName = serverName;
-                    state = "idle";
-                    // Get conversation if available
-                    if (conversationView)
-                        conversationView.updateModel(bridge.get_conversation());
-
-                    // Move focus to voice button after successful server selection
-                    if (voiceInputArea && voiceInputArea.voiceButton && voiceInputArea.voiceButton.navigable)
-                        Qt.callLater(function () {
+                            // Move focus to voice button after successful server selection
+                            if (voiceInputArea && voiceInputArea.voiceButton && voiceInputArea.voiceButton.navigable)
+                                Qt.callLater(function () {
+                                    FocusManager.setFocusToItem(voiceInputArea.voiceButton);
+                                });
+                        }
+                    }
+                    // Restore focus after dialog closes
+                    focusTimer.isRestoreFocus = true;
+                    focusTimer.start();
+                });
+                
+                serverListDialog.dialogClosed.connect(function() {
+                    // Reinitialize focus items in the parent page when dialog closes
+                    Qt.callLater(function () {
+                        collectFocusItems();
+                        // Restore focus to a default item
+                        if (voiceInputArea && voiceInputArea.voiceButton && voiceInputArea.voiceButton.navigable)
                             FocusManager.setFocusToItem(voiceInputArea.voiceButton);
-                        });
-                }
+                    });
+                });
+            } else {
+                console.error("Failed to create ServerListDialog:", component.errorString());
             }
-            // Restore focus after dialog closes
-            focusTimer.isRestoreFocus = true;
-            focusTimer.start();
         }
-        onDialogClosed: {
-            // Reinitialize focus items in the parent page when dialog closes
-            Qt.callLater(function () {
-                collectFocusItems();
-                // Restore focus to a default item
-                if (voiceInputArea && voiceInputArea.voiceButton && voiceInputArea.voiceButton.navigable)
-                    FocusManager.setFocusToItem(voiceInputArea.voiceButton);
-            });
-        }
+        return serverListDialog;
     }
 
     ConversationView {
@@ -982,7 +993,7 @@ PageBase {
                 messageToast.showMessage("Cannot reset during cache restoration", 2000);
                 return;
             }
-            restartConfirmDialog.open();
+            getRestartConfirmDialog().open();
         }
         onBatteryInfoRequested: function (message) {
             messageToast.showMessage(message, 3000);
@@ -997,7 +1008,7 @@ PageBase {
         running: false
         onTriggered: {
             previousFocusedItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
-            confirmServerChangeDialog.open();
+            getConfirmServerChangeDialog().open();
         }
     }
 
@@ -1039,63 +1050,93 @@ PageBase {
         }
     }
 
-    // App restart confirmation dialog
-    AppDialog {
-        id: restartConfirmDialog
-
-        dialogTitle: "Reset Application"
-        message: "Are you sure you want to reset the application?\nThis will clear your conversation and reconnect to the server."
-        standardButtonTypes: DialogButtonBox.Yes | DialogButtonBox.No
-        yesButtonText: "Reset"
-        noButtonText: "Cancel"
-        acceptButtonColor: ThemeManager.backgroundColor
-        onAccepted: {
-            // Reset the application
-            restartApplication();
-        }
-    }
-
-    // Server reconnection confirmation dialog
-    AppDialog {
-        id: confirmServerChangeDialog
-
-        dialogTitle: "Server Connection"
-        message: "Server connection lost. Do you want to reconnect?"
-        standardButtonTypes: DialogButtonBox.Yes | DialogButtonBox.No
-        yesButtonText: "Reconnect"
-        noButtonText: "Cancel"
-        acceptButtonColor: ThemeManager.backgroundColor
-        onAccepted: {
-            // Use the shared reconnection function
-            reconnectToServer();
-        }
-        onRejected: {
-            // User chose not to reconnect
-            voiceAssistantPage.state = "disconnected";
-        }
-    }
-
-    // Battery warning dialog
-    BatteryWarningDialog {
-        id: batteryWarningDialog
-
-        onShutdownRequested: {
-            console.log("Critical battery shutdown requested");
-            messageToast.showMessage("Shutting down due to critical battery...", 3000);
-
-            // Signal critical battery shutdown
-            if (bridge && bridge.ready) {
-                // Send BTN_POWER packet for coordinated shutdown
-                var success = bridge.sendPowerShutdownSignal();
-                if (!success) {
-                    console.log("Warning: Failed to send power shutdown signal via UART");
-                }
+    property var restartConfirmDialog: null
+    
+    function getRestartConfirmDialog() {
+        if (!restartConfirmDialog) {
+            var component = Qt.createComponent("Components/AppDialog.qml");
+            if (component.status === Component.Ready) {
+                restartConfirmDialog = component.createObject(voiceAssistantPage, {
+                    "dialogTitle": "Reset Application",
+                    "message": "Are you sure you want to reset the application?\nThis will clear your conversation and reconnect to the server.",
+                    "standardButtonTypes": DialogButtonBox.Yes | DialogButtonBox.No,
+                    "yesButtonText": "Reset",
+                    "noButtonText": "Cancel",
+                    "acceptButtonColor": ThemeManager.backgroundColor
+                });
+                
+                restartConfirmDialog.accepted.connect(function() {
+                    // Reset the application
+                    restartApplication();
+                });
+            } else {
+                console.error("Failed to create restart dialog:", component.errorString());
             }
         }
+        return restartConfirmDialog;
+    }
 
-        onAcknowledged: {
-            batteryWarningDialog.close();
+    property var confirmServerChangeDialog: null
+    
+    function getConfirmServerChangeDialog() {
+        if (!confirmServerChangeDialog) {
+            var component = Qt.createComponent("Components/AppDialog.qml");
+            if (component.status === Component.Ready) {
+                confirmServerChangeDialog = component.createObject(voiceAssistantPage, {
+                    "dialogTitle": "Server Connection",
+                    "message": "Server connection lost. Do you want to reconnect?",
+                    "standardButtonTypes": DialogButtonBox.Yes | DialogButtonBox.No,
+                    "yesButtonText": "Reconnect",
+                    "noButtonText": "Cancel",
+                    "acceptButtonColor": ThemeManager.backgroundColor
+                });
+                
+                confirmServerChangeDialog.accepted.connect(function() {
+                    // Use the shared reconnection function
+                    reconnectToServer();
+                });
+                
+                confirmServerChangeDialog.rejected.connect(function() {
+                    // User chose not to reconnect
+                    voiceAssistantPage.state = "disconnected";
+                });
+            } else {
+                console.error("Failed to create server change dialog:", component.errorString());
+            }
         }
+        return confirmServerChangeDialog;
+    }
+
+    property var batteryWarningDialog: null
+    
+    function getBatteryWarningDialog() {
+        if (!batteryWarningDialog) {
+            var component = Qt.createComponent("Components/BatteryWarningDialog.qml");
+            if (component.status === Component.Ready) {
+                batteryWarningDialog = component.createObject(voiceAssistantPage);
+                
+                batteryWarningDialog.shutdownRequested.connect(function() {
+                    console.log("Critical battery shutdown requested");
+                    messageToast.showMessage("Shutting down due to critical battery...", 3000);
+
+                    // Signal critical battery shutdown
+                    if (bridge && bridge.ready) {
+                        // Send BTN_POWER packet for coordinated shutdown
+                        var success = bridge.sendPowerShutdownSignal();
+                        if (!success) {
+                            console.log("Warning: Failed to send power shutdown signal via UART");
+                        }
+                    }
+                });
+                
+                batteryWarningDialog.acknowledged.connect(function() {
+                    batteryWarningDialog.close();
+                });
+            } else {
+                console.error("Failed to create battery warning dialog:", component.errorString());
+            }
+        }
+        return batteryWarningDialog;
     }
 
     // Battery monitoring timer
@@ -1116,10 +1157,11 @@ PageBase {
                 if (batteryInfo.isCritical && !batteryInfo.isCharging) {
                     if (!criticalBatteryWarningShown) {
                         console.log("Critical battery detected: " + batteryInfo.capacity + "%");
-                        batteryWarningDialog.batteryLevel = batteryInfo.capacity;
-                        batteryWarningDialog.isCritical = true;
-                        batteryWarningDialog.isCharging = batteryInfo.isCharging;
-                        batteryWarningDialog.open();
+                        var dialog = getBatteryWarningDialog();
+                        dialog.batteryLevel = batteryInfo.capacity;
+                        dialog.isCritical = true;
+                        dialog.isCharging = batteryInfo.isCharging;
+                        dialog.open();
                         criticalBatteryWarningShown = true;
 
                         // Auto-shutdown after 30 seconds if not charging
@@ -1130,10 +1172,11 @@ PageBase {
                 if (batteryInfo.isLow && !batteryInfo.isCharging) {
                     if (!lowBatteryWarningShown && !criticalBatteryWarningShown) {
                         console.log("Low battery detected: " + batteryInfo.capacity + "%");
-                        batteryWarningDialog.batteryLevel = batteryInfo.capacity;
-                        batteryWarningDialog.isCritical = false;
-                        batteryWarningDialog.isCharging = batteryInfo.isCharging;
-                        batteryWarningDialog.open();
+                        var dialog = getBatteryWarningDialog();
+                        dialog.batteryLevel = batteryInfo.capacity;
+                        dialog.isCritical = false;
+                        dialog.isCharging = batteryInfo.isCharging;
+                        dialog.open();
                         lowBatteryWarningShown = true;
                     }
                 } else
@@ -1152,7 +1195,7 @@ PageBase {
     // Critical battery auto-shutdown timer
     Timer {
         id: criticalShutdownTimer
-        interval: 30000 // 30 seconds
+        interval: 30000
         repeat: false
         running: false
 
@@ -1167,6 +1210,22 @@ PageBase {
                     console.log("Warning: Failed to send power shutdown signal via UART");
                 }
             }
+        }
+    }
+
+    // Cleanup lazy-loaded dialogs
+    Component.onDestruction: {
+        if (serverListDialog) {
+            serverListDialog.destroy();
+        }
+        if (restartConfirmDialog) {
+            restartConfirmDialog.destroy();
+        }
+        if (confirmServerChangeDialog) {
+            confirmServerChangeDialog.destroy();
+        }
+        if (batteryWarningDialog) {
+            batteryWarningDialog.destroy();
         }
     }
 }
