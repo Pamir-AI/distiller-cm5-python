@@ -54,13 +54,45 @@ Rectangle {
             visible: sender !== ""
         }
 
-        // Use our MarkdownText component
-        MarkdownText {
-            markdownText: content
-            textFont: FontManager.normal
-            textColor: ThemeManager.textColor
+        // Smart component selection: Text for simple messages, MarkdownText for complex formatting
+        Loader {
+            id: textLoader
             Layout.fillWidth: true
-            Layout.preferredHeight: implicitHeight
+            Layout.preferredHeight: item ? item.implicitHeight : 0
+            readonly property bool needsMarkdown: content && (
+                content.includes("**") ||
+                content.includes("*") ||
+                content.includes("`") ||
+                content.includes("#") ||
+                content.includes("[") ||
+                content.includes(">") ||
+                content.includes("```") ||
+                content.includes("- ") ||
+                content.includes("1. ") ||
+                content.includes("|")
+            )
+            
+            sourceComponent: needsMarkdown ? markdownComponent : textComponent
+            
+            Component {
+                id: textComponent
+                Text {
+                    text: content
+                    font: FontManager.normal
+                    color: ThemeManager.textColor
+                    wrapMode: Text.Wrap
+                    textFormat: Text.PlainText
+                }
+            }
+            
+            Component {
+                id: markdownComponent  
+                MarkdownText {
+                    markdownText: content
+                    textFont: FontManager.normal
+                    textColor: ThemeManager.textColor
+                }
+            }
         }
 
         RowLayout {
