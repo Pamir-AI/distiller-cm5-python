@@ -1148,15 +1148,27 @@ PageBase {
 
         property bool lowBatteryWarningShown: false
         property bool criticalBatteryWarningShown: false
+        property bool temperatureWarningShown: false
 
         onTriggered: {
             if (bridge && bridge.ready) {
                 var batteryInfo = bridge.getBatteryInfo();
 
-                // Check for critical battery (≤1%)
-                if (batteryInfo.isCritical && !batteryInfo.isCharging) {
+                // Check for temperature warning (>55°C)
+                if (batteryInfo.isTemperatureWarning) {
+                    if (!temperatureWarningShown) {
+                        console.log("Battery temperature warning: " + batteryInfo.temperature + "°C");
+                        messageToast.showMessage("Battery temperature high: " + Math.round(batteryInfo.temperature) + "°C", 5000);
+                        temperatureWarningShown = true;
+                    }
+                } else {
+                    temperatureWarningShown = false;
+                }
+
+                // Check for critical battery (≤1%) - enhanced charging check
+                if (batteryInfo.isCritical && !batteryInfo.isCharging && batteryInfo.current_ma <= 0) {
                     if (!criticalBatteryWarningShown) {
-                        console.log("Critical battery detected: " + batteryInfo.capacity + "%");
+                        console.log("Critical battery detected: " + batteryInfo.capacity + "% (current: " + batteryInfo.current_ma + "mA)");
                         var dialog = getBatteryWarningDialog();
                         dialog.batteryLevel = batteryInfo.capacity;
                         dialog.isCritical = true;
@@ -1168,10 +1180,10 @@ PageBase {
                         criticalShutdownTimer.start();
                     }
                 } else
-                // Check for low battery (≤15%)
-                if (batteryInfo.isLow && !batteryInfo.isCharging) {
+                // Check for low battery (≤15%) - enhanced charging check
+                if (batteryInfo.isLow && !batteryInfo.isCharging && batteryInfo.current_ma <= 0) {
                     if (!lowBatteryWarningShown && !criticalBatteryWarningShown) {
-                        console.log("Low battery detected: " + batteryInfo.capacity + "%");
+                        console.log("Low battery detected: " + batteryInfo.capacity + "% (current: " + batteryInfo.current_ma + "mA)");
                         var dialog = getBatteryWarningDialog();
                         dialog.batteryLevel = batteryInfo.capacity;
                         dialog.isCritical = false;
@@ -1181,7 +1193,7 @@ PageBase {
                     }
                 } else
                 // Reset warnings if charging or battery level improved
-                if (batteryInfo.isCharging || batteryInfo.capacity > 20) {
+                if (batteryInfo.isCharging || batteryInfo.current_ma > 0 || batteryInfo.capacity > 20) {
                     lowBatteryWarningShown = false;
                     if (batteryInfo.capacity > 5) {
                         criticalBatteryWarningShown = false;

@@ -22,12 +22,19 @@ monitor_interval = 10000    # 10 seconds - main battery monitoring
 # Hardware configuration
 sysfs_path = "/sys/class/power_supply/pamir_battery"
 
-[battery.colors]
-# Color configuration for UI (1-bit display compatible)
-critical = "#FF0000"    # Red - critical
-low = "#FF8800"         # Orange - low
-warning = "#FFAA00"     # Yellow - warning
-good = "#00AA00"        # Green - good
+[battery.status_patterns]
+# Status indication patterns for 1-bit monochrome display
+critical = "solid_black"     # Solid black fill - critical
+low = "diagonal_stripes"     # Diagonal stripes - low
+warning = "cross_hatch"      # Cross-hatch pattern - warning
+good = "solid_fill"          # Normal solid fill - good
+
+[battery.status_text]
+# Text indicators for battery status (1-bit display compatible)
+critical = "CRIT"           # Critical battery text
+low = "LOW"                 # Low battery text
+warning = "WARN"            # Warning battery text
+good = "OK"                 # Good battery text
 
 [battery.icons.charging]
 # Icon names for charging states
