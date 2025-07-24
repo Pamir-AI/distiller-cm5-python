@@ -10,14 +10,21 @@ NavigableItem {
     property bool isCritical: false
     property bool showPercentage: true
     property bool compact: false
+    property real currentMa: 0.0
+    property bool isTemperatureWarning: false
+    property string statusPattern: "solid_fill"
+    property string statusText: "OK"
 
     // Make it navigable
     property bool navigable: true
 
     signal batteryClicked
 
-    width: compact ? 64 : 80
-    height: compact ? 25 : 35
+    width: {
+        var baseWidth = compact ? 80 : 96
+        return isCharging ? baseWidth * 1.5 : baseWidth
+    }
+    height: compact ? 36 : 40
 
     // Override NavigableItem's clicked signal
     onClicked: batteryIndicator.batteryClicked()
@@ -35,6 +42,10 @@ NavigableItem {
             isCharging = info.isCharging || false;
             isLow = info.isLow || false;
             isCritical = info.isCritical || false;
+            currentMa = info.current_ma || 0.0;
+            isTemperatureWarning = info.isTemperatureWarning || false;
+            statusPattern = info.statusPattern || "solid_fill";
+            statusText = info.statusText || "OK";
         }
     }
 
@@ -51,35 +62,37 @@ NavigableItem {
             Text {
                 visible: showPercentage
                 text: batteryLevel + "%"
-                font: compact ? FontManager.tiny : FontManager.small
+                font: compact ? FontManager.small : FontManager.normal
                 color: ThemeManager.textColor
                 anchors.verticalCenter: parent.verticalCenter
                 renderType: Text.NativeRendering
             }
 
-            // Charging indicator - simplified for 1-bit
+            // Charging indicator - enhanced with current_ma check
             Text {
-                visible: isCharging
+                visible: isCharging && currentMa > 0
                 text: "↯" // Simple lightning bolt that works in 1-bit
-                font: compact ? FontManager.tiny : FontManager.small
+                font: compact ? FontManager.small : FontManager.medium
                 color: ThemeManager.textColor
                 anchors.verticalCenter: parent.verticalCenter
                 renderType: Text.NativeRendering
+                style: Text.Outline
+                styleColor: ThemeManager.backgroundColor
             }
 
-            // Battery Icon - simplified for 1-bit display (moved to second position)
+            // Simple battery icon - clean design for e-ink
             Rectangle {
-                width: compact ? 16 : 20
-                height: compact ? 10 : 12
-                radius: 1
-                border.width: 2  // Thickened border
+                width: compact ? 28 : 36
+                height: compact ? 16 : 20
+                radius: 2
+                border.width: 2
                 border.color: ThemeManager.textColor
                 color: ThemeManager.backgroundColor
 
                 // Battery terminal (positive end)
                 Rectangle {
-                    width: 2
-                    height: parent.height * 0.6
+                    width: 3
+                    height: parent.height * 0.7
                     anchors.right: parent.right
                     anchors.rightMargin: -1
                     anchors.verticalCenter: parent.verticalCenter
@@ -87,39 +100,35 @@ NavigableItem {
                     radius: 1
                 }
 
-                // Battery fill level - using patterns for 1-bit display
+                // Simple fill level indicator
                 Rectangle {
-                    id: batteryFill
-                    width: Math.max(2, (parent.width - 4) * (batteryLevel / 100))
-                    height: parent.height - 4
+                    width: Math.max(2, (parent.width - 6) * (batteryLevel / 100))
+                    height: parent.height - 6
                     anchors.left: parent.left
-                    anchors.leftMargin: 2
+                    anchors.leftMargin: 3
                     anchors.verticalCenter: parent.verticalCenter
+                    color: ThemeManager.textColor
                     radius: 1
-
-                    // Use solid fill or pattern based on battery state
-                    color: {
-                        if (isCritical) {
-                            // Solid black for critical (will flash)
-                            return ThemeManager.textColor;
-                        } else if (isLow) {
-                            // Diagonal stripes pattern for low battery
-                            return ThemeManager.textColor;
-                        } else {
-                            // Normal fill
-                            return ThemeManager.textColor;
-                        }
-                    }
                 }
 
-                // Low battery warning pattern - using cross-hatch
-                Rectangle {
-                    visible: isLow && !isCritical
-                    anchors.fill: batteryFill
-                    color: "transparent"
-                    border.width: 2  // Thickened border
-                    border.color: ThemeManager.textColor
-                    radius: batteryFill.radius
+                // Status text overlay - simple and readable
+                Text {
+                    visible: isCritical || isLow || isTemperatureWarning
+                    text: {
+                        if (isTemperatureWarning)
+                            return "⚠";
+                        if (isCritical)
+                            return "!";
+                        if (isLow)
+                            return "L";
+                        return "";
+                    }
+                    font: compact ? FontManager.small : FontManager.medium
+                    color: ThemeManager.textColor
+                    anchors.centerIn: parent
+                    renderType: Text.NativeRendering
+                    style: Text.Outline
+                    styleColor: ThemeManager.backgroundColor
                 }
             }
         }

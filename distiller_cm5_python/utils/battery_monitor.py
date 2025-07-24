@@ -149,18 +149,44 @@ class BatteryMonitor:
             else:
                 return self.config.icons.discharging["critical"]
 
-    def get_battery_color(self) -> str:
-        """Get appropriate color for battery indicator."""
+    def get_battery_status_pattern(self) -> str:
+        """Get appropriate pattern for battery indicator (1-bit display)."""
         level = self.get_battery_level()
 
         if level <= self.config.thresholds.critical:
-            return self.config.colors.critical
+            return self.config.status_patterns.critical
         elif level <= self.config.thresholds.low:
-            return self.config.colors.low
+            return self.config.status_patterns.low
         elif level <= self.config.thresholds.warning:
-            return self.config.colors.warning
+            return self.config.status_patterns.warning
         else:
-            return self.config.colors.good
+            return self.config.status_patterns.good
+
+    def get_battery_status_text(self) -> str:
+        """Get appropriate text for battery indicator (1-bit display)."""
+        level = self.get_battery_level()
+
+        if level <= self.config.thresholds.critical:
+            return self.config.status_text.critical
+        elif level <= self.config.thresholds.low:
+            return self.config.status_text.low
+        elif level <= self.config.thresholds.warning:
+            return self.config.status_text.warning
+        else:
+            return self.config.status_text.good
+
+    def get_battery_color(self) -> str:
+        """Get appropriate color for battery indicator (deprecated - use patterns)."""
+        level = self.get_battery_level()
+
+        if level <= self.config.thresholds.critical:
+            return "#000000"  # Black for critical
+        elif level <= self.config.thresholds.low:
+            return "#000000"  # Black for low
+        elif level <= self.config.thresholds.warning:
+            return "#000000"  # Black for warning
+        else:
+            return "#000000"  # Black for good (1-bit display)
 
     def should_show_warning(self) -> bool:
         """Check if low battery warning should be shown."""
@@ -198,22 +224,23 @@ def get_battery_info() -> Dict[str, any]:
     if not status:
         # Return default values if battery hardware is not available
         return {
-            "capacity": 1,
+            "capacity": 100,
             "status": "Unknown",
-            "isCharging": False,
+            "isCharging": True,
             "isLow": False,
             "isCritical": True,
             "iconName": "battery-unknown",
-            "color": "#808080",  # Grey color for unknown
+            "statusPattern": "solid_fill",  # Default pattern
+            "statusText": "UNK",  # Unknown status text
             "voltage": 0.0,
-            "current": 0.0,
-            "current_ma": 0.0,
+            "current": 10.0,
+            "current_ma": 10.0,
             "temperature": 0.0,
             "present": False,
             "technology": "Unknown",
-            "shouldShowWarning": True,
+            "shouldShowWarning": False,
             "shouldShutdown": False,
-            "isTemperatureWarning": True,
+            "isTemperatureWarning": False,
         }
 
     return {
@@ -223,7 +250,8 @@ def get_battery_info() -> Dict[str, any]:
         "isLow": monitor.is_low_battery(),
         "isCritical": monitor.is_critical_battery(),
         "iconName": monitor.get_battery_icon_name(),
-        "color": monitor.get_battery_color(),
+        "statusPattern": monitor.get_battery_status_pattern(),
+        "statusText": monitor.get_battery_status_text(),
         "voltage": status.voltage_now,
         "current": status.current_now,
         "current_ma": monitor.get_current_ma(),

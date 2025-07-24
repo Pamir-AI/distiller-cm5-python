@@ -37,13 +37,23 @@ class BatteryHardwareConfig:
 
 
 @dataclass
-class BatteryColors:
-    """Battery UI color configuration."""
+class BatteryStatusPatterns:
+    """Battery status patterns for 1-bit monochrome display."""
 
-    critical: str = "#FF0000"  # Red - critical
-    low: str = "#FF8800"  # Orange - low
-    warning: str = "#FFAA00"  # Yellow - warning
-    good: str = "#00AA00"  # Green - good
+    critical: str = "solid_black"  # Solid black fill - critical
+    low: str = "diagonal_stripes"  # Diagonal stripes - low
+    warning: str = "cross_hatch"  # Cross-hatch pattern - warning
+    good: str = "solid_fill"  # Normal solid fill - good
+
+
+@dataclass
+class BatteryStatusText:
+    """Battery status text indicators for 1-bit display."""
+
+    critical: str = "CRIT"  # Critical battery text
+    low: str = "LOW"  # Low battery text
+    warning: str = "WARN"  # Warning battery text
+    good: str = "OK"  # Good battery text
 
 
 @dataclass
@@ -76,7 +86,10 @@ class BatteryConfig:
     thresholds: BatteryThresholds = field(default_factory=BatteryThresholds)
     monitoring: BatteryMonitoringConfig = field(default_factory=BatteryMonitoringConfig)
     hardware: BatteryHardwareConfig = field(default_factory=BatteryHardwareConfig)
-    colors: BatteryColors = field(default_factory=BatteryColors)
+    status_patterns: BatteryStatusPatterns = field(
+        default_factory=BatteryStatusPatterns
+    )
+    status_text: BatteryStatusText = field(default_factory=BatteryStatusText)
     icons: BatteryIcons = field(default_factory=BatteryIcons)
 
     @classmethod
@@ -133,14 +146,28 @@ class BatteryConfig:
                     )
                 )
 
-            # Load colors
-            if "colors" in battery_data:
-                colors_data = battery_data["colors"]
-                config.colors = BatteryColors(
-                    critical=colors_data.get("critical", config.colors.critical),
-                    low=colors_data.get("low", config.colors.low),
-                    warning=colors_data.get("warning", config.colors.warning),
-                    good=colors_data.get("good", config.colors.good),
+            # Load status patterns
+            if "status_patterns" in battery_data:
+                patterns_data = battery_data["status_patterns"]
+                config.status_patterns = BatteryStatusPatterns(
+                    critical=patterns_data.get(
+                        "critical", config.status_patterns.critical
+                    ),
+                    low=patterns_data.get("low", config.status_patterns.low),
+                    warning=patterns_data.get(
+                        "warning", config.status_patterns.warning
+                    ),
+                    good=patterns_data.get("good", config.status_patterns.good),
+                )
+
+            # Load status text
+            if "status_text" in battery_data:
+                text_data = battery_data["status_text"]
+                config.status_text = BatteryStatusText(
+                    critical=text_data.get("critical", config.status_text.critical),
+                    low=text_data.get("low", config.status_text.low),
+                    warning=text_data.get("warning", config.status_text.warning),
+                    good=text_data.get("good", config.status_text.good),
                 )
 
             # Load icons
