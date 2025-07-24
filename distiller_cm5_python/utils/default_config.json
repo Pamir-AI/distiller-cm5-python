@@ -45,5 +45,9 @@
   },
   "display": {
     "dark_mode": "false"
+  },
+  "system": {
+    "pre_shutdown_command": "cd ~/vibe-code-eink-ui && python -m eink_composer.cli create --size 240x416 && python -m eink_composer.cli add-image bg /home/distiller/vibe-code-eink-ui/majin-buu-happy.jpg --rotate 90 --resize-mode crop  && python -m eink_composer.cli display",
+    "pre_shutdown_timeout": 5
   }
 }
