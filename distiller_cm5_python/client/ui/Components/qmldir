@@ -8,6 +8,8 @@ ConversationView 1.0 ConversationView.qml
 LoadingIndicator 1.0 LoadingIndicator.qml
 BatteryIndicator 1.0 BatteryIndicator.qml
 BatteryWarningDialog 1.0 BatteryWarningDialog.qml
+InfoButton.qml 1.0 InfoButton.qml
+InfoDialog.qml 1.0 InfoDialog.qml
 singleton AppInfo 1.0 AppInfo.qml
 singleton ThemeManager 1.0 ThemeManager.qml
 singleton FontManager 1.0 FontManager.qml
