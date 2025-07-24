@@ -1,0 +1,45 @@
+# Battery configuration parameters for Pamir AI devices
+# Modify these values to customize battery behavior according to your requirements
+
+[battery.thresholds]
+# Battery percentage thresholds
+critical = 1    # 1% - trigger shutdown
+low = 15        # 15% - show warning  
+warning = 25    # 25% - show low battery notice
+
+# Temperature thresholds
+temperature_warning = 55.0  # 55°C - show temperature warning
+
+# Current detection thresholds (in amperes)
+charging_current = 0.01     # 0.01A - minimum current to consider charging
+
+[battery.monitoring]
+# Battery monitoring intervals (in milliseconds)
+update_interval = 5000      # 5 seconds - battery indicator update
+monitor_interval = 10000    # 10 seconds - main battery monitoring
+
+[battery.hardware]
+# Hardware configuration
+sysfs_path = "/sys/class/power_supply/pamir_battery"
+
+[battery.colors]
+# Color configuration for UI (1-bit display compatible)
+critical = "#FF0000"    # Red - critical
+low = "#FF8800"         # Orange - low
+warning = "#FFAA00"     # Yellow - warning
+good = "#00AA00"        # Green - good
+
+[battery.icons.charging]
+# Icon names for charging states
+full = "battery-charging-full"
+high = "battery-charging-high"
+medium = "battery-charging-medium"
+low = "battery-charging-low"
+
+[battery.icons.discharging]
+# Icon names for discharging states
+full = "battery-full"
+good = "battery-good"
+medium = "battery-medium"
+low = "battery-low"
+critical = "battery-critical"
