@@ -2,9 +2,9 @@
 """
 MCP Server: Full LED Control
 
-This MCP server exposes tools to fully control the RGB LED on the Distiller CM5 device.
+This MCP server exposes tools to fully control all 4 RGB LEDs on the Distiller CM5 device.
 Available tools:
-  - set_led_color: Set the LED to a specific RGB color and brightness
+  - set_led_color: Set all 4 LEDs to a specific RGB color and brightness
   - clear_led: Turn off all LEDs
 
 Follow llms.txt guidelines for MCP server implementations.
@@ -50,7 +50,7 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="set_led_color",
-            description="Set the RGB LED to a specific color and brightness.",
+            description="Set all 4 RGB LEDs to the same specific color and brightness.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -84,19 +84,28 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
 
     try:
         if name == "set_led_color":
-            r = args.get("r")
-            g = args.get("g")
-            b = args.get("b")
-            brightness = args.get("brightness", 1.0)
+            r = args.get("r") or 0
+            g = args.get("g") or 0
+            b = args.get("b") or 0
+            brightness = args.get("brightness") or 1.0
             
             try:
-                success = led.set_led_color(r, g, b, brightness)
-                text = (
-                    f"LED set to color (R:{r}, G:{g}, B:{b}) at brightness {brightness}" 
-                    if success else "Failed to set LED color"
-                )
+                available_leds = [0, 1, 2, 3]
+                failed_leds = []
+                
+                for led_id in available_leds:
+                    success = led.set_led_color(r, g, b, brightness, led_id=led_id)
+                    if not success:
+                        failed_leds.append(led_id)
+                
+                if not failed_leds:
+                    text = f"All {len(available_leds)} LEDs set to color (R:{r}, G:{g}, B:{b}) at brightness {brightness}"
+                else:
+                    text = f"Failed to set LEDs: {failed_leds}. Successfully set: {len(available_leds) - len(failed_leds)}/{len(available_leds)} LEDs to (R:{r}, G:{g}, B:{b}) at brightness {brightness}"
+                    logger.warning(text)
+                    
             except Exception as e:
-                error_msg = f"Exception while setting LED color: {str(e)}"
+                error_msg = f"Exception while setting LED colors: {str(e)}"
                 logger.error(error_msg, exc_info=True)
                 text = error_msg
             
@@ -104,7 +113,7 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
 
         elif name == "clear_led":
             try:
-                available_leds = led.get_available_leds()
+                available_leds = [0, 1, 2, 3]
                 failed_leds = []
                 
                 for led_id in available_leds:
