@@ -7,8 +7,8 @@ This directory contains shared utility modules and configuration files used acro
 - **`config.py`**:
     - Provides a centralized mechanism for managing application settings.
     - Loads configuration in the following order of precedence (lowest to highest):
-        1. Defaults from `utils/default_config.json`.
-        2. User-defined configuration file (path specified by `MCP_CONFIG_FILE` env var, defaults to `mcp_config.json` in the runtime directory).
+        1. Defaults from `utils/default_config.toml`.
+        2. User-defined configuration file (path specified by `MCP_CONFIG_FILE` env var, defaults to `mcp_config.toml` in the runtime directory).
         3. Environment variables (e.g., `LLM_MODEL`, `LOG_LEVEL`).
     - Exports commonly used configuration parameters directly (e.g., `SERVER_URL`, `MODEL_NAME`, `LOGGING_LEVEL`). Check the file for available constants.
 - **`logger.py`**:
@@ -22,7 +22,7 @@ This directory contains shared utility modules and configuration files used acro
 
 ## Configuration Files
 
-- **`default_config.json`**: Contains the base default configuration values used by `config.py` if no overrides are found in user config files or environment variables.
+- **`default_config.toml`**: Contains the base default configuration values used by `config.py` if no overrides are found in user config files or environment variables.
 
 ## Usage
 
