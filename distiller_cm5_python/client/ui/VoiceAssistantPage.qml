@@ -71,8 +71,8 @@ PageBase {
             if (header.serverSelectButton && header.serverSelectButton.navigable)
                 focusableItems.push(header.serverSelectButton);
 
-            if (header.statusButton && header.statusButton.navigable)
-                focusableItems.push(header.statusButton);
+            if (header.infoButton && header.infoButton.navigable)
+                focusableItems.push(header.infoButton);
 
             if (header.closeButton && header.closeButton.navigable)
                 focusableItems.push(header.closeButton);
@@ -742,10 +742,25 @@ PageBase {
             if (messageToast)
                 messageToast.showMessage(message, duration);
         }
+        onInfoClicked: {
+            // Store current focused item before opening dialog
+            previousFocusedItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
+            console.log("Opening InfoDialog, storing previous focus:", previousFocusedItem ? previousFocusedItem.objectName : "None");
+            
+            // Show info dialog with error handling
+            var dialog = getInfoDialog();
+            if (dialog) {
+                dialog.open();
+            } else {
+                console.error("Failed to create InfoDialog");
+                messageToast.showMessage("Error: Could not open info dialog", 3000);
+            }
+        }
     }
 
     // Lazy-loaded dialogs
     property var serverListDialog: null
+    property var infoDialog: null
     
     function getServerListDialog() {
         if (!serverListDialog) {
@@ -800,6 +815,53 @@ PageBase {
             }
         }
         return serverListDialog;
+    }
+
+    function getInfoDialog() {
+        if (!infoDialog) {
+            var component = Qt.createComponent("Components/InfoDialog.qml");
+            console.log("InfoDialog component status:", component.status);
+            
+            if (component.status === Component.Ready) {
+                infoDialog = component.createObject(voiceAssistantPage);
+                if (!infoDialog) {
+                    console.error("Failed to create InfoDialog object");
+                    return null;
+                }
+                
+                infoDialog.dialogClosed.connect(function() {
+                    // Reinitialize focus items in the parent page when dialog closes
+                    Qt.callLater(function () {
+                        console.log("InfoDialog closed, restoring focus...");
+                        collectFocusItems();
+                        
+                        // Try to restore to previous focused item first
+                        if (previousFocusedItem && previousFocusedItem.navigable) {
+                            console.log("Restoring focus to previous item:", previousFocusedItem.objectName);
+                            FocusManager.setFocusToItem(previousFocusedItem);
+                        } else if (voiceInputArea && voiceInputArea.voiceButton && voiceInputArea.voiceButton.navigable) {
+                            // Fallback to voice button
+                            console.log("Restoring focus to voice button");
+                            FocusManager.setFocusToItem(voiceInputArea.voiceButton);
+                        } else if (focusableItems.length > 0) {
+                            // Fallback to first focusable item
+                            console.log("Restoring focus to first focusable item");
+                            FocusManager.setFocusToItem(focusableItems[0]);
+                        }
+                        
+                        // Clear the previous focused item
+                        previousFocusedItem = null;
+                    });
+                });
+            } else if (component.status === Component.Error) {
+                console.error("Failed to create InfoDialog component:", component.errorString());
+                return null;
+            } else {
+                console.log("InfoDialog component not ready, status:", component.status);
+                return null;
+            }
+        }
+        return infoDialog;
     }
 
     ConversationView {
