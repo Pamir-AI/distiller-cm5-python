@@ -1,0 +1,42 @@
+# E-Ink display configuration for Raspberry Pi
+
+[display]
+# Core E-Ink Settings
+eink_enabled = false
+width = 240
+height = 416
+
+# Performance Settings
+eink_refresh_interval = 1000        # Milliseconds between captures
+eink_adaptive_capture = true        # Automatically adjust refresh rate based on activity
+eink_full_refresh_interval = 30     # Full refresh every N frames
+eink_timer_based_mode = false       # Use timer-based capture (False = event-driven mode)
+
+# Image Processing Settings - Optimized for UI content
+eink_threshold = 128                # Black/white threshold (0-255)
+
+[display.eink_bw_conversion]
+use_gamma = true                    # Apply gamma correction for better E-Ink contrast
+gamma_value = 0.8                   # (0.7-0.9 recommended)
+
+[display.hardware]
+# Hardware Settings
+full_refresh_lut_mode = true        # Use full refresh LUT mode for better quality
+
+[display.debug]
+# Debug Settings
+eink_save_capture = true            # Save screen captures for debugging
+
+[display.ui]
+# UI Settings
+dark_mode = false
+show_system_stats = true
+
+[display.ui.font]
+# Font Configuration
+primary_font = "fonts/MartianMonoNerdFont-CondensedBold.ttf"
+size_small = 12
+size_normal = 14
+size_medium = 16
+size_large = 18
+size_xlarge = 20
