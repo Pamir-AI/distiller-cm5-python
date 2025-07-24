@@ -23,16 +23,11 @@ wget -O qwen2.5-3b-instruct-q4_k_m.gguf \
 
 ## Configuration
 
-Update the model path in `distiller_cm5_python/utils/default_config.json` to use different models:
+Update the model path in `distiller_cm5_python/utils/default_config.toml` to use different models:
 
-```json
-{
-  "llm_providers": {
-    "llama-cpp": {
-      "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf"
-    }
-  }
-}
+```toml
+[llm_providers.llama-cpp]
+model_name = "qwen2.5-3b-instruct-q4_k_m.gguf"
 ```
 
 ## Storage Requirements
