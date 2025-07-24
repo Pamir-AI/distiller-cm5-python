@@ -1,12 +1,13 @@
 """Configuration management for the MCP client application."""
 
 import os
-import json
+import logging
+import tomllib
 from typing import Dict, Any
+from .config_loader import load_toml_config, get_main_config_path
 
-DEFAULT_CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "default_config.json"
-)
+logger = logging.getLogger(__name__)
+DEFAULT_CONFIG_PATH = str(get_main_config_path())
 
 
 class Config:
@@ -28,35 +29,68 @@ class Config:
         self._load_from_env()
 
     def _load_default_config(self):
-        """Load the default configuration from the default_config.json file."""
-        default_config_path = DEFAULT_CONFIG_PATH
-        try:
-            with open(default_config_path, "r") as f:
-                return json.load(f)
-
-        except FileNotFoundError:
-            print(
-                f"Warning: Default configuration file not found at {default_config_path}"
-            )
-            # Provide a minimal fallback configuration
-            return {
-                "llm": {
-                    "model_name": "pamir_3B_q4k_m.gguf",
+        """Load the default configuration from the TOML file."""
+        config_data = load_toml_config(get_main_config_path())
+        
+        if config_data:
+            return config_data
+        
+        # Fallback to hardcoded defaults if TOML file is not available
+        logger.warning("Using hardcoded configuration defaults")
+        return {
+            "llm_providers": {
+                "llama-cpp": {
+                    "server_url": "http://127.0.0.1:8000",
+                    "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
                     "provider_type": "llama-cpp",
                     "api_key": "",
-                    "timeout": 30,
+                    "timeout": 300,
+                    "temperature": 0.7,
+                    "top_p": 0.8,
+                    "top_k": 20,
+                    "min_p": 0.0,
+                    "repetition_penalty": 1.5,
+                    "n_ctx": 32768,
+                    "max_tokens": 4096,
+                    "stop": ["user:"],
+                    "streaming": True,
+                    "streaming_chunk_size": 4,
+                    "max_messages_length": 100
                 },
-                "processing": {"streaming": True},
-                "logging": {"level": "debug"},
+                "openrouter": {
+                    "server_url": "https://openrouter.ai/api/v1",
+                    "model_name": "*",
+                    "provider_type": "openrouter",
+                    "api_key": "sk-or-v1-*",
+                    "timeout": 60,
+                    "temperature": 0.7,
+                    "streaming": True,
+                    "max_tokens": 8192
+                }
+            },
+            "application": {
+                "active_llm_provider": "llama-cpp"
+            },
+            "logging": {
+                "level": "INFO",
+                "file_enabled": False,
+                "file_path": "mcp_client.log"
+            },
+            "prompts": {
+                "default_system_prompt": "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."
+            },
+            "mcp_server": {
+                "server_script_path": "distiller_cm5_python/mcp_server/led-use_server.py"
+            },
+            "display": {
+                "dark_mode": False
             }
-        except json.JSONDecodeError as e:
-            print(f"Error parsing default configuration file: {e}")
-            raise
+        }
 
     def _load_from_file(self):
         """Load configuration from a user config file if available."""
         # Determine config file path (MCP_CONFIG_FILE env var or default)
-        default_user_config_path = "mcp_config.json"
+        default_user_config_path = "mcp_config.toml"
         config_file = os.getenv("MCP_CONFIG_FILE", default_user_config_path)
 
         # Check if the file exists, but only print message if it's not the default path
@@ -64,8 +98,12 @@ class Config:
         file_exists = os.path.exists(config_file)
         if file_exists:
             try:
-                with open(config_file, "r") as f:
-                    file_config = json.load(f)
+                # Only TOML format is supported
+                if not config_file.endswith('.toml'):
+                    print(f"Warning: Configuration file '{config_file}' should have .toml extension. Only TOML format is supported.")
+                    return
+                with open(config_file, "rb") as f:
+                    file_config = tomllib.load(f)
                 self._merge_configs(self.config, file_config)
                 print(f"Loaded configuration from {config_file}")
             except Exception as e:
@@ -79,7 +117,7 @@ class Config:
 
         Environment variables primarily override settings for the *active* LLM provider.
         """
-        active_provider = self.get("active_llm_provider", default="<missing>")
+        active_provider = self.get("application", "active_llm_provider", default="<missing>")
         if active_provider == "<missing>" or not self.get(
             "llm_providers", active_provider
         ):
@@ -259,13 +297,17 @@ class Config:
         return self.config.copy()
 
     def save_to_file(self, filepath: str) -> None:
-        """Save the current configuration to a file.
+        """Save the current configuration to a TOML file.
 
         Args:
-            filepath: Path to save the configuration to
+            filepath: Path to save the configuration to (must end with .toml)
         """
-        with open(filepath, "w") as f:
-            json.dump(self.config, f, indent=2)
+        if not filepath.endswith('.toml'):
+            raise ValueError("Configuration file must have .toml extension. Only TOML format is supported.")
+        
+        import tomli_w
+        with open(filepath, "wb") as f:
+            tomli_w.dump(self.config, f)
         print(f"Configuration saved to {filepath}")
 
     def reload(self) -> None:
@@ -284,9 +326,9 @@ config = Config()
 # --- Derive Active Configuration Settings ---
 
 # 1. Get the active provider name
-active_provider_name = config.get("active_llm_provider")
+active_provider_name = config.get("application", "active_llm_provider")
 if not active_provider_name:
-    raise ValueError("Configuration error: 'active_llm_provider' is not defined.")
+    raise ValueError("Configuration error: 'application.active_llm_provider' is not defined.")
 
 # 2. Get the configuration dictionary for the active provider
 active_provider_config = config.get("llm_providers", active_provider_name)
