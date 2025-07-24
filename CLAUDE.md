@@ -284,3 +284,160 @@ rm -rf distiller_cm5_python/llm_server/cache
 
 ### Performance and Resource Management
 - Always remember to not use Animations, Transitions or Heavy processing QML stuff as this project is going to be running on a small raspberrypi cm5 with limited resources.
+
+## UI Navigation and Focus Management Architecture
+
+### Navigation System Overview
+
+The application implements a **three-key navigation system** (Up, Down, Enter) specifically designed for hardware with limited input capabilities:
+
+**Navigation Flow:**
+```
+Hardware Keys → InputMonitor.py → Qt Key Events → main.qml (keyHandler) → FocusManager → UI Components
+```
+
+**Key Components:**
+- `FocusManager.qml`: Singleton managing global focus state and navigation
+- `NavigableItem.qml`: Base component for all focusable UI elements  
+- `InputMonitor.py`: Hardware input monitoring and Qt key event translation
+- `MCPClientBridge.py`: Primary bridge connecting Python logic to QML UI
+
+### Focus Management Patterns
+
+**Centralized Focus Control:**
+- `FocusManager` singleton maintains `currentFocusItems[]` array and `currentFocusIndex`
+- Focus wraps around from last to first item for circular navigation
+- Special navigation modes: scroll mode, hold-to-talk, dialog focus preservation
+
+**Focus Collection Pattern:**
+```javascript
+function collectFocusItems() {
+    focusableItems = [];
+    // Add navigable items in priority order
+    if (header.serverSelectButton && header.serverSelectButton.navigable)
+        focusableItems.push(header.serverSelectButton);
+    FocusManager.initializeFocusItems(focusableItems, scrollView);
+}
+```
+
+### QML Component Architecture
+
+**Component Hierarchy:**
+```
+Item
+├── PageBase.qml (common page functionality)
+├── NavigableItem.qml (focus management base)
+│   ├── AppButton.qml (buttons)
+│   ├── ConversationView.qml (scrollable content)
+│   └── Various input components
+```
+
+**Single Page Architecture:**
+- No traditional routing - single `VoiceAssistantPage.qml`
+- Modal dialogs for additional screens (lazy-loaded for memory efficiency)
+- State-based content switching within main page
+
+### Bridge Classes and Communication Patterns
+
+**MCPClientBridge Structure:**
+```
+MCPClientBridge
+├── ConversationManager (message history)
+├── StatusManager (application state)
+├── ServerDiscovery (MCP server detection)
+├── ConnectionManager (server connections)
+└── ErrorHandler (error processing)
+```
+
+**Communication Patterns:**
+```python
+# Python to QML
+@pyqtSignal
+bridgeReady = pyqtSignal()
+
+@pyqtSlot(result=str)
+def getWifiMacAddress(self):
+    return self.network_utils.get_wifi_mac_address()
+```
+
+```javascript
+// QML to Python
+bridge.submit_query(transcribedText.trim())
+
+// Signal connections
+Connections {
+    target: bridge
+    function onTranscriptionComplete(full_text) {
+        transcribedText = full_text;
+    }
+}
+```
+
+### State Management Architecture
+
+**Application State Flow:**
+```
+MCPClientBridge (Python) → QML Properties → UI State Updates → Visual Changes
+```
+
+**Key State Properties:**
+- `appState`: Current application mode (idle, listening, processing, etc.)
+- `isConnected`: Server connection status
+- `visualFocus`: Individual component focus state
+- `scrollModeActive`: Special navigation mode
+
+### Development Patterns for QML Components
+
+**Adding New Focusable Components:**
+1. Extend `NavigableItem` base component
+2. Implement `activate()` function for Enter key handling
+3. Add component to parent's `focusableItems` array
+4. Use `ThemeManager` for consistent monochrome styling
+5. Set `navigable: true` property
+
+**Creating New Dialogs:**
+1. Use lazy loading pattern with `Qt.createComponent()`
+2. Preserve focus state before opening dialog
+3. Restore focus state when closing dialog
+4. Connect to parent's signal handling system
+
+**Bridge Integration Best Practices:**
+1. Use `@pyqtSlot` decorators for QML-callable methods
+2. Emit `pyqtSignal` for Python-to-QML communication
+3. Handle async operations with proper event loops
+4. Implement cleanup in bridge component destructors
+
+**State Management Guidelines:**
+1. Use centralized state in `StatusManager`
+2. Implement state timeouts and recovery logic
+3. Batch UI updates to prevent excessive redraws
+4. Handle state transitions gracefully with proper error handling
+
+**Dialog Management Pattern:**
+```javascript
+function getServerListDialog() {
+    if (!serverListDialog) {
+        var component = Qt.createComponent("Components/ServerListDialog.qml");
+        serverListDialog = component.createObject(voiceAssistantPage);
+        // Connect signals and setup focus preservation
+    }
+    return serverListDialog;
+}
+```
+
+**Property Binding for Reactive UI:**
+```javascript
+// Responsive state-based styling
+enabled: isConnected && appState !== "processing"
+backgroundColor: visualFocus ? ThemeManager.textColor : ThemeManager.backgroundColor
+```
+
+### Hardware-Specific Optimizations
+
+This architecture is specifically optimized for:
+- **E-ink displays**: Monochrome colors only, no animations or transitions
+- **Limited input devices**: Three-key navigation (Up/Down/Enter)
+- **Resource constraints**: Lazy loading, efficient memory usage, minimal redraws
+- **Hardware integration**: GPIO, UART, audio processing integration
+
+The modular bridge design enables easy testing and maintenance while centralized focus management ensures consistent navigation behavior across all UI components.
