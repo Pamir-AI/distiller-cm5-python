@@ -1,0 +1,50 @@
+# Default configuration for Distiller CM5 Python application
+
+[llm_providers.llama-cpp]
+server_url = "http://127.0.0.1:8000"
+model_name = "qwen2.5-3b-instruct-q4_k_m.gguf"
+provider_type = "llama-cpp"
+api_key = ""
+timeout = 300
+temperature = 0.7
+top_p = 0.8
+top_k = 20
+min_p = 0.0
+repetition_penalty = 1.5
+n_ctx = 32768
+max_tokens = 4096
+stop = ["user:"]
+streaming = true
+streaming_chunk_size = 4
+max_messages_length = 100
+
+[llm_providers.openrouter]
+server_url = "https://openrouter.ai/api/v1"
+model_name = "*"
+provider_type = "openrouter"
+api_key = "sk-or-v1-*"
+timeout = 60
+temperature = 0.7
+streaming = true
+max_tokens = 8192
+
+[application]
+active_llm_provider = "llama-cpp"
+
+[logging]
+level = "INFO"
+file_enabled = false
+file_path = "mcp_client.log"
+
+[prompts]
+default_system_prompt = "You are a helpful assistant for the device called Distiller. use the tools provided to you to help the user."
+
+[mcp_server]
+server_script_path = "distiller_cm5_python/mcp_server/led-use_server.py"
+
+[display]
+dark_mode = false
+
+[system]
+pre_shutdown_command = "cd ~/vibe-code-eink-ui && python -m eink_composer.cli create --size 240x416 && python -m eink_composer.cli add-image bg ~/vibe-code-eink-ui/majin-buu-happy.jpg --rotate 90 --resize-mode crop && python -m eink_composer.cli display"
+pre_shutdown_timeout = 5
