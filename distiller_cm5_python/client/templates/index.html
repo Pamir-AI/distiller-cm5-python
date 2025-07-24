@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ device_name }} WiFi Setup</title>
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
+    />
+    <!-- Allow insecure HTTP requests for local IoT device operation -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:;
+        connect-src 'self' http: https: ws: wss:;
+        img-src 'self' data: blob: http: https:;
+        font-src 'self' data: http: https:;
+        frame-src 'none';
+        object-src 'none'
+    "
+    />
+    <!-- Common styles -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/common.css') }}"
+    />
+    <!-- Page-specific styles -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/index.css') }}"
+    />
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Distiller WiFi Setup</h1>
+      </div>
+
+      <div class="content">
+        {% if error %}
+        <div class="error-info">{{ error }}</div>
+        {% endif %}
+
+        <div class="network-list">
+          {% for network in networks %}
+          <a
+            href="{{ url_for('confirm', ssid=network.ssid, encrypted=network.security) }}"
+            class="network-btn {% if network.security == 'encrypted' %}encrypted{% endif %}"
+          >
+            {{ network.ssid }}
+            <span class="signal">{{ network.signal_strength }}%</span>
+          </a>
+          {% endfor %} {% if not networks %}
+          <div class="status-info">
+            No networks found.
+            <a
+              href="javascript:location.reload()"
+              style="color: #000; text-decoration: underline"
+              >Refresh</a
+            >
+            to try again.
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="manual-form">
+          <h3>Connect to Hidden Network</h3>
+          <form action="{{ url_for('confirm') }}" method="get">
+            <input type="hidden" name="encrypted" value="encrypted" />
+            <div class="form-group">
+              <input
+                type="text"
+                name="ssid"
+                class="form-input"
+                placeholder="Enter network name"
+                required
+              />
+              <button type="submit" class="submit-btn">Connect</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="footer-content">
+          <img
+            src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
+            alt="Pamir AI"
+            class="footer-logo"
+          />
+          <span class="footer-text">{{ device_name }} Network Setup</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Common JavaScript -->
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  </body>
+</html>

@@ -1,0 +1,333 @@
+/* Common styles for Distiller CM5 WiFi Setup Interface */
+/* Modern, minimalist design with monospace font and clean aesthetics */
+
+@font-face {
+  font-family: "MartianMono";
+  src: url("../fonts/MartianMonoNerdFont-CondensedBold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* Global reset and base styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "MartianMono", "Courier New", "Monaco", "Menlo", monospace;
+  background: #ffffff;
+  color: #000000;
+  min-height: 100vh;
+  margin: 0;
+  padding: 20px;
+  line-height: 1.4;
+}
+
+/* Container layout */
+.container {
+  max-width: 500px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 3px solid #000000;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Header styles */
+.header {
+  background: #000000;
+  color: #ffffff;
+  padding: 20px;
+  text-align: center;
+  border-bottom: 3px solid #000000;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Content area */
+.content {
+  padding: 30px 20px;
+}
+
+/* Form elements */
+.form-group {
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #000000;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  font-size: 14px;
+  font-family: "MartianMono", monospace;
+}
+
+.form-input:focus {
+  outline: none;
+  background: #f8f8f8;
+}
+
+/* Button styles */
+.btn {
+  padding: 12px 20px;
+  border: 2px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  transition: all 0.2s ease;
+  display: inline-block;
+  font-family: "MartianMono", monospace;
+}
+
+.btn-primary {
+  background: #000000;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #333333;
+}
+
+.btn-secondary:hover {
+  background: #f0f0f0;
+  text-decoration: none;
+  color: #000000;
+}
+
+.button-group {
+  display: flex;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+/* Information boxes */
+.info-box {
+  background: #f8f8f8;
+  padding: 20px;
+  border: 2px solid #000000;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.status-info {
+  background: #f0f0f0;
+  padding: 15px;
+  border: 2px solid #000000;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: #000000;
+}
+
+.error-info {
+  background: #f8f8f8;
+  padding: 15px;
+  border: 2px solid #000000;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: #000000;
+}
+
+/* Status displays */
+.status-code {
+  font-size: 16px;
+  font-weight: bold;
+  color: #000000;
+  margin-bottom: 15px;
+  font-family: "MartianMono", monospace;
+  letter-spacing: 1px;
+}
+
+.status-title {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 15px;
+  color: #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-message {
+  font-size: 14px;
+  color: #000000;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+/* Detail rows for connection information */
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #cccccc;
+  font-size: 12px;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: bold;
+  color: #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  color: #000000;
+  text-align: right;
+  font-family: "MartianMono", monospace;
+}
+
+/* Instructions and help text */
+.instructions {
+  background: #f0f0f0;
+  padding: 20px;
+  border: 2px solid #000000;
+  margin: 20px 0;
+  text-align: left;
+}
+
+.instruction-item {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #cccccc;
+  font-size: 12px;
+}
+
+.instruction-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.instruction-title {
+  font-weight: bold;
+  color: #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+
+.instruction-detail {
+  color: #000000;
+  font-family: "MartianMono", monospace;
+}
+
+/* Footer styles */
+.footer {
+  text-align: center;
+  padding: 20px;
+  color: #ffffff;
+  font-size: 10px;
+  border-top: 3px solid #000000;
+  background: #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+}
+
+.footer::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: repeating-linear-gradient(
+    90deg,
+    #000000,
+    #000000 8px,
+    #ffffff 8px,
+    #ffffff 16px
+  );
+}
+
+.footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.footer-logo {
+  height: 48px;
+  width: auto;
+  filter: brightness(0) invert(1);
+}
+
+.footer-text {
+  font-size: 10px;
+  letter-spacing: 0.3px;
+}
+
+/* Content Security Policy */
+.csp-meta {
+  content: "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:; connect-src 'self' http: https: ws: wss:; img-src 'self' data: blob: http: https:; font-src 'self' data: http: https:; frame-src 'none'; object-src 'none'";
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+
+  .container {
+    max-width: 100%;
+    border-width: 2px;
+  }
+
+  .header {
+    padding: 15px;
+  }
+
+  .header h1 {
+    font-size: 16px;
+  }
+
+  .content {
+    padding: 20px 15px;
+  }
+
+  .button-group {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .footer-logo {
+    height: 40px;
+  }
+}

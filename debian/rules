@@ -35,6 +35,7 @@ override_dh_auto_install:
 	# Create directories for logs and configuration
 	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/var/log/$(PACKAGE_NAME)
 	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/etc/$(PACKAGE_NAME)
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/etc/distiller
 	
 	# Create wrapper scripts directory
 	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/usr/local/bin

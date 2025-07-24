@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connect to {{ ssid }}</title>
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
+    />
+    <!-- Allow insecure HTTP requests for local IoT device operation -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:;
+        connect-src 'self' http: https: ws: wss:;
+        img-src 'self' data: blob: http: https:;
+        font-src 'self' data: http: https:;
+        frame-src 'none';
+        object-src 'none'
+    "
+    />
+    <!-- Common styles -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/common.css') }}"
+    />
+    <!-- Page-specific styles -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/confirm.css') }}"
+    />
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Connect to Network</h1>
+      </div>
+
+      <div class="content">
+        <div class="network-info">
+          <div class="network-name">{{ ssid }}</div>
+          <div class="network-security">
+            {% if encrypted == 'encrypted' %} SECURED {% else %} OPEN {% endif
+            %}
+          </div>
+        </div>
+
+        {% if encrypted == 'encrypted' %}
+        <form
+          action="{{ url_for('connect') }}"
+          method="post"
+          class="password-form"
+        >
+          <input type="hidden" name="ssid" value="{{ ssid }}" />
+          <div class="form-group">
+            <label for="password" class="form-label">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              class="form-input"
+              required
+            />
+            <button
+              type="button"
+              class="password-toggle"
+              onclick="togglePassword()"
+            >
+              [show]
+            </button>
+          </div>
+
+          <div class="button-group">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary"
+              >< Back</a
+            >
+            <button type="submit" class="btn btn-primary">Connect</button>
+          </div>
+        </form>
+        {% else %}
+        <form
+          action="{{ url_for('connect') }}"
+          method="post"
+          class="password-form"
+        >
+          <input type="hidden" name="ssid" value="{{ ssid }}" />
+          <input type="hidden" name="password" value="" />
+
+          <div class="button-group">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary"
+              >< Back</a
+            >
+            <button type="submit" class="btn btn-primary">Connect</button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+
+      <div class="footer">
+        <div class="footer-content">
+          <img
+            src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
+            alt="Pamir AI"
+            class="footer-logo"
+          />
+          <span class="footer-text">{{ device_name }} Network Setup</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Common JavaScript -->
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    <script>
+      function togglePassword() {
+        const passwordInput = document.getElementById("password");
+        const toggleBtn = document.querySelector(".password-toggle");
+
+        if (passwordInput.type === "password") {
+          passwordInput.type = "text";
+          toggleBtn.textContent = "[hide]";
+        } else {
+          passwordInput.type = "password";
+          toggleBtn.textContent = "[show]";
+        }
+      }
+    </script>
+  </body>
+</html>

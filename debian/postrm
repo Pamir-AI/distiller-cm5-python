@@ -45,6 +45,18 @@ remove_data_files() {
         echo_success "Configuration directory removed: $CONFIG_DIR"
     fi
     
+    # Remove WiFi service config directory (only if no other distiller packages)
+    other_distiller_packages=$(dpkg -l | grep -c '^ii.*distiller-' || true)
+    if [ "$other_distiller_packages" -le 1 ]; then
+        WIFI_CONFIG_DIR="/etc/distiller"
+        if [ -d "$WIFI_CONFIG_DIR" ]; then
+            rm -rf "$WIFI_CONFIG_DIR"
+            echo_success "WiFi service config directory removed: $WIFI_CONFIG_DIR"
+        fi
+    else
+        echo_status "WiFi service config directory preserved (used by other distiller packages)."
+    fi
+    
     # Remove log directory
     if [ -d "$LOG_DIR" ]; then
         rm -rf "$LOG_DIR"
@@ -114,6 +126,36 @@ remove_sudoers_config() {
     fi
 }
 
+# Function to remove WiFi service permissions
+remove_wifi_service_permissions() {
+    echo_status "Checking WiFi service permissions..."
+    
+    # Check if other distiller packages are installed
+    other_distiller_packages=$(dpkg -l | grep -c '^ii.*distiller-' || true)
+    
+    if [ "$other_distiller_packages" -le 1 ]; then
+        # Only this package is installed, safe to remove WiFi service permissions
+        echo_status "Removing WiFi service permissions..."
+        
+        # Remove PolicyKit rules
+        if [ -f "/etc/polkit-1/rules.d/50-distiller-networkmanager.rules" ]; then
+            rm -f "/etc/polkit-1/rules.d/50-distiller-networkmanager.rules"
+            echo_success "PolicyKit rules removed."
+        fi
+        
+        # Restart polkit to reload rules after removing permission files
+        if systemctl is-active --quiet polkit; then
+            echo_status "Restarting polkit to reload permission rules..."
+            systemctl restart polkit 2>/dev/null || true
+        fi
+        
+        echo_success "WiFi service permissions removed."
+    else
+        echo_status "WiFi service permissions are shared with other distiller packages."
+        echo_status "Permissions will be preserved."
+    fi
+}
+
 # Function to display post-removal information
 display_post_removal_info() {
     echo ""
@@ -143,6 +185,7 @@ main() {
             remove_data_files
             remove_wrapper_scripts
             remove_sudoers_config
+            remove_wifi_service_permissions
             remove_system_user
             display_post_removal_info
             ;;

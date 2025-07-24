@@ -1,0 +1,63 @@
+/* Styles specific to confirm.html - Password confirmation page */
+
+.network-info {
+  background: #f8f8f8;
+  padding: 20px;
+  border: 2px solid #000000;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.network-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #000000;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: "MartianMono", monospace;
+}
+
+.network-security {
+  color: #000000;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.network-security::before {
+  content: "[";
+  font-weight: bold;
+}
+
+.network-security::after {
+  content: "]";
+  font-weight: bold;
+}
+
+.password-form {
+  margin-bottom: 20px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-family: "MartianMono", monospace;
+  font-size: 12px;
+  cursor: pointer;
+  color: #666666;
+  padding: 4px;
+  margin-top: 14px;
+}
+
+.password-toggle:hover {
+  color: #000000;
+}
+
+.form-input[type="password"] {
+  padding-right: 45px;
+}

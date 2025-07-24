@@ -14,7 +14,8 @@ from distiller_cm5_python.client.ui.bridge.ConversationManager import (
 )
 from distiller_cm5_python.client.ui.bridge.StatusManager import StatusManager
 from distiller_cm5_python.client.ui.bridge.ServerDiscovery import ServerDiscovery
-from distiller_cm5_python.client.ui.utils.NetworkUtils import NetworkUtils
+from distiller_cm5_python.client.ui.bridge.WiFiSetupBridge import WiFiSetupBridge
+from distiller_cm5_python.client.ui.network.network_utils import NetworkUtils
 from distiller_cm5_python.utils.distiller_exception import (
     UserVisibleError,
     LogOnlyError,
@@ -81,6 +82,7 @@ class MCPClientBridge(BridgeCore):
         self.conversation_manager.reset_streaming_message()
         self.server_discovery = ServerDiscovery(self)
         self.network_utils = NetworkUtils()
+        self.wifi_setup_bridge = WiFiSetupBridge(self)
 
         # Initialize event dispatcher with debug mode
         self.dispatcher = EventDispatcher(
@@ -495,3 +497,21 @@ class MCPClientBridge(BridgeCore):
                 logger.warning("No server path available for reconnection")
         except Exception as e:
             logger.error(f"Error during reconnection: {e}")
+    
+    @pyqtProperty(QObject, constant=True)
+    def wifiSetupBridge(self):
+        """Expose WiFi setup bridge to QML."""
+        return self.wifi_setup_bridge
+    
+    async def cleanup(self):
+        """Override cleanup to include WiFi setup cleanup."""
+        try:
+            # Cleanup WiFi setup bridge first
+            if hasattr(self, 'wifi_setup_bridge') and self.wifi_setup_bridge:
+                self.wifi_setup_bridge.cleanup()
+                logger.info("WiFi setup bridge cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during WiFi setup cleanup: {e}")
+        
+        # Call parent cleanup
+        await super().cleanup()

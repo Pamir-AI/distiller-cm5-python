@@ -1,0 +1,177 @@
+/* Retro terminal aesthetic for connecting.html - Connection progress page */
+
+.connection-info {
+  background: #f8f8f8;
+  padding: 20px;
+  border: 2px solid #000000;
+  margin-bottom: 25px;
+  text-align: center;
+  position: relative;
+}
+
+.connection-info::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+  background: #000000;
+}
+
+.network-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #000000;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: "MartianMono", monospace;
+  border-bottom: 1px solid #cccccc;
+  padding-bottom: 8px;
+}
+
+.status-code {
+  font-family: "MartianMono", "Courier New", monospace;
+  font-weight: bold;
+  color: #000000;
+  font-size: 14px;
+  background: #ffffff;
+  padding: 8px 12px;
+  border: 2px solid #000000;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  animation: pulse 2s infinite;
+}
+
+.status-title {
+  font-weight: bold;
+  color: #000000;
+  margin: 15px 0 8px 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-message {
+  color: #000000;
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.instructions {
+  background: #f8f8f8;
+  border: 2px solid #000000;
+  padding: 20px;
+  margin: 20px 0;
+  position: relative;
+}
+
+.instructions::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+  background: #000000;
+}
+
+.instructions h3 {
+  color: #000000;
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #cccccc;
+  padding-bottom: 8px;
+}
+
+.instruction-item {
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+}
+
+.instruction-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.instruction-title {
+  font-weight: bold;
+  color: #000000;
+  margin-bottom: 5px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: "MartianMono", "Courier New", monospace;
+}
+
+.instruction-detail {
+  color: #000000;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.content {
+  text-align: center;
+}
+
+/* Terminal-style animations */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Progress indication styling */
+.progress-dots {
+  font-family: "MartianMono", monospace;
+  font-size: 16px;
+  color: #000000;
+  margin: 10px 0;
+  text-align: center;
+}
+
+.progress-dots::after {
+  content: "...";
+  animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+  0%,
+  20% {
+    content: ".";
+  }
+  40% {
+    content: "..";
+  }
+  60%,
+  100% {
+    content: "...";
+  }
+}
+
+@media (max-width: 768px) {
+  .network-name {
+    font-size: 14px;
+  }
+  
+  .status-code {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  
+  .status-title {
+    font-size: 12px;
+  }
+}
