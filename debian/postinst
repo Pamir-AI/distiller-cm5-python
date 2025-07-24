@@ -45,14 +45,14 @@ create_system_user() {
                 --shell /bin/bash --comment "Distiller CM5 System User" \
                 --user-group "$DISTILLER_USER"
         
-        # Add user to required groups
+        # Add user to required groups for hardware and network access
         usermod -a -G netdev,gpio,spi,dialout,audio "$DISTILLER_USER" 2>/dev/null || true
         
         echo_success "System user '$DISTILLER_USER' created successfully."
     else
         echo_status "System user '$DISTILLER_USER' already exists."
         
-        # Ensure user is in required groups
+        # Ensure user is in required groups for WiFi service support
         usermod -a -G netdev,gpio,spi,dialout,audio "$DISTILLER_USER" 2>/dev/null || true
     fi
 }
@@ -132,10 +132,16 @@ setup_directories() {
     chown "$DISTILLER_USER:$DISTILLER_USER" "$LOG_DIR"
     chmod 755 "$LOG_DIR"
     
-    # Create config directory
+    # Create config directory for application
     mkdir -p "$CONFIG_DIR"
     chown root:root "$CONFIG_DIR"
     chmod 755 "$CONFIG_DIR"
+    
+    # Create WiFi service config directory (required by DeviceConfigManager)
+    WIFI_CONFIG_DIR="/etc/distiller"
+    mkdir -p "$WIFI_CONFIG_DIR"
+    chown "$DISTILLER_USER:$DISTILLER_USER" "$WIFI_CONFIG_DIR"
+    chmod 755 "$WIFI_CONFIG_DIR"
     
     # Set ownership of installation directory
     chown -R "$DISTILLER_USER:$DISTILLER_USER" "$INSTALL_DIR"
@@ -145,6 +151,68 @@ setup_directories() {
     chmod +x /usr/local/bin/distiller-cm5-python-gui
     
     echo_success "Directories and permissions configured."
+}
+
+# Function to configure WiFi service permissions
+configure_wifi_service_permissions() {
+    echo_status "Configuring WiFi service permissions..."
+    
+    # Create PolicyKit rules for NetworkManager D-Bus access
+    echo_status "Creating PolicyKit rules for NetworkManager D-Bus access..."
+    mkdir -p /etc/polkit-1/rules.d
+    cat >/etc/polkit-1/rules.d/50-distiller-networkmanager.rules <<EOF
+/* Allow distiller user to manage NetworkManager without authentication */
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.NetworkManager.settings.modify.system" ||
+         action.id == "org.freedesktop.NetworkManager.settings.modify.own" ||
+         action.id == "org.freedesktop.NetworkManager.network-control" ||
+         action.id == "org.freedesktop.NetworkManager.wifi.share.protected" ||
+         action.id == "org.freedesktop.NetworkManager.wifi.share.open" ||
+         action.id == "org.freedesktop.hostname1.set-static-hostname" ||
+         action.id == "org.freedesktop.NetworkManager.settings.modify.hostname") &&
+        subject.user == "distiller") {
+        return polkit.Result.YES;
+    }
+});
+
+/* Allow distiller user to control system services related to networking */
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.systemd1.manage-units" ||
+         action.id == "org.freedesktop.systemd1.reload-daemon") &&
+        subject.user == "distiller") {
+        return polkit.Result.YES;
+    }
+});
+EOF
+    chmod 644 /etc/polkit-1/rules.d/50-distiller-networkmanager.rules
+    
+    # Update udev rules for enhanced hardware access
+    echo_status "Updating udev rules for WiFi service hardware access..."
+    UDEV_RULES_FILE="/etc/udev/rules.d/99-pamir.rules"
+    
+    # Check if the file exists and add WiFi-specific rules if not present
+    if [ -f "$UDEV_RULES_FILE" ]; then
+        # Add WiFi service specific rules if they don't exist
+        if ! grep -q "# WiFi service hardware access" "$UDEV_RULES_FILE"; then
+            cat >> "$UDEV_RULES_FILE" <<EOF
+
+# WiFi service hardware access for distiller user
+SUBSYSTEM=="gpio", GROUP="gpio", MODE="0664"
+SUBSYSTEM=="spidev", GROUP="spi", MODE="0664"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="*", GROUP="dialout", MODE="0664"
+EOF
+        fi
+    else
+        echo_warning "udev rules file not found. WiFi service hardware access may be limited."
+    fi
+    
+    # Restart polkit to load new rules (if running)
+    if systemctl is-active --quiet polkit; then
+        echo_status "Restarting polkit to load new rules..."
+        systemctl restart polkit 2>/dev/null || true
+    fi
+    
+    echo_success "WiFi service permissions configured."
 }
 
 # Function to configure hardware access
@@ -295,6 +363,7 @@ display_post_install_info() {
     echo_status "  distiller-cm5-python-gui    - Run in GUI mode"
     echo ""
     echo_status "Configuration directory: $CONFIG_DIR"
+    echo_status "WiFi service config directory: /etc/distiller"
     echo_status "Log directory: $LOG_DIR"
     echo_status "Installation directory: $INSTALL_DIR"
     echo_status "LLM models directory: $INSTALL_DIR/distiller_cm5_python/llm_server/models"
@@ -302,6 +371,8 @@ display_post_install_info() {
     echo_status "Hardware configuration:"
     echo_status "  udev rules: /etc/udev/rules.d/99-pamir.rules"
     echo_status "  Hardware devices configured for distiller user access"
+    echo_status "  PolicyKit rules: /etc/polkit-1/rules.d/50-distiller-networkmanager.rules"
+    echo_status "  WiFi service permissions configured for NetworkManager access"
     echo ""
     echo_status "Note: If model download failed during installation, you can:"
     echo_status "  sudo dpkg-reconfigure distiller-cm5-python"
@@ -328,6 +399,7 @@ main() {
     setup_directories
     download_llm_model
     configure_hardware_access
+    configure_wifi_service_permissions
     configure_udev_rules
     display_post_install_info
     

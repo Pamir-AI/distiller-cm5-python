@@ -15,7 +15,7 @@ from distiller_cm5_python.client.ui.bridge.ConversationManager import (
     ConversationManager,
 )
 from distiller_cm5_python.client.ui.bridge.ServerDiscovery import ServerDiscovery
-from distiller_cm5_python.client.ui.utils.NetworkUtils import NetworkUtils
+from distiller_cm5_python.client.ui.network.network_utils import NetworkUtils
 from distiller_cm5_python.client.mid_layer.mcp_client import MCPClient
 from distiller_cm5_python.client.ui.events.event_dispatcher import EventDispatcher
 from distiller_cm5_python.utils.config import DEFAULT_CONFIG_PATH, API_KEY

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Error - {{ device_name }}</title>
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
+    />
+    <!-- Allow insecure HTTP requests for local IoT device operation -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:;
+        connect-src 'self' http: https: ws: wss:;
+        img-src 'self' data: blob: http: https:;
+        font-src 'none';
+        frame-src 'none';
+        object-src 'none'
+    "
+    />
+    <!-- Common styles -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/common.css') }}"
+    />
+    <style>
+      /* Retro terminal aesthetic for error pages */
+      .error-header {
+        background: #000000;
+        color: #ffffff;
+        padding: 30px 20px;
+        text-align: center;
+        border-bottom: 3px solid #000000;
+        margin-bottom: 0;
+      }
+      
+      .error-icon {
+        font-size: 48px;
+        font-weight: bold;
+        margin-bottom: 16px;
+        display: block;
+        line-height: 1;
+        font-family: "MartianMono", "Courier New", monospace;
+        color: #ffffff;
+      }
+      
+      .error-title {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #ffffff;
+      }
+      
+      .error-subtitle {
+        font-size: 12px;
+        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #ffffff;
+      }
+      
+      .content {
+        padding: 30px 20px;
+        background: #ffffff;
+      }
+      
+      .error-details {
+        background: #f8f8f8;
+        border: 2px solid #000000;
+        padding: 20px;
+        margin: 20px 0;
+        position: relative;
+      }
+      
+      .error-details::before {
+        content: "";
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        height: 3px;
+        background: #000000;
+      }
+      
+      .error-message {
+        font-size: 14px;
+        color: #000000;
+        margin-bottom: 15px;
+        font-weight: bold;
+        border-bottom: 1px solid #cccccc;
+        padding-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      .error-description {
+        color: #000000;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      
+      .suggestions {
+        background: #f8f8f8;
+        border: 2px solid #000000;
+        padding: 20px;
+        margin: 30px 0;
+        position: relative;
+      }
+      
+      .suggestions::before {
+        content: "";
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        height: 3px;
+        background: #000000;
+      }
+      
+      .suggestions h3 {
+        color: #000000;
+        margin: 0 0 15px 0;
+        font-size: 14px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #cccccc;
+        padding-bottom: 8px;
+      }
+      
+      .suggestion-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      
+      .suggestion-list li {
+        margin-bottom: 12px;
+        padding-left: 25px;
+        position: relative;
+        color: #000000;
+        line-height: 1.5;
+        font-size: 12px;
+      }
+      
+      .suggestion-list li:before {
+        content: "[!]";
+        position: absolute;
+        left: 0;
+        top: 0;
+        color: #000000;
+        font-weight: bold;
+        font-family: "MartianMono", "Courier New", monospace;
+      }
+      
+      .troubleshooting {
+        background: #f8f8f8;
+        border: 2px solid #000000;
+        padding: 20px;
+        margin: 30px 0;
+        position: relative;
+      }
+      
+      .troubleshooting::before {
+        content: "";
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        height: 3px;
+        background: #000000;
+      }
+      
+      .troubleshooting h3 {
+        color: #000000;
+        margin: 0 0 15px 0;
+        font-size: 14px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #cccccc;
+        padding-bottom: 8px;
+      }
+      
+      .troubleshooting-steps {
+        counter-reset: step-counter;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      
+      .troubleshooting-steps li {
+        counter-increment: step-counter;
+        margin-bottom: 15px;
+        padding-left: 30px;
+        position: relative;
+        color: #000000;
+        line-height: 1.6;
+        font-size: 12px;
+      }
+      
+      .troubleshooting-steps li:before {
+        content: "[" counter(step-counter) "]";
+        position: absolute;
+        left: 0;
+        top: 0;
+        background: #000000;
+        color: #ffffff;
+        padding: 2px 4px;
+        font-size: 10px;
+        font-weight: bold;
+        font-family: "MartianMono", "Courier New", monospace;
+      }
+      
+      .action-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin: 30px 0;
+      }
+      
+      .action-button {
+        display: block;
+        text-align: center;
+        padding: 15px 20px;
+        text-decoration: none;
+        font-weight: bold;
+        border: 2px solid #000000;
+        background: #ffffff;
+        color: #000000;
+        font-family: "MartianMono", "Courier New", monospace;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.2s ease;
+      }
+      
+      .action-button.primary {
+        background: #000000;
+        color: #ffffff;
+      }
+      
+      .action-button.primary:hover {
+        background: #333333;
+        text-decoration: none;
+        color: #ffffff;
+      }
+      
+      .action-button.secondary {
+        background: #ffffff;
+        color: #000000;
+      }
+      
+      .action-button.secondary:hover {
+        background: #f0f0f0;
+        text-decoration: none;
+        color: #000000;
+      }
+      
+      .technical-details {
+        margin-top: 40px;
+        padding: 15px;
+        background: #f8f8f8;
+        border: 2px solid #000000;
+        position: relative;
+      }
+      
+      .technical-details::before {
+        content: "";
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        height: 3px;
+        background: #000000;
+      }
+      
+      .technical-details summary {
+        cursor: pointer;
+        font-weight: bold;
+        color: #000000;
+        margin-bottom: 10px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #cccccc;
+        padding-bottom: 5px;
+      }
+      
+      .technical-details pre {
+        background: #ffffff;
+        border: 1px solid #cccccc;
+        padding: 10px;
+        font-size: 11px;
+        color: #000000;
+        overflow-x: auto;
+        margin: 10px 0 0 0;
+        font-family: "MartianMono", "Courier New", monospace;
+        line-height: 1.4;
+      }
+      
+      @media (max-width: 768px) {
+        .action-buttons {
+          grid-template-columns: 1fr;
+        }
+        
+        .error-title {
+          font-size: 24px;
+        }
+        
+        .error-icon {
+          font-size: 48px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="error-header">
+        <span class="error-icon">[ERROR]</span>
+        <div class="error-title">Setup Error</div>
+        <div class="error-subtitle">
+          Something went wrong with your {{ device_name }} setup
+        </div>
+      </div>
+
+      <div class="error-details">
+        <div class="error-message">
+          {% if error %}
+            {{ error }}
+          {% else %}
+            An unexpected error occurred during the setup process.
+          {% endif %}
+        </div>
+        <div class="error-description">
+          This error prevented the WiFi setup from completing successfully. 
+          Please try the suggestions below to resolve the issue.
+        </div>
+      </div>
+
+      <div class="suggestions">
+        <h3>[SOLUTIONS] Quick Fixes</h3>
+        <ul class="suggestion-list">
+          <li>Refresh this page to try again</li>
+          <li>Go back to the setup page and verify your WiFi credentials</li>
+          <li>Check that your WiFi network is working and accessible</li>
+          <li>Ensure you're still connected to the setup hotspot</li>
+          <li>Try connecting to a different WiFi network</li>
+        </ul>
+      </div>
+
+      <div class="troubleshooting">
+        <h3>[DIAGNOSTICS] Troubleshooting</h3>
+        <ol class="troubleshooting-steps">
+          <li>
+            <strong>Check Network Connection:</strong> 
+            Make sure you're connected to the "DistillerSetup-XXXX" hotspot 
+            and can access this page properly.
+          </li>
+          <li>
+            <strong>Verify WiFi Credentials:</strong> 
+            Double-check that your WiFi network name and password are correct. 
+            Password is case-sensitive.
+          </li>
+          <li>
+            <strong>Check WiFi Signal:</strong> 
+            Ensure your target WiFi network has good signal strength 
+            where the device is located.
+          </li>
+          <li>
+            <strong>Restart Setup Process:</strong> 
+            Go back to the main setup page and try the connection process again.
+          </li>
+          <li>
+            <strong>Check Device Status:</strong> 
+            Look at the e-ink display on your device for additional status information.
+          </li>
+          <li>
+            <strong>Reset if Needed:</strong> 
+            If problems persist, you may need to restart the device 
+            and begin setup from the beginning.
+          </li>
+        </ol>
+      </div>
+
+      <div class="action-buttons">
+        <a href="/" class="action-button primary">
+          [RETRY] Restart Setup
+        </a>
+        <a href="/status" class="action-button secondary">
+          [STATUS] System Status
+        </a>
+        <a href="javascript:window.location.reload()" class="action-button secondary">
+          [REFRESH] Reload Page
+        </a>
+      </div>
+
+      {% if session_id or device_id %}
+      <details class="technical-details">
+        <summary>Technical Details (for debugging)</summary>
+        <pre>
+Error Type: {{ error_type if error_type else 'Unknown' }}
+Device ID: {{ device_id if device_id else 'N/A' }}
+Session ID: {{ session_id if session_id else 'N/A' }}
+Timestamp: {{ timestamp if timestamp else 'N/A' }}
+User Agent: {{ user_agent if user_agent else 'N/A' }}
+        </pre>
+      </details>
+      {% endif %}
+
+      <div class="footer" style="margin-top: 50px;">
+        <div class="footer-content">
+          <img
+            src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
+            alt="Pamir AI"
+            class="footer-logo"
+          />
+          <span class="footer-text">{{ device_name }} Setup</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Common JavaScript -->
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    <script>
+      // Log error for debugging
+      console.error('Setup Error:', {
+        error: '{{ error if error else "Unknown error" }}',
+        errorType: '{{ error_type if error_type else "Unknown" }}',
+        deviceId: '{{ device_id if device_id else "N/A" }}',
+        sessionId: '{{ session_id if session_id else "N/A" }}',
+        timestamp: '{{ timestamp if timestamp else "N/A" }}'
+      });
+
+      // Store error information in localStorage for debugging
+      const errorData = {
+        error: '{{ error if error else "Unknown error" }}',
+        errorType: '{{ error_type if error_type else "Unknown" }}',
+        deviceId: '{{ device_id if device_id else "N/A" }}',
+        sessionId: '{{ session_id if session_id else "N/A" }}',
+        timestamp: Date.now(),
+        userAgent: navigator.userAgent
+      };
+      
+      localStorage.setItem('distiller_setup_error', JSON.stringify(errorData));
+
+      // Auto-redirect to setup page after 30 seconds if user doesn't take action
+      let autoRedirectTimer = setTimeout(() => {
+        if (confirm('Would you like to automatically return to the setup page?')) {
+          window.location.href = '/';
+        }
+      }, 30000);
+
+      // Cancel auto-redirect if user clicks any button
+      document.querySelectorAll('.action-button').forEach(button => {
+        button.addEventListener('click', () => {
+          clearTimeout(autoRedirectTimer);
+        });
+      });
+    </script>
+  </body>
+</html>

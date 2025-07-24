@@ -1,0 +1,66 @@
+/* Styles specific to status.html - Status display page */
+
+.status-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+  font-family: "MartianMono", monospace;
+  color: #000000;
+}
+
+.connection-details {
+  background: #f8f8f8;
+  padding: 20px;
+  border: 2px solid #000000;
+  margin: 20px 0;
+  text-align: left;
+}
+
+.content {
+  text-align: center;
+}
+
+/* Status-specific styling for different connection states */
+.status-connected .status-code {
+  color: #28a745;
+}
+
+.status-connecting .status-code {
+  color: #007bff;
+  animation: pulse 2s infinite;
+}
+
+.status-disconnected .status-code {
+  color: #dc3545;
+}
+
+.status-setup .status-code {
+  color: #ffc107;
+}
+
+/* Animation for connecting state */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Auto-refresh indication */
+.auto-refresh-notice {
+  font-size: 10px;
+  color: #666666;
+  margin-top: 15px;
+  font-style: italic;
+}
+
+/* Mobile adjustments for status page */
+@media (max-width: 600px) {
+  .status-icon {
+    font-size: 40px;
+  }
+}

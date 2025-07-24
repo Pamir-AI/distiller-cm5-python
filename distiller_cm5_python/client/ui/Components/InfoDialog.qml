@@ -17,6 +17,9 @@ Rectangle {
         "temp": "N/A",
         "llm": "Local"
     }
+    
+    // WiFi Setup Dialog (lazy loaded)
+    property var wifiSetupDialog: null
 
     signal dialogClosed()
 
@@ -58,6 +61,11 @@ Rectangle {
             refreshButton.objectName = "RefreshButton";
             focusableItems.push(refreshButton);
         }
+        // Add WiFi setup button
+        if (wifiSetupButton && wifiSetupButton.navigable) {
+            wifiSetupButton.objectName = "WiFiSetupButton";
+            focusableItems.push(wifiSetupButton);
+        }
         // Add close button
         if (closeButton && closeButton.navigable) {
             closeButton.objectName = "CloseButton";
@@ -69,6 +77,23 @@ Rectangle {
         // Set focus to first item if available
         if (focusableItems.length > 0)
             FocusManager.setFocusToItem(focusableItems[0]);
+    }
+    
+    function getWifiSetupDialog() {
+        if (!wifiSetupDialog) {
+            var component = Qt.createComponent("WiFiSetupDialog.qml");
+            if (component.status === Component.Ready) {
+                wifiSetupDialog = component.createObject(infoDialog);
+                // Connect dialog closed signal to restore focus
+                wifiSetupDialog.dialogClosed.connect(function() {
+                    Qt.callLater(collectFocusItems);
+                    infoDialog.forceActiveFocus();
+                });
+            } else {
+                console.error("Error creating WiFiSetupDialog:", component.errorString());
+            }
+        }
+        return wifiSetupDialog;
     }
 
     // Update WiFi status from bridge
@@ -421,6 +446,61 @@ Rectangle {
                         elide: Text.ElideRight
                         renderType: Text.NativeRendering
                         visible: text.length > 0
+                    }
+                }
+            }
+        }
+
+        // WiFi Setup Button
+        Rectangle {
+            id: wifiSetupArea
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: footerArea.top
+            height: 45
+            color: ThemeManager.backgroundColor
+            
+            AppButton {
+                id: wifiSetupButton
+                
+                width: parent.width - ThemeManager.spacingMedium * 2
+                height: ThemeManager.buttonHeight
+                anchors.centerIn: parent
+                isFlat: true
+                navigable: true
+                buttonRadius: width / 2
+                fontSize: FontManager.fontSizeSmall
+                
+                onClicked: {
+                    getWifiSetupDialog().open();
+                }
+
+                Rectangle {
+                    parent: infoButton
+                    anchors.fill: parent
+                    color: ThemeManager.backgroundColor
+
+                    // High contrast highlight for e-ink when focused
+                    Rectangle {
+                        visible: infoButton.visualFocus || infoButton.pressed || true
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: infoButton.visualFocus ? ThemeManager.textColor : ThemeManager.backgroundColor
+                        border.width: ThemeManager.borderWidth
+                        border.color: ThemeManager.black
+                        antialiasing: true
+                    }
+
+                    // Wifi setup icon
+                    Text {
+                        text: "󱚾  setup"
+                        font.pixelSize: parent.width * 0.4
+                        font.family: FontManager.primaryFontFamily
+                        font.bold: true
+                        color: infoButton.visualFocus ? ThemeManager.backgroundColor : ThemeManager.textColor
+                        anchors.centerIn: parent
+                        renderType: Text.NativeRendering
                     }
                 }
             }

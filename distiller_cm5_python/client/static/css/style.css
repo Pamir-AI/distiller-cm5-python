@@ -1,0 +1,462 @@
+/* Updated WiFi Setup Interface Styles */
+/* Now using common CSS patterns from templates - this file is kept for compatibility */
+
+@font-face {
+  font-family: "MartianMono";
+  src: url("../fonts/MartianMonoNerdFont-CondensedBold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* Global reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "MartianMono", "Courier New", "Monaco", "Menlo", monospace;
+  background: #ffffff;
+  color: #000000;
+  min-height: 100vh;
+  padding: 20px;
+  line-height: 1.4;
+}
+
+/* Modern container with clean borders */
+.container {
+  max-width: 500px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 3px solid #000000;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Header styling to match template design */
+.header {
+  background: #000000;
+  color: #ffffff;
+  padding: 20px;
+  border-bottom: 3px solid #000000;
+  text-align: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.header p {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.logo {
+  height: 48px;
+  width: auto;
+  margin-bottom: 16px;
+  filter: brightness(0) invert(1);
+}
+
+/* Content area */
+.content {
+  padding: 30px 20px;
+}
+
+/* Status cards with updated styling */
+.status-card {
+  background: #f8f8f8;
+  border: 2px solid #000000;
+  padding: 20px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.status-card::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+  background: #28a745;
+}
+
+.status-card.disconnected::before {
+  background: #dc3545;
+}
+
+/* Consistent status styling */
+.status-title {
+  font-weight: bold;
+  color: #000000;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.status-info {
+  color: #000000;
+  font-size: 12px;
+  font-family: "MartianMono", monospace;
+}
+
+/* Form styling to match templates */
+.form-group {
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #000000;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #000000;
+  background: #ffffff;
+  font-family: "MartianMono", monospace;
+  font-size: 14px;
+  color: #000000;
+  transition: all 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+  outline: none;
+  background: #f8f8f8;
+}
+
+/* Button styling to match templates */
+.btn {
+  padding: 12px 20px;
+  border: 2px solid #000000;
+  background: #ffffff;
+  font-family: "MartianMono", monospace;
+  font-size: 12px;
+  font-weight: bold;
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 12px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+}
+
+.btn:hover {
+  background: #f0f0f0;
+  text-decoration: none;
+  color: #000000;
+}
+
+.btn-primary {
+  background: #000000;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #333333;
+}
+
+.btn-success {
+  background: #28a745;
+  color: #ffffff;
+  border-color: #28a745;
+}
+
+.btn-success:hover {
+  background: #218838;
+  border-color: #218838;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
+  background: #ffffff;
+}
+
+/* Loading states */
+.loading {
+  text-align: center;
+  padding: 24px;
+  color: #666666;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Alert styling to match template design */
+.alert {
+  padding: 15px;
+  border: 2px solid #000000;
+  margin-bottom: 20px;
+  font-size: 12px;
+  position: relative;
+  background: #f8f8f8;
+  color: #000000;
+}
+
+.alert::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+}
+
+.alert-success::before {
+  background: #28a745;
+}
+
+.alert-error::before {
+  background: #dc3545;
+}
+
+.alert-info::before {
+  background: #007bff;
+}
+
+.alert-warning::before {
+  background: #ffc107;
+}
+
+/* Connection details */
+.connection-details {
+  background: #f8f8f8;
+  border: 2px solid #000000;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #cccccc;
+  font-size: 12px;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: bold;
+  color: #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  color: #000000;
+  font-family: "MartianMono", monospace;
+}
+
+/* Button groups */
+.button-group {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.button-group .btn {
+  flex: 1;
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+/* Status indicators */
+.status-icon {
+  font-size: 48px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 16px;
+  display: block;
+  line-height: 1;
+  font-family: "MartianMono", monospace;
+}
+
+.status-connected {
+  color: #28a745;
+}
+
+.status-connecting {
+  color: #007bff;
+  animation: pulse 2s infinite;
+}
+
+.status-error {
+  color: #dc3545;
+}
+
+/* Animations */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  margin: 16px auto;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #000000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Footer styling to match templates */
+.footer {
+  background: #000000;
+  border-top: 3px solid #000000;
+  padding: 20px;
+  text-align: center;
+  font-size: 10px;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+}
+
+.footer::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: repeating-linear-gradient(
+    90deg,
+    #000000,
+    #000000 8px,
+    #ffffff 8px,
+    #ffffff 16px
+  );
+}
+
+.footer p {
+  margin: 4px 0;
+}
+
+.footer a {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.footer a:hover {
+  text-decoration: none;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+
+  .container {
+    max-width: 100%;
+    border-width: 2px;
+  }
+
+  .header {
+    padding: 15px;
+  }
+
+  .header h1 {
+    font-size: 16px;
+  }
+
+  .content {
+    padding: 20px 15px;
+  }
+
+  .logo {
+    height: 40px;
+  }
+
+  .btn {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+
+  .button-group {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .button-group .btn {
+    width: 100%;
+  }
+
+  input[type="text"],
+  input[type="password"] {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  .status-icon {
+    font-size: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 8px;
+  }
+
+  .header h1 {
+    font-size: 14px;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .logo {
+    height: 36px;
+  }
+}
