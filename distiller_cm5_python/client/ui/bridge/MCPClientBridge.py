@@ -318,6 +318,9 @@ class MCPClientBridge(BridgeCore):
     def sendPowerShutdownSignal(self):
         """Send BTN_POWER packet via UART for coordinated system shutdown."""
         try:
+            # Execute pre-shutdown command if configured
+            self._execute_pre_shutdown_command()
+            
             # Lazy import to avoid circular imports
             from distiller_cm5_python.utils.uart_utils import send_btn_power_packet
             
@@ -333,6 +336,59 @@ class MCPClientBridge(BridgeCore):
         except Exception as e:
             logger.error(f"Error sending power shutdown signal: {e}")
             return False
+    
+    def _execute_pre_shutdown_command(self):
+        """Execute the pre-shutdown command if configured."""
+        try:
+            # Import here to avoid circular imports
+            from distiller_cm5_python.utils.config import config
+            import subprocess
+            import time
+            
+            pre_shutdown_cmd = config.get("system", "pre_shutdown_command", default="").strip()
+            timeout = config.get("system", "pre_shutdown_timeout", default=5)
+            
+            if not pre_shutdown_cmd:
+                return
+            
+            # Stop and cleanup e-ink renderer if it exists
+            if hasattr(self, '_eink_renderer') and self._eink_renderer:
+                try:
+                    logger.info("Stopping and cleaning up e-ink renderer before pre-shutdown command")
+                    self._eink_renderer.stop()
+                    self._eink_renderer.cleanup()
+                    # Give hardware time to fully release
+                    time.sleep(0.5)
+                    logger.info("E-ink renderer cleaned up successfully")
+                except Exception as e:
+                    logger.error(f"Error cleaning up e-ink renderer: {e}")
+                    # Continue with pre-shutdown command even if cleanup fails
+            
+            logger.info(f"Executing pre-shutdown command: {pre_shutdown_cmd}")
+            
+            # Execute with timeout - use shell=True for complex commands
+            try:
+                result = subprocess.run(
+                    pre_shutdown_cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
+                
+                if result.returncode == 0:
+                    logger.info(f"Pre-shutdown command completed successfully: {result.stdout}")
+                else:
+                    logger.error(f"Pre-shutdown command failed with code {result.returncode}: {result.stderr}")
+                    
+            except subprocess.TimeoutExpired:
+                logger.error(f"Pre-shutdown command timed out after {timeout} seconds")
+            except Exception as e:
+                logger.error(f"Pre-shutdown command execution failed: {e}")
+                
+        except Exception as e:
+            logger.error(f"Error executing pre-shutdown command: {e}")
+            # Don't prevent shutdown if pre-shutdown command fails
 
     @pyqtSlot()
     def closeApplication(self):
