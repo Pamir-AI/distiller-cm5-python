@@ -304,7 +304,8 @@ class MCPClientBridge(BridgeCore):
                 "isLow": False,
                 "isCritical": False,
                 "iconName": "battery-full",
-                "color": "#00AA00",
+                "statusPattern": "solid_fill",  # Default pattern
+                "statusText": "OK",  # Default text
                 "voltage": 0.0,
                 "current": 0.0,
                 "temperature": 0.0,
