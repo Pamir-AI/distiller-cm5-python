@@ -6,6 +6,8 @@ VoiceInputArea 1.0 VoiceInputArea.qml
 MessageToast 1.0 MessageToast.qml
 ConversationView 1.0 ConversationView.qml
 LoadingIndicator 1.0 LoadingIndicator.qml
+BatteryIndicator 1.0 BatteryIndicator.qml
+BatteryWarningDialog 1.0 BatteryWarningDialog.qml
 singleton AppInfo 1.0 AppInfo.qml
 singleton ThemeManager 1.0 ThemeManager.qml
 singleton FontManager 1.0 FontManager.qml
