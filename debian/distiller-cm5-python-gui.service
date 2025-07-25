@@ -17,6 +17,7 @@ Environment=QT_QPA_PLATFORM=xcb
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 WorkingDirectory=/opt/distiller-cm5-python
+ExecStartPre=/bin/bash -c 'cd /opt/distiller-cm5-python && if command -v uv >/dev/null 2>&1; then uv sync --quiet 2>/dev/null || true; elif [ -f "/usr/local/bin/uv" ]; then /usr/local/bin/uv sync --quiet 2>/dev/null || true; fi'
 ExecStart=/opt/distiller-cm5-python/.venv/bin/python /opt/distiller-cm5-python/main.py --gui
 Restart=always
 RestartSec=5

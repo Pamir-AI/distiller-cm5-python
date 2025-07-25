@@ -44,5 +44,19 @@ if [ ! -f "$MAIN_SCRIPT" ]; then
     exit 1
 fi
 
+# Ensure dependencies are up-to-date with uv sync
+echo "Synchronizing dependencies..."
+if command -v uv >/dev/null 2>&1; then
+    uv sync --quiet 2>/dev/null || {
+        echo "Warning: Failed to sync dependencies. Continuing with existing environment..."
+    }
+elif [ -f "/usr/local/bin/uv" ]; then
+    /usr/local/bin/uv sync --quiet 2>/dev/null || {
+        echo "Warning: Failed to sync dependencies. Continuing with existing environment..."
+    }
+else
+    echo "Warning: uv not found. Continuing with existing environment..."
+fi
+
 # Execute the application in GUI mode
 exec "$PYTHON_BIN" "$MAIN_SCRIPT" --gui "$@"
