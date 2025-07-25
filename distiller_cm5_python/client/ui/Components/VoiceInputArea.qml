@@ -59,12 +59,40 @@ Rectangle {
         }
     }
 
+    // Get intelligent battery status hint with statistical values
+    function getBatteryStatusHint() {
+        if (!batteryIndicator)
+            return "Battery Status";
+
+        var level = batteryIndicator.batteryLevel;
+        var isCharging = batteryIndicator.isCharging;
+        var isCritical = batteryIndicator.isCritical;
+        var isLow = batteryIndicator.isLow;
+        var isTemperatureWarning = batteryIndicator.isTemperatureWarning;
+        var currentMa = batteryIndicator.currentMa;
+
+        // Priority-based status messages with statistical data
+        if (isCritical) {
+            return "Critical: " + level + "% - Shutdown Soon";
+        } else if (isTemperatureWarning) {
+            return "Temp Warning: " + level + "%";
+        } else if (isLow) {
+            return "Low Battery: " + level + "% - Charge now";
+        } else if (isCharging && currentMa > 0) {
+            return "Charging: " + level + "% - " + Math.round(currentMa) + "mA";
+        } else if (isCharging && currentMa <= 0) {
+            return "Charged: " + level + "% - Not charging";
+        } else {
+            return "Battery: " + level + "%";
+        }
+    }
+
     // Set the app state and emit signal
     function setAppState(newState) {
         // Block state changes from restoring_cache to anything other than idle or error
         if (appState === "restoring_cache" && newState !== "idle" && newState !== "error" && newState !== "restoring_cache") {
             console.log("VoiceInputArea: Blocked state change from restoring_cache to " + newState);
-            return ;
+            return;
         }
         if (appState !== newState) {
             console.log("VoiceInputArea: State changing from " + appState + " to " + newState);
@@ -168,11 +196,11 @@ Rectangle {
         else if (!isProcessing && (appState === "processing" || appState === "thinking" || appState === "executing_tool"))
             setAppState("idle");
     }
-    onVoiceReleased: function() {
+    onVoiceReleased: function () {
         // Double-check cache restoration state
         if (appState === "restoring_cache") {
             console.log("Voice release blocked - cache is being restored");
-            return ;
+            return;
         }
         if (bridge && bridge.ready && bridge.isConnected && isListening) {
             // First set state to processing explicitly
@@ -183,7 +211,7 @@ Rectangle {
                 AppController.triggerEinkUpdate();
             }
             // Then call the bridge method after a minimal delay to allow UI event processing (including e-ink)
-            Qt.callLater(function() {
+            Qt.callLater(function () {
                 console.log("VoiceInputArea.onVoiceReleased: Calling bridge.stopAndTranscribe() after delay");
                 bridge.stopAndTranscribe();
             });
@@ -236,7 +264,7 @@ Rectangle {
             else if (resetButton.visualFocus)
                 return "Reset App";
             else if (batteryIndicator.visualFocus)
-                return "Battery Status";
+                return getBatteryStatusHint();
             else
                 return "";
         }
@@ -279,7 +307,6 @@ Rectangle {
             elide: Text.ElideRight
             maximumLineCount: 1
         }
-
     }
 
     // Button layout
@@ -321,11 +348,11 @@ Rectangle {
                         if (checked)
                             checked = false;
 
-                        return ;
+                        return;
                     }
                     // Only allow activation when connected and not processing
                     if (!isConnected || voiceInputArea.appState === "processing" || voiceInputArea.appState === "thinking" || voiceInputArea.appState === "executing_tool" || voiceInputArea.appState === "restoring_cache")
-                        return ;
+                        return;
 
                     // When activating with Enter key
                     if (!isListening) {
@@ -389,12 +416,12 @@ Rectangle {
                         setAppState("processing");
                     }
                 }
- 
-				width: ThemeManager.buttonHeight
-				height: ThemeManager.buttonHeight
-				isFlat: true
-				// Disable button when not connected or when processing/thinking/executing/restoring cache
-				enabled: isConnected && voiceInputArea.appState !== "processing" && voiceInputArea.appState !== "thin
+
+                width: ThemeManager.buttonHeight
+                height: ThemeManager.buttonHeight
+                isFlat: true
+                // Disable button when not connected or when processing/thinking/executing/restoring cache
+                enabled: isConnected && voiceInputArea.appState !== "processing" && voiceInputArea.appState !== "thin
 king" && voiceInputArea.appState !== "executing_tool" && voiceInputArea.appState !== "restoring_cache"
                 backgroundColor: ThemeManager.backgroundColor // Solid color based on theme
                 buttonRadius: width / 2
@@ -452,9 +479,7 @@ king" && voiceInputArea.appState !== "executing_tool" && voiceInputArea.appState
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
-
                 }
-
             }
 
             // 2nd button: Reset button besides voice button
@@ -498,37 +523,19 @@ king" && voiceInputArea.appState !== "executing_tool" && voiceInputArea.appState
                         verticalAlignment: Text.AlignVCenter
                         anchors.centerIn: parent
                     }
-
                 }
-
             }
-
         }
 
-		// 3rd button: Battery indicator in the right corner
+        // 3rd button: Battery indicator in the right corner
         BatteryIndicator {
             id: batteryIndicator
-            
+
             anchors.right: parent.right
             anchors.rightMargin: ThemeManager.spacingSmall
             anchors.verticalCenter: parent.verticalCenter
             compact: true
             navigable: true
-            
-            onBatteryClicked: {
-                // Open system stats popup when battery is clicked
-                if (bridge && bridge.ready) {
-                    console.log("Battery indicator clicked - opening stats");
-                    var info = bridge.getBatteryInfo();
-                    var message = "Battery: " + info.capacity + "% (" + info.status + ")";
-                    
-                    // Emit signal for parent to handle
-                    voiceInputArea.batteryInfoRequested(message);
-                } else {
-                    voiceInputArea.batteryInfoRequested("Battery info unavailable");
-                }
-            }
         }
-
     }
 }
