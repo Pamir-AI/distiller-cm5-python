@@ -35,6 +35,27 @@ echo_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Function to remove systemd service files
+remove_systemd_service() {
+    echo_status "Removing systemd service files..."
+    
+    SERVICE_NAME="distiller-cm5-python-gui.service"
+    SERVICE_FILE="/lib/systemd/system/$SERVICE_NAME"
+    
+    if [ -f "$SERVICE_FILE" ]; then
+        rm -f "$SERVICE_FILE"
+        echo_success "Systemd service file removed: $SERVICE_FILE"
+        
+        # Reload systemd daemon to remove the service
+        if systemctl --version >/dev/null 2>&1; then
+            systemctl daemon-reload
+            echo_success "Systemd daemon reloaded."
+        fi
+    else
+        echo_status "Systemd service file not found: $SERVICE_FILE"
+    fi
+}
+
 # Function to remove configuration files and logs
 remove_data_files() {
     echo_status "Removing configuration files and logs..."
@@ -182,6 +203,7 @@ main() {
             ;;
         purge)
             echo_status "Package purged (removing all files)."
+            remove_systemd_service
             remove_data_files
             remove_wrapper_scripts
             remove_sudoers_config

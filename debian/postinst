@@ -353,6 +353,38 @@ configure_udev_rules() {
     fi
 }
 
+# Function to enable systemd service
+enable_systemd_service() {
+    echo_status "Enabling Distiller CM5 Python GUI service..."
+    
+    SERVICE_NAME="distiller-cm5-python-gui.service"
+    
+    # Reload systemd daemon to pick up new service file
+    if systemctl --version >/dev/null 2>&1; then
+        echo_status "Reloading systemd daemon..."
+        systemctl daemon-reload
+        
+        # Enable the service to start on boot
+        echo_status "Enabling $SERVICE_NAME to start on boot..."
+        systemctl enable "$SERVICE_NAME"
+        
+        # Check if we're in a chroot environment (during package build/installation)
+        if [ -n "$DEBIAN_FRONTEND" ] || [ ! -d "/proc/1" ] || [ "$(stat -c %d:%i /)" != "$(stat -c %d:%i /proc/1/root/.)" ]; then
+            echo_status "Detected package installation environment - service will start on next boot."
+        else
+            # We're on a live system, start the service immediately
+            echo_status "Starting $SERVICE_NAME immediately..."
+            systemctl start "$SERVICE_NAME" || {
+                echo_warning "Failed to start service immediately. It will start on next boot."
+            }
+        fi
+        
+        echo_success "Systemd service configuration completed."
+    else
+        echo_warning "systemctl not available. Service will need to be enabled manually."
+    fi
+}
+
 # Function to display post-installation information
 display_post_install_info() {
     echo ""
@@ -376,6 +408,13 @@ display_post_install_info() {
     echo ""
     echo_status "Note: If model download failed during installation, you can:"
     echo_status "  sudo dpkg-reconfigure distiller-cm5-python"
+    echo ""
+    echo_status "Service management:"
+    echo_status "  systemctl status distiller-cm5-python-gui   - Check service status"
+    echo_status "  systemctl restart distiller-cm5-python-gui  - Restart service"
+    echo_status "  systemctl stop distiller-cm5-python-gui     - Stop service"
+    echo_status "  systemctl disable distiller-cm5-python-gui  - Disable auto-start"
+    echo_status "  journalctl -u distiller-cm5-python-gui -f   - View service logs"
     echo ""
     echo_status "For more information, see the documentation at:"
     echo_status "  https://github.com/pamir-ai/distiller-cm5-python"
@@ -401,6 +440,7 @@ main() {
     configure_hardware_access
     configure_wifi_service_permissions
     configure_udev_rules
+    enable_systemd_service
     display_post_install_info
     
     echo_success "Post-installation configuration completed successfully."

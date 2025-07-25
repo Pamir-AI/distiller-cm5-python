@@ -31,6 +31,33 @@ echo_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Function to stop systemd service
+stop_systemd_service() {
+    echo_status "Stopping Distiller CM5 Python GUI service..."
+    
+    SERVICE_NAME="distiller-cm5-python-gui.service"
+    
+    if systemctl --version >/dev/null 2>&1; then
+        if systemctl is-active --quiet "$SERVICE_NAME"; then
+            echo_status "Stopping $SERVICE_NAME..."
+            systemctl stop "$SERVICE_NAME" || {
+                echo_warning "Failed to stop service gracefully."
+            }
+        fi
+        
+        if systemctl is-enabled --quiet "$SERVICE_NAME"; then
+            echo_status "Disabling $SERVICE_NAME..."
+            systemctl disable "$SERVICE_NAME" || {
+                echo_warning "Failed to disable service."
+            }
+        fi
+        
+        echo_success "Systemd service stopped and disabled."
+    else
+        echo_warning "systemctl not available. Service management skipped."
+    fi
+}
+
 # Function to perform cleanup
 cleanup_processes() {
     echo_status "Cleaning up any remaining processes..."
@@ -77,6 +104,7 @@ main() {
     case "$1" in
         remove)
             echo_status "Package is being removed (configuration files will be preserved)."
+            stop_systemd_service
             cleanup_processes
             display_removal_info
             ;;

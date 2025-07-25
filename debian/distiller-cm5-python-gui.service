@@ -1,0 +1,50 @@
+[Unit]
+Description=Distiller CM5 Python GUI Assistant
+Documentation=https://github.com/pamir-ai/distiller-cm5-python
+After=network-online.target
+Wants=network-online.target
+After=sound.target
+Wants=sound.target
+
+[Service]
+Type=simple
+User=distiller
+Group=distiller
+Environment=PYTHONPATH=/opt/distiller-cm5-sdk/src:/opt/distiller-cm5-python
+Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
+Environment=PYTHONUNBUFFERED=1
+Environment=QT_QPA_PLATFORM=xcb
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+WorkingDirectory=/opt/distiller-cm5-python
+ExecStart=/opt/distiller-cm5-python/.venv/bin/python /opt/distiller-cm5-python/main.py --gui
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=distiller-cm5-python-gui
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/opt/distiller-cm5-python
+ReadWritePaths=/var/log/distiller-cm5-python
+ReadWritePaths=/etc/distiller
+ReadWritePaths=/dev/gpiomem
+ReadWritePaths=/dev/spidev0.0
+ReadWritePaths=/dev/serial0
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Automatic restart on failure
+RestartKillSignal=SIGTERM
+KillMode=mixed
+TimeoutStartSec=30
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

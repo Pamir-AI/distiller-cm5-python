@@ -39,7 +39,8 @@ Depends: ${shlibs:Depends},
          ca-certificates,
          network-manager,
          libgpiod2,
-         python3-spidev
+         python3-spidev,
+         systemd
 Recommends: libxcb-cursor-dev
 Description: Distiller CM5 Python AI Assistant Application
  The Distiller CM5 Python project is a comprehensive AI assistant application

@@ -55,6 +55,12 @@ override_dh_auto_install:
 	
 	# Install udev rules file
 	install -m 644 $(CURDIR)/debian/99-pamir.rules $(CURDIR)/debian/$(PACKAGE_NAME)/etc/udev/rules.d/
+	
+	# Create systemd service directory
+	install -d $(CURDIR)/debian/$(PACKAGE_NAME)/lib/systemd/system
+	
+	# Install systemd service file
+	install -m 644 $(CURDIR)/debian/distiller-cm5-python-gui.service $(CURDIR)/debian/$(PACKAGE_NAME)/lib/systemd/system/
 
 # Skip dh_python3 since we use uv for dependency management
 override_dh_python3:
