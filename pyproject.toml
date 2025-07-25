@@ -59,6 +59,3 @@ line-length = 100
 [tool.uv]
 required-environments = [ "platform_machine == 'aarch64'" ]
 index-url = "https://pypi.org/simple"
-extra-index-url = [
-  "https://abetlen.github.io/llama-cpp-python/whl/cpu",
-]
