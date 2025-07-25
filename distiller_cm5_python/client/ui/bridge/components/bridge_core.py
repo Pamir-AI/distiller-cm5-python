@@ -117,7 +117,7 @@ class BridgeCore(QObject):
         )
 
         self.lifecycle_manager = LifecycleManager(
-            self.status_manager, self.conversation_manager
+            self.status_manager, self.conversation_manager, self
         )
 
         # Initialize state
