@@ -732,11 +732,23 @@ PageBase {
         }
         onCloseAppClicked: {
             console.log("System shutdown requested...");
-            // Any cleanup tasks before shutting down
-            if (bridge && bridge.ready)
+            
+            // Perform cleanup tasks before shutting down
+            if (bridge && bridge.ready) {
                 console.log("Preparing for system shutdown...");
-            else
+                
+                // Cleanup WiFi setup if running
+                if (bridge.wifiSetupBridge && bridge.wifiSetupBridge.isSetupRunning()) {
+                    console.log("Stopping WiFi setup before shutdown...");
+                    bridge.wifiSetupBridge.stopWiFiSetup();
+                }
+                
+                // Signal proper application shutdown with cleanup
+                console.log("Initiating proper application shutdown...");
+                bridge.shutdownApplication(false);
+            } else {
                 console.log("Failed to initiate system shutdown - bridge not available");
+            }
         }
         onShowToastMessage: function (message, duration) {
             if (messageToast)

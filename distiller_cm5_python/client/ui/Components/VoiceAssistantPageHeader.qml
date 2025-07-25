@@ -162,12 +162,24 @@ Rectangle {
         running: false
         onTriggered: {
             if (bridge && bridge.ready) {
-                // Signal app shutdown via UART
-                header.closeAppClicked();
-                // Send BTN_POWER packet for coordinated shutdown
+                // Execute pre-shutdown command and send initial BTN_POWER packet
                 var success = bridge.sendPowerShutdownSignal();
                 if (!success) {
                     console.log("Warning: Failed to send power shutdown signal via UART");
+                }
+                // Signal the closeAppClicked for any UI cleanup
+                header.closeAppClicked();
+                
+                // Close the main window - this will trigger the same onClosing handler
+                // that works when manually closing the application
+                var mainWin = header.Window.window;
+                if (mainWin) {
+                    console.log("Closing main window programmatically");
+                    mainWin.close();
+                } else {
+                    // Fallback to bridge shutdown if main window not accessible
+                    console.log("Main window not accessible, using bridge shutdown");
+                    bridge.shutdownApplication(false);
                 }
             }
         }
