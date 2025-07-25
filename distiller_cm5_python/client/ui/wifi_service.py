@@ -281,6 +281,11 @@ class DistillerWiFiService:
             """Get session statistics (for debugging)"""
             return self._handle_api_session_stats()
 
+        @app.route("/restart-setup")
+        def restart_setup():
+            """Restart WiFi setup by disconnecting and entering hotspot mode"""
+            return self._handle_restart_setup()
+
         # Catch-all for captive portal
         @app.route("/<path:path>")
         def catch_all(path):
@@ -641,6 +646,25 @@ class DistillerWiFiService:
                 ),
                 500,
             )
+
+    def _handle_restart_setup(self):
+        """Handle restart setup request - disconnect and enter hotspot mode"""
+        try:
+            self.logger.info("Restarting WiFi setup - user requested network change")
+            
+            # Run the restart process asynchronously
+            asyncio.create_task(self._restart_setup_async())
+            
+            # Immediately redirect to main page
+            return redirect(url_for('index'))
+            
+        except Exception as e:
+            self.logger.error(f"Error restarting setup: {e}")
+            return render_template(
+                "error.html",
+                error="Failed to restart WiFi setup",
+                device_name=self.device_name,
+            ), 500
 
     def _handle_api_session_validate(self):
         """Handle session validation API request"""
@@ -1228,6 +1252,34 @@ class DistillerWiFiService:
                 await self._start_hotspot_mode()
             except Exception as fallback_error:
                 self.logger.error(f"Fallback hotspot start failed: {fallback_error}")
+                self.current_state = ServiceState.ERROR
+
+    async def _restart_setup_async(self):
+        """Restart WiFi setup by disconnecting from current network and starting hotspot"""
+        try:
+            self.logger.info("Executing async restart setup process")
+            
+            # Disconnect from current WiFi connection
+            disconnect_success = await self.wifi_manager.disconnect_current_wifi()
+            if disconnect_success:
+                self.logger.info("Successfully disconnected from current WiFi")
+            else:
+                self.logger.warning("Failed to disconnect from current WiFi, continuing anyway")
+            
+            # Reset service state and restart hotspot mode
+            self.current_state = ServiceState.INITIALIZING
+            await self._start_hotspot_mode()
+            
+            self.logger.info("WiFi setup restart completed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error during restart setup: {e}")
+            # Try to ensure we end up in hotspot mode
+            try:
+                self.current_state = ServiceState.INITIALIZING
+                await self._start_hotspot_mode()
+            except Exception as fallback_error:
+                self.logger.error(f"Fallback restart failed: {fallback_error}")
                 self.current_state = ServiceState.ERROR
 
     def _start_web_server(self):

@@ -365,15 +365,6 @@
           </div>
           {% endif %}
           
-          <div class="access-method">
-            <h4>Status Page</h4>
-            <a href="/status" target="_blank">
-              View Current Status
-            </a>
-            <p style="font-size: 12px; color: #666; margin: 5px 0 0 0;">
-              Real-time connection information
-            </p>
-          </div>
         </div>
       </div>
 
@@ -389,20 +380,10 @@
         </ul>
       </div>
 
-      <!-- Action Buttons -->
+      <!-- Action Button -->
       <div class="button-group" style="text-align: center; margin-top: 30px;">
-        {% if connection.ip_address %}
-        <a href="http://{{ connection.ip_address }}:{{ web_port }}/status" class="btn btn-primary">
-          View Device Status
-        </a>
-        {% endif %}
-        {% if mdns_url %}
-        <a href="{{ mdns_url }}/status" class="btn btn-secondary">
-          Access via mDNS
-        </a>
-        {% endif %}
-        <a href="/status" class="btn btn-secondary">
-          Refresh Status
+        <a href="/restart-setup" class="btn btn-secondary">
+          󱚾 Return to WiFi Setup
         </a>
       </div>
 
