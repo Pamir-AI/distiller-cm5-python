@@ -44,6 +44,7 @@ class BatteryStatusPatterns:
     low: str = "diagonal_stripes"  # Diagonal stripes - low
     warning: str = "cross_hatch"  # Cross-hatch pattern - warning
     good: str = "solid_fill"  # Normal solid fill - good
+    unknown: str = "empty"  # Empty pattern - unknown status
 
 
 @dataclass
@@ -54,6 +55,7 @@ class BatteryStatusText:
     low: str = "LOW"  # Low battery text
     warning: str = "WARN"  # Warning battery text
     good: str = "OK"  # Good battery text
+    unknown: str = "UNK"  # Unknown battery status text
 
 
 @dataclass
@@ -66,6 +68,7 @@ class BatteryIcons:
             "high": "battery-charging-high",
             "medium": "battery-charging-medium",
             "low": "battery-charging-low",
+            "unknown": "battery-charging-unknown",
         }
     )
     discharging: Dict[str, str] = field(
@@ -75,6 +78,7 @@ class BatteryIcons:
             "medium": "battery-medium",
             "low": "battery-low",
             "critical": "battery-critical",
+            "unknown": "battery-unknown",
         }
     )
 
@@ -158,6 +162,9 @@ class BatteryConfig:
                         "warning", config.status_patterns.warning
                     ),
                     good=patterns_data.get("good", config.status_patterns.good),
+                    unknown=patterns_data.get(
+                        "unknown", config.status_patterns.unknown
+                    ),
                 )
 
             # Load status text
@@ -168,6 +175,7 @@ class BatteryConfig:
                     low=text_data.get("low", config.status_text.low),
                     warning=text_data.get("warning", config.status_text.warning),
                     good=text_data.get("good", config.status_text.good),
+                    unknown=text_data.get("unknown", config.status_text.unknown),
                 )
 
             # Load icons

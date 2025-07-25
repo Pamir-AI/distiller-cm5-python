@@ -3,7 +3,7 @@
 
 [battery.thresholds]
 # Battery percentage thresholds
-critical = 1    # 1% - trigger shutdown
+critical = 2    # 2% - trigger shutdown
 low = 15        # 15% - show warning  
 warning = 25    # 25% - show low battery notice
 
@@ -28,6 +28,7 @@ critical = "solid_black"     # Solid black fill - critical
 low = "diagonal_stripes"     # Diagonal stripes - low
 warning = "cross_hatch"      # Cross-hatch pattern - warning
 good = "solid_fill"          # Normal solid fill - good
+unknown = "empty"            # Empty - unknown status
 
 [battery.status_text]
 # Text indicators for battery status (1-bit display compatible)
@@ -35,6 +36,7 @@ critical = "CRIT"           # Critical battery text
 low = "LOW"                 # Low battery text
 warning = "WARN"            # Warning battery text
 good = "OK"                 # Good battery text
+unknown = "UNK"             # Unknown battery text
 
 [battery.icons.charging]
 # Icon names for charging states
@@ -42,6 +44,7 @@ full = "battery-charging-full"
 high = "battery-charging-high"
 medium = "battery-charging-medium"
 low = "battery-charging-low"
+unknown = "battery-charging-unknown"
 
 [battery.icons.discharging]
 # Icon names for discharging states
@@ -50,3 +53,4 @@ good = "battery-good"
 medium = "battery-medium"
 low = "battery-low"
 critical = "battery-critical"
+unknown = "battery-unknown"

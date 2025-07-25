@@ -305,13 +305,13 @@ class MCPClientBridge(BridgeCore):
                 "isCharging": False,
                 "isLow": False,
                 "isCritical": False,
-                "iconName": "battery-full",
-                "statusPattern": "solid_fill",  # Default pattern
-                "statusText": "OK",  # Default text
+                "iconName": "battery-unknown",
+                "statusPattern": "empty",  # Default pattern
+                "statusText": "UNK",  # Default status text
                 "voltage": 0.0,
                 "current": 0.0,
                 "temperature": 0.0,
-                "present": True,
+                "present": False,
                 "technology": "Unknown",
                 "shouldShowWarning": False,
                 "shouldShutdown": False
