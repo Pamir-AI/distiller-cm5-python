@@ -274,10 +274,6 @@ class Config:
         print("Configuration reloaded from defaults and environment.")
 
 
-# Create global configuration instance
-config = Config()
-
-
 # --- Global Configuration Instance ---
 config = Config()
 
