@@ -2,7 +2,7 @@
 
 [display]
 # Core E-Ink Settings
-eink_enabled = false
+eink_enabled = true
 width = 240
 height = 416
 
@@ -22,6 +22,7 @@ gamma_value = 0.8                   # (0.7-0.9 recommended)
 [display.hardware]
 # Hardware Settings
 full_refresh_lut_mode = true        # Use full refresh LUT mode for better quality
+flip_screen = true                  # Flip screen upside down (180 degrees rotation)
 
 [display.debug]
 # Debug Settings

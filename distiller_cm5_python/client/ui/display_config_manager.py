@@ -21,6 +21,7 @@ class EInkBWConversionConfig:
 class DisplayHardwareConfig:
     """Display hardware configuration."""
     full_refresh_lut_mode: bool = True
+    flip_screen: bool = True
 
 
 @dataclass
@@ -113,7 +114,8 @@ class DisplayConfig:
             if "hardware" in display_data:
                 hardware_data = display_data["hardware"]
                 config.hardware = DisplayHardwareConfig(
-                    full_refresh_lut_mode=hardware_data.get("full_refresh_lut_mode", config.hardware.full_refresh_lut_mode)
+                    full_refresh_lut_mode=hardware_data.get("full_refresh_lut_mode", config.hardware.full_refresh_lut_mode),
+                    flip_screen=hardware_data.get("flip_screen", config.hardware.flip_screen)
                 )
             
             # Load debug settings
@@ -169,23 +171,22 @@ class DisplayConfig:
                     "use_gamma": self.eink_bw_conversion.use_gamma,
                     "gamma_value": self.eink_bw_conversion.gamma_value,
                 },
-                "hardware": {
-                    "full_refresh_lut_mode": self.hardware.full_refresh_lut_mode,
-                },
-                "debug": {
-                    "eink_save_capture": self.debug.eink_save_capture,
-                },
-                "ui": {
-                    "dark_mode": self.ui.dark_mode,
-                    "show_system_stats": self.ui.show_system_stats,
-                    "font": {
-                        "primary_font": self.ui.font.primary_font,
-                        "size_small": self.ui.font.size_small,
-                        "size_normal": self.ui.font.size_normal,
-                        "size_medium": self.ui.font.size_medium,
-                        "size_large": self.ui.font.size_large,
-                        "size_xlarge": self.ui.font.size_xlarge,
-                    }
+                # Hardware Settings - maintain backward compatibility with legacy field names
+                "Full_Refresh_LUT_MODE": self.hardware.full_refresh_lut_mode,
+                "flip_screen": self.hardware.flip_screen,
+                # Debug Settings
+                "eink_save_capture": self.debug.eink_save_capture,
+                # UI Settings
+                "dark_mode": self.ui.dark_mode,
+                "show_system_stats": self.ui.show_system_stats,
+                "font": {
+                    "primary_font": self.ui.font.primary_font,
+                    # Legacy field names for backward compatibility
+                    "font_size_small": self.ui.font.size_small,
+                    "font_size_normal": self.ui.font.size_normal,
+                    "font_size_medium": self.ui.font.size_medium,
+                    "font_size_large": self.ui.font.size_large,
+                    "font_size_xlarge": self.ui.font.size_xlarge,
                 }
             }
         }

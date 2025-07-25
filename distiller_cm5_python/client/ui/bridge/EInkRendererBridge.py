@@ -79,7 +79,8 @@ class EInkRendererBridge(QObject):
             logger.info("Initializing E-Ink display driver...")
             with self.driver_lock:
                 # Initialize the driver
-                self.eink_driver = EinkDriver()
+                flip_screen = config["display"].get("flip_screen", False)
+                self.eink_driver = EinkDriver(flip_screen=flip_screen)
                 
                 # Hook up the completion callback to emit our Qt signal
                 self.eink_driver.set_completion_callback(self._on_driver_complete)

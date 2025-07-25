@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class EinkDriver:
-    def __init__(self) -> None:
+    def __init__(self, flip_screen: bool = False) -> None:
         self.LUT_4G: List[int] = [
             0x01,
             0x05,
@@ -461,6 +461,9 @@ class EinkDriver:
             0x00,
         ]
 
+        # Store flip setting for panel configuration
+        self.flip_screen = flip_screen
+
         # Raspberry Pi GPIO Pin Definitions
         self.DC_PIN = 7
         self.RST_PIN = 13
@@ -748,10 +751,13 @@ class EinkDriver:
         # Initialize the 4-gray e-paper display
         self.epd_w21_init()  # Reset the e-paper display
 
-        # Panel Setting
+        # Panel Setting - using software-based vertical flipping instead of hardware
+        # Keep panel setting constant and handle flipping in the data buffer
+        panel_setting = 0x0D  # Always use normal scan direction
+        logger.info(f"epd_w21_init_4g: flip_screen={self.flip_screen}, panel_setting=0x{panel_setting:02X}")
         self.epd_w21_write_cmd(0x00)
         self.epd_w21_write_data(0xFF)  # LUT from MCU
-        self.epd_w21_write_data(0x0D)
+        self.epd_w21_write_data(panel_setting)
 
         # Power Setting
         self.epd_w21_write_cmd(0x01)
@@ -813,6 +819,32 @@ class EinkDriver:
         # Set busy flag at the start of display operation
         self._set_busy(True)
         
+        # Apply 180-degree rotation (vertical + horizontal flip)
+        if self.flip_screen:
+            # Reshape to image dimensions: 416 rows x 60 bytes (240 pixels / 4 pixels per byte)
+            datas_np = np.array(datas, dtype=np.uint8).reshape(416, 60)
+            # Flip vertically (up-down)
+            datas_np = np.flipud(datas_np)
+            # Flip horizontally (left-right) - reverse bytes in each row
+            datas_np = np.fliplr(datas_np)
+            
+            # Also need to reverse bits within each byte for horizontal flip
+            # Since each byte contains 4 pixels (2 bits each), we need to reverse the pixel order
+            flipped_bytes = np.zeros_like(datas_np)
+            for i in range(datas_np.shape[0]):
+                for j in range(datas_np.shape[1]):
+                    byte = datas_np[i, j]
+                    # Extract 4 pixels (2 bits each)
+                    p0 = (byte >> 6) & 0x03
+                    p1 = (byte >> 4) & 0x03
+                    p2 = (byte >> 2) & 0x03
+                    p3 = (byte >> 0) & 0x03
+                    # Reverse pixel order
+                    flipped_bytes[i, j] = (p3 << 6) | (p2 << 4) | (p1 << 2) | (p0 << 0)
+            
+            # Flatten back
+            datas = flipped_bytes.flatten().tolist()
+        
         # Convert to NumPy array and reshape to (12480, 2)
         datas_np = np.array(datas, dtype=np.uint8).reshape(12480, 2)
         byte0, byte1 = datas_np[:, 0], datas_np[:, 1]
@@ -867,6 +899,31 @@ class EinkDriver:
 
         # Set busy flag at the start of display operation
         self._set_busy(True)
+        
+        # Apply 180-degree rotation (vertical + horizontal flip)
+        if self.flip_screen:
+            # Reshape to image dimensions: 416 rows x 30 bytes (240 pixels / 8 pixels per byte)
+            data_np = np.array(new_data, dtype=np.uint8).reshape(416, 30)
+            # Flip vertically (up-down)
+            data_np = np.flipud(data_np)
+            # Flip horizontally (left-right) - reverse bytes in each row
+            data_np = np.fliplr(data_np)
+            
+            # Also need to reverse bits within each byte for horizontal flip
+            # Since each byte contains 8 pixels (1 bit each), we need to reverse the bit order
+            flipped_bytes = np.zeros_like(data_np)
+            for i in range(data_np.shape[0]):
+                for j in range(data_np.shape[1]):
+                    byte = data_np[i, j]
+                    # Reverse bits in byte
+                    reversed_byte = 0
+                    for bit in range(8):
+                        if byte & (1 << bit):
+                            reversed_byte |= (1 << (7 - bit))
+                    flipped_bytes[i, j] = reversed_byte
+            
+            # Flatten back
+            new_data = flipped_bytes.flatten().tolist()
         
         # Queue the display sequence for async execution
         def display_sequence():
@@ -928,8 +985,11 @@ class EinkDriver:
         self.epd_w21_write_cmd(0x04)  # 开启电源
         self.lcd_chkstatus()  # 等待屏幕空闲
 
+        # Panel Setting - using software-based vertical flipping instead of hardware
+        # Keep panel setting constant and handle flipping in the data buffer
+        panel_setting = 0xF7  # Always use normal scan direction
         self.epd_w21_write_cmd(0x00)  # 面板设置
-        self.epd_w21_write_data(0xF7)
+        self.epd_w21_write_data(panel_setting)
 
         self.epd_w21_write_cmd(0x09)  # 取消波形默认设置
 
