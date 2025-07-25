@@ -118,7 +118,7 @@ class WiFiSetupBridge(QObject):
             
             # Start service in background thread
             self._service_thread = threading.Thread(
-                target=self._run_wifi_service,
+                target=self._run_wifi_service_sync,
                 daemon=True
             )
             self._running = True
@@ -161,18 +161,16 @@ class WiFiSetupBridge(QObject):
         """Check if setup is currently running"""
         return self._running
     
-    async def _run_wifi_service(self):
-        """Run the WiFi service in background thread"""
+    def _run_wifi_service_sync(self):
+        """Run the WiFi service in background thread (synchronous wrapper)"""
         try:
             if self._wifi_service:
-                await self._wifi_service.run()
+                # Create a new event loop for this thread
+                asyncio.run(self._wifi_service.run())
         except Exception as e:
             logger.error(f"WiFi service error: {e}")
-            # Use Qt's thread-safe mechanism to update UI
-            QMetaObject.invokeMethod(
-                self, "_set_error", Qt.ConnectionType.QueuedConnection,
-                f"Service error: {str(e)}"
-            )
+            # Use Qt's thread-safe signal to update UI
+            self.errorOccurred.emit(f"Service error: {str(e)}")
     
     def _monitor_service_state(self):
         """Monitor WiFi service state and update UI accordingly"""
@@ -206,9 +204,17 @@ class WiFiSetupBridge(QObject):
                 ssid = getattr(self._wifi_service, '_successful_connection_ssid', 'Unknown')
                 ip = getattr(self._wifi_service, '_successful_connection_ip', 'Unknown')
                 
+                # Check if this was a new connection or already connected
+                was_connecting = hasattr(self._wifi_service, 'target_ssid') and self._wifi_service.target_ssid
+                
                 self._set_network_connected(ssid, ip)
-                self._set_state(WiFiSetupState.SUCCESS, 
-                              f"Successfully connected to {ssid}")
+                
+                if was_connecting:
+                    self._set_state(WiFiSetupState.SUCCESS, 
+                                  f"Successfully connected to {ssid}")
+                else:
+                    self._set_state(WiFiSetupState.SUCCESS, 
+                                  f"Already connected to {ssid} - Web interface available")
                               
             elif service_state == ServiceState.ERROR:
                 error_msg = "Connection failed"
