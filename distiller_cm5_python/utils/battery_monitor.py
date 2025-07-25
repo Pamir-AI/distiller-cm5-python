@@ -215,13 +215,13 @@ def get_battery_info() -> Dict[str, any]:
             "status": "Unknown",
             "isCharging": True,
             "isLow": False,
-            "isCritical": True,
+            "isCritical": False,
             "iconName": "battery-unknown",
-            "statusPattern": "solid_fill",  # Default pattern
+            "statusPattern": "empty",  # Default pattern
             "statusText": "UNK",  # Unknown status text
             "voltage": 0.0,
-            "current": 10.0,
-            "current_ma": 10.0,
+            "current": 0.0,
+            "current_ma": 0.0,
             "temperature": 0.0,
             "present": False,
             "technology": "Unknown",
