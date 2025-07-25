@@ -319,21 +319,21 @@ class MCPClientBridge(BridgeCore):
 
     @pyqtSlot(result=bool)
     def sendPowerShutdownSignal(self):
-        """Send BTN_POWER packet via UART for coordinated system shutdown."""
+        """Send POWER_CMD_SHUTDOWN packet via UART for coordinated system shutdown."""
         try:
             # Execute pre-shutdown command if configured
             self._execute_pre_shutdown_command()
             
             # Lazy import to avoid circular imports
-            from distiller_cm5_python.utils.uart_utils import send_btn_power_packet
+            from distiller_cm5_python.utils.uart_utils import send_shutdown_notification
             
-            logger.info("Sending BTN_POWER packet for coordinated shutdown")
-            success = send_btn_power_packet()
+            logger.info("Sending POWER_CMD_SHUTDOWN packet for coordinated shutdown")
+            success = send_shutdown_notification()
             
             if success:
-                logger.info("BTN_POWER packet sent successfully")
+                logger.info("POWER_CMD_SHUTDOWN packet sent successfully")
             else:
-                logger.error("Failed to send BTN_POWER packet")
+                logger.error("Failed to send POWER_CMD_SHUTDOWN packet")
                 
             return success
         except Exception as e:
