@@ -139,7 +139,14 @@ class DistillerWiFiService:
 
     def _create_flask_app(self) -> Flask:
         """Create Flask web application"""
-        app = Flask(__name__, template_folder="templates", static_folder="static")
+        # Get the correct paths for templates and static files
+        import os
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        client_dir = os.path.dirname(current_dir)  # Go up from ui/ to client/
+        template_folder = os.path.join(client_dir, "templates")
+        static_folder = os.path.join(client_dir, "static")
+        
+        app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
 
         # Disable caching
         app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -1257,34 +1264,71 @@ class DistillerWiFiService:
             initial_state = await self.check_initial_state()
             self.current_state = initial_state
 
-            # If already connected, show current WiFi info and monitor connection
+            # If already connected, start web server and mDNS for network management
             if initial_state == ServiceState.CONNECTED:
                 self.logger.info(
-                    "Already connected to WiFi network - displaying current info"
+                    "Already connected to WiFi network - starting web interface"
                 )
 
-                # Update e-ink display with current WiFi information (once only)
-                if self.enable_eink and not self._eink_handoff_complete:
-                    try:
-                        self._update_eink_info()
-                        self.logger.info(
-                            "E-ink display updated with current WiFi information"
-                        )
-                        # Mark handoff complete after showing WiFi info - no more updates needed
-                        self._eink_handoff_complete = True
-                        self.logger.info(
-                            "E-ink display handoff complete - no more updates needed"
-                        )
-                        # Small delay to ensure display update completes
-                        await asyncio.sleep(3)
-                    except Exception as e:
-                        self.logger.error(f"Error updating e-ink display: {e}")
+                # Get current connection details
+                try:
+                    current_status = await self.wifi_manager.get_connection_status()
+                    if current_status.connected:
+                        self._successful_connection_ssid = current_status.ssid
+                        self._successful_connection_ip = current_status.ip_address
+                        self.logger.info(f"Current connection: {current_status.ssid} at {current_status.ip_address}")
+                        
+                        # Start mDNS service if not already running
+                        if not self.device_config.registered_services:
+                            self.logger.info("Starting mDNS service for current connection")
+                            mdns_success = self.device_config.start_mdns_service(
+                                current_status.ip_address, self.web_port
+                            )
+                            if mdns_success:
+                                mdns_url = self.device_config.get_device_mdns_url()
+                                self.logger.info(f"mDNS service started: {mdns_url}")
+                            else:
+                                self.logger.warning("Failed to start mDNS service")
+                        else:
+                            self.logger.info("mDNS service already running")
+                            
+                    else:
+                        self.logger.warning("Connection status inconsistent, falling back to hotspot mode")
+                        initial_state = ServiceState.HOTSPOT_MODE
+                        self.current_state = initial_state
+                        
+                except Exception as e:
+                    self.logger.error(f"Error getting current connection status: {e}")
+                    initial_state = ServiceState.HOTSPOT_MODE
+                    self.current_state = initial_state
 
-                self.logger.info("WiFi info display complete - monitoring connection")
+                # If still connected, start web server and monitor
+                if initial_state == ServiceState.CONNECTED:
+                    # Start web server for network management interface
+                    self._start_web_server()
+                    
+                    # Update e-ink display with current WiFi information (once only)
+                    if self.enable_eink and not self._eink_handoff_complete:
+                        try:
+                            self._update_eink_info()
+                            self.logger.info(
+                                "E-ink display updated with current WiFi information"
+                            )
+                            # Mark handoff complete after showing WiFi info - no more updates needed
+                            self._eink_handoff_complete = True
+                            self.logger.info(
+                                "E-ink display handoff complete - no more updates needed"
+                            )
+                            # Small delay to ensure display update completes
+                            await asyncio.sleep(3)
+                        except Exception as e:
+                            self.logger.error(f"Error updating e-ink display: {e}")
 
-                # Continue monitoring connection rather than exiting
-                await self._monitor_connection()
-                return
+                    self.logger.info("Already connected - web interface available for network management")
+                    
+                    # Continue monitoring connection with web server running
+                    await self._monitor_connection()
+                    return
 
             # If disconnected, start hotspot mode and wait for configuration
             if initial_state == ServiceState.HOTSPOT_MODE:

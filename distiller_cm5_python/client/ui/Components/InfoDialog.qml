@@ -8,51 +8,51 @@ Rectangle {
     property bool isLoading: false
     property var focusableItems: []
     property bool wifiConnected: false
-    property string ipAddress: ""  
+    property string ipAddress: ""
     property string wifiName: ""
     property bool showSystemStats: bridge && bridge.ready ? bridge.getShowSystemStats() : true
     property var systemStats: {
         "cpu": "N/A",
-        "ram": "N/A", 
+        "ram": "N/A",
         "temp": "N/A",
         "llm": "Local"
     }
-    
+
     // WiFi Setup Dialog (lazy loaded)
     property var wifiSetupDialog: null
 
-    signal dialogClosed()
+    signal dialogClosed
 
     // Enable key handling for the dialog
-    focus: visible
-    Keys.enabled: visible
-
-    // Key handling for navigation
-    Keys.onPressed: function(event) {
-        console.log("InfoDialog Key Pressed:", event.key, "| Current Focus:", FocusManager.currentFocusIndex);
-        
-        if (event.key === Qt.Key_Up) {
-            FocusManager.navigateUp();
-            event.accepted = true;
-        } else if (event.key === Qt.Key_Down) {
-            FocusManager.navigateDown();
-            event.accepted = true;
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            // Activate current focused item
-            if (FocusManager.currentFocusIndex >= 0 && FocusManager.currentFocusItems.length > 0) {
-                var currentItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
-                if (currentItem && typeof currentItem.clicked === "function") {
-                    currentItem.clicked();
-                } else if (currentItem && currentItem.onClicked) {
-                    currentItem.onClicked();
-                }
-            }
-            event.accepted = true;
-        } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
-            infoDialog.close();
-            event.accepted = true;
-        }
-    }
+    // focus: visible
+    // Keys.enabled: visible
+    //
+    // // Key handling for navigation
+    // Keys.onPressed: function (event) {
+    //     console.log("InfoDialog Key Pressed:", event.key, "| Current Focus:", FocusManager.currentFocusIndex);
+    //
+    //     if (event.key === Qt.Key_Up) {
+    //         FocusManager.navigateUp();
+    //         event.accepted = true;
+    //     } else if (event.key === Qt.Key_Down) {
+    //         FocusManager.navigateDown();
+    //         event.accepted = true;
+    //     } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+    //         // Activate current focused item
+    //         if (FocusManager.currentFocusIndex >= 0 && FocusManager.currentFocusItems.length > 0) {
+    //             var currentItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
+    //             if (currentItem && typeof currentItem.clicked === "function") {
+    //                 currentItem.clicked();
+    //             } else if (currentItem && currentItem.onClicked) {
+    //                 currentItem.onClicked();
+    //             }
+    //         }
+    //         event.accepted = true;
+    //     } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
+    //         infoDialog.close();
+    //         event.accepted = true;
+    //     }
+    // }
 
     function collectFocusItems() {
         focusableItems = [];
@@ -71,26 +71,47 @@ Rectangle {
             closeButton.objectName = "CloseButton";
             focusableItems.push(closeButton);
         }
-        
+
         // Initialize focus with our FocusManager
         FocusManager.initializeFocusItems(focusableItems);
         // Set focus to first item if available
         if (focusableItems.length > 0)
             FocusManager.setFocusToItem(focusableItems[0]);
     }
-    
+
     function getWifiSetupDialog() {
         if (!wifiSetupDialog) {
             var component = Qt.createComponent("WiFiSetupDialog.qml");
+            console.log("WiFiSetupDialog component status:", component.status);
+
             if (component.status === Component.Ready) {
                 wifiSetupDialog = component.createObject(infoDialog);
-                // Connect dialog closed signal to restore focus
-                wifiSetupDialog.dialogClosed.connect(function() {
-                    Qt.callLater(collectFocusItems);
-                    infoDialog.forceActiveFocus();
+                if (wifiSetupDialog) {
+                    console.log("WiFiSetupDialog created successfully");
+                    // Connect dialog closed signal to restore focus
+                    wifiSetupDialog.dialogClosed.connect(function () {
+                        Qt.callLater(collectFocusItems);
+                        infoDialog.forceActiveFocus();
+                    });
+                } else {
+                    console.error("Failed to create WiFiSetupDialog object");
+                }
+            } else if (component.status === Component.Loading) {
+                console.log("WiFiSetupDialog component still loading...");
+                // Wait for it to load
+                component.statusChanged.connect(function () {
+                    if (component.status === Component.Ready) {
+                        wifiSetupDialog = component.createObject(infoDialog);
+                        if (wifiSetupDialog) {
+                            wifiSetupDialog.dialogClosed.connect(function () {
+                                Qt.callLater(collectFocusItems);
+                                infoDialog.forceActiveFocus();
+                            });
+                        }
+                    }
                 });
             } else {
-                console.error("Error creating WiFiSetupDialog:", component.errorString());
+                console.error("Error creating WiFiSetupDialog component:", component.errorString());
             }
         }
         return wifiSetupDialog;
@@ -129,9 +150,9 @@ Rectangle {
         isLoading = true;
         updateSystemStats();
         isLoading = false;
-        
+
         // Initialize focus items after the dialog becomes visible
-        Qt.callLater(function() {
+        Qt.callLater(function () {
             collectFocusItems();
             // Set focus to the dialog itself for key handling
             infoDialog.forceActiveFocus();
@@ -141,13 +162,13 @@ Rectangle {
     // Close the dialog
     function close() {
         visible = false;
-        
+
         // Clear focus from all dialog items before closing
         FocusManager.clearFocus();
-        
+
         // Notify parent about dialog closing so it can restore its focus items
         dialogClosed();
-        
+
         // Force the parent to reinitialize its focus items
         if (parent && typeof parent.collectFocusItems === "function") {
             Qt.callLater(parent.collectFocusItems);
@@ -158,7 +179,7 @@ Rectangle {
     color: ThemeManager.textColor
     visible: false
     z: 1000 // Set a very high z value to appear above all other content
-    
+
     Component.onCompleted: {
         // Initialize data but don't set focus until dialog is opened
         updateWifiStatus();
@@ -168,7 +189,7 @@ Rectangle {
     // Connect to FocusManager to handle focus changes
     Connections {
         function onCurrentFocusIndexChanged() {
-            // Handle focus changes if needed
+        // Handle focus changes if needed
         }
         target: FocusManager
     }
@@ -258,7 +279,7 @@ Rectangle {
         // Organized compact system info content
         Column {
             id: infoColumn
-            
+
             anchors.top: dialogHeader.bottom
             anchors.left: parent.left
             anchors.right: parent.right
@@ -280,7 +301,7 @@ Rectangle {
 
                 Column {
                     id: batterySection
-                    
+
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -301,8 +322,7 @@ Rectangle {
                         spacing: ThemeManager.spacingSmall
 
                         Text {
-                            text: (infoColumn.batteryInfo.capacity || 100) + "%" + 
-                                  (infoColumn.batteryInfo.isCritical ? " !!!" : infoColumn.batteryInfo.isLow ? " !" : "")
+                            text: (infoColumn.batteryInfo.capacity || 100) + "%" + (infoColumn.batteryInfo.isCritical ? " !!!" : infoColumn.batteryInfo.isLow ? " !" : "")
                             font: FontManager.small
                             color: ThemeManager.textColor
                             renderType: Text.NativeRendering
@@ -336,7 +356,7 @@ Rectangle {
 
                 Column {
                     id: systemSection
-                    
+
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -403,7 +423,7 @@ Rectangle {
 
                 Column {
                     id: networkSection
-                    
+
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -459,48 +479,30 @@ Rectangle {
             anchors.right: parent.right
             anchors.bottom: footerArea.top
             height: 45
-            color: ThemeManager.backgroundColor
-            
+            color: wifiSetupButton.visualFocus ? ThemeManager.textColor : ThemeManager.backgroundColor
+
             AppButton {
                 id: wifiSetupButton
-                
+
                 width: parent.width - ThemeManager.spacingMedium * 2
                 height: ThemeManager.buttonHeight
                 anchors.centerIn: parent
+                text: "󱚾  Enter Wi-Fi Setup"
                 isFlat: true
                 navigable: true
                 buttonRadius: width / 2
                 fontSize: FontManager.fontSizeSmall
-                
+
                 onClicked: {
-                    getWifiSetupDialog().open();
-                }
-
-                Rectangle {
-                    parent: infoButton
-                    anchors.fill: parent
-                    color: ThemeManager.backgroundColor
-
-                    // High contrast highlight for e-ink when focused
-                    Rectangle {
-                        visible: infoButton.visualFocus || infoButton.pressed || true
-                        anchors.fill: parent
-                        radius: width / 2
-                        color: infoButton.visualFocus ? ThemeManager.textColor : ThemeManager.backgroundColor
-                        border.width: ThemeManager.borderWidth
-                        border.color: ThemeManager.black
-                        antialiasing: true
-                    }
-
-                    // Wifi setup icon
-                    Text {
-                        text: "󱚾  setup"
-                        font.pixelSize: parent.width * 0.4
-                        font.family: FontManager.primaryFontFamily
-                        font.bold: true
-                        color: infoButton.visualFocus ? ThemeManager.backgroundColor : ThemeManager.textColor
-                        anchors.centerIn: parent
-                        renderType: Text.NativeRendering
+                    if (bridge && bridge.ready) {
+                        var dialog = getWifiSetupDialog();
+                        if (dialog) {
+                            dialog.open();
+                        } else {
+                            messageToast.showMessage("Error: WiFi setup dialog not available", 3000);
+                        }
+                    } else {
+                        messageToast.showMessage("Error: Application not fully initialized", 3000);
                     }
                 }
             }
