@@ -175,19 +175,6 @@ class BatteryMonitor:
         else:
             return self.config.status_text.good
 
-    def get_battery_color(self) -> str:
-        """Get appropriate color for battery indicator (deprecated - use patterns)."""
-        level = self.get_battery_level()
-
-        if level <= self.config.thresholds.critical:
-            return "#000000"  # Black for critical
-        elif level <= self.config.thresholds.low:
-            return "#000000"  # Black for low
-        elif level <= self.config.thresholds.warning:
-            return "#000000"  # Black for warning
-        else:
-            return "#000000"  # Black for good (1-bit display)
-
     def should_show_warning(self) -> bool:
         """Check if low battery warning should be shown."""
         return self.is_low_battery() and not self.is_charging()
@@ -282,7 +269,6 @@ if __name__ == "__main__":
         print(f"  Temperature: {status.temperature:.1f}°C")
         print(f"  Technology: {status.technology}")
         print(f"  Icon: {monitor.get_battery_icon_name()}")
-        print(f"  Color: {monitor.get_battery_color()}")
         print(f"  Charging: {monitor.is_charging()}")
         print(f"  Low Battery: {monitor.is_low_battery()}")
         print(f"  Critical: {monitor.is_critical_battery()}")
