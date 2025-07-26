@@ -288,14 +288,6 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         logger.info("Performing application cleanup")
 
         try:
-            # Signal application shutdown via UART
-            try:
-                from distiller_cm5_python.utils.uart_utils import signal_app_shutdown
-                signal_app_shutdown()
-                logger.info("Sent shutdown signal to UART device from App cleanup")
-            except Exception as e:
-                logger.error(f"Failed to send shutdown signal to UART: {e}")
-            
             self.input_monitor.stop()
 
             # Clean up the bridge
@@ -514,13 +506,6 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         """Emergency exit handler registered with atexit.
         This ensures we exit even if all other mechanisms fail."""
         logger.warning("Emergency exit handler called - forcing process exit")
-        try:
-            # Signal application shutdown via UART
-            from distiller_cm5_python.utils.uart_utils import signal_app_shutdown
-            signal_app_shutdown()
-            logger.info("Sent emergency shutdown signal to UART device")
-        except Exception as e:
-            logger.error(f"Failed to send emergency shutdown signal to UART: {e}")
             
         try:
             # Disconnect SAM if possible
