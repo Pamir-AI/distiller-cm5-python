@@ -236,7 +236,7 @@ class WiFiSetupBridge(QObject):
     def _regenerate_hotspot_password(self):
         """Regenerate hotspot password for new setup session"""
         try:
-            from .network.device_config import get_device_config
+            from ..network.device_config import get_device_config
 
             device_config = get_device_config()
             new_password = device_config.regenerate_hotspot_password()

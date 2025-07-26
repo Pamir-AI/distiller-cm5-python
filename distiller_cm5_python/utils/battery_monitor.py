@@ -5,7 +5,7 @@ This module provides battery status monitoring via /sys/class/power_supply/pamir
 """
 
 import logging
-from typing import Dict, Optional, NamedTuple
+from typing import Dict, Optional, NamedTuple, Any
 from pathlib import Path
 from .battery_config_manager import BatteryConfig
 
@@ -201,7 +201,7 @@ def get_battery_monitor() -> BatteryMonitor:
     return _battery_monitor
 
 
-def get_battery_info() -> Dict[str, any]:
+def get_battery_info() -> Dict[str, Any]:
     """Get battery information as a dictionary (for QML binding)."""
     monitor = get_battery_monitor()
     status = monitor.get_battery_status()

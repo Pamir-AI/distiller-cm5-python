@@ -14,7 +14,7 @@ import subprocess
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
-from zeroconf import ServiceInfo, Zeroconf, IPVersion
+from zeroconf import ServiceInfo, Zeroconf, IPVersion, ServiceListener
 from zeroconf.asyncio import AsyncZeroconf
 import threading
 import time
@@ -479,6 +479,7 @@ rlimit-nproc=3
             # Use AsyncZeroconf in a background thread to avoid EventLoopBlocked
             def run_async_mdns():
                 """Run AsyncZeroconf in background thread"""
+                loop = None
                 try:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
@@ -553,6 +554,7 @@ rlimit-nproc=3
                 # Use async methods in a background thread
                 def run_async_stop():
                     """Run async stop in background thread"""
+                    loop = None
                     try:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
@@ -638,13 +640,13 @@ rlimit-nproc=3
         try:
             from zeroconf import ServiceBrowser
 
-            class DistillerServiceListener:
+            class DistillerServiceListener(ServiceListener):
                 def __init__(self):
                     self.devices = []
 
-                def add_service(self, zeroconf, service_type, name):
+                def add_service(self, zc, type_, name):
                     try:
-                        info = zeroconf.get_service_info(service_type, name)
+                        info = zc.get_service_info(type_, name)
                         if info:
                             properties = {}
                             if info.properties:
@@ -670,10 +672,10 @@ rlimit-nproc=3
                     except Exception as e:
                         logger.error(f"Error processing discovered service: {e}")
 
-                def remove_service(self, zeroconf, service_type, name):
+                def remove_service(self, zc, type_, name):
                     pass
 
-                def update_service(self, zeroconf, service_type, name):
+                def update_service(self, zc, type_, name):
                     pass
 
             # Create listener and browser

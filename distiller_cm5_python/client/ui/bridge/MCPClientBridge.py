@@ -55,13 +55,13 @@ class MCPClientBridge(BridgeCore):
     messageSchemaReceived = pyqtSignal("QVariantMap")
 
     # New signal for cache events
-    cacheEventReceived = pyqtSignal(str, str, str, arguments=["content", "event_id", "timestamp"])
+    cacheEventReceived = pyqtSignal(str, str, str)
 
     # Audio/Transcription signals - these will be connected to App's signals
-    transcriptionUpdate = pyqtSignal(str, arguments=["transcription"])
-    transcriptionComplete = pyqtSignal(str, arguments=["full_text"])
-    recordingStateChanged = pyqtSignal(bool, arguments=["is_recording"])
-    recordingError = pyqtSignal(str, arguments=["error_message"])
+    transcriptionUpdate = pyqtSignal(str)
+    transcriptionComplete = pyqtSignal(str)
+    recordingStateChanged = pyqtSignal(bool)
+    recordingError = pyqtSignal(str)
 
     def __init__(self, parent=None):
         """
@@ -110,7 +110,7 @@ class MCPClientBridge(BridgeCore):
             self.status_manager,
             self.conversation_manager,
             self.server_discovery,
-            self.is_connected.__class__,  # Pass the property class
+            MCPClientBridge.is_connected,  # Pass the property
             self.error_handler,  # Pass the error handler
         )
         # Set up connection callback
@@ -405,14 +405,18 @@ class MCPClientBridge(BridgeCore):
                     logger.error(f"Error during cleanup: {e}")
 
             # Schedule application exit with a short delay to allow cleanup to complete
-            QApplication.instance().quit()
-            logger.info("Application exit scheduled")
+            app_instance = QApplication.instance()
+            if app_instance:
+                app_instance.quit()
+                logger.info("Application exit scheduled")
 
         except Exception as e:
             logger.error(f"Error during application close: {e}")
             # Force quit if normal exit fails
             try:
-                QApplication.instance().exit(1)
+                app_instance = QApplication.instance()
+                if app_instance:
+                    app_instance.exit(1)
             except:
                 # Last resort: terminate process
                 os._exit(1)

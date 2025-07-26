@@ -3,7 +3,7 @@ Lifecycle manager component for the MCPClientBridge.
 Handles application lifecycle events such as startup, shutdown, and restart.
 """
 
-from typing import Optional
+from typing import Optional, Callable
 import logging
 import asyncio
 import threading
@@ -166,8 +166,8 @@ class LifecycleManager:
         self,
         is_connected: "property",
         mcp_client: Optional[MCPClient],
-        disconnect_func: callable,
-        connect_server_func: callable,
+        disconnect_func: Callable,
+        connect_server_func: Callable,
     ) -> None:
         """
         Restart the application without completely shutting down.
@@ -254,7 +254,7 @@ class LifecycleManager:
             logger.error(f"Error during application restart: {e}", exc_info=True)
             self.status_manager.update_status(StatusManager.STATUS_ERROR)
 
-    async def initialize_bridge(self, server_discovery_func: callable) -> bool:
+    async def initialize_bridge(self, server_discovery_func: Callable) -> bool:
         """
         Initialize the bridge components.
 

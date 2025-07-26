@@ -229,7 +229,7 @@ class Config:
 
         Example: config.get("llm", "model")
         """
-        value = self._get_nested_config(self.config, path)
+        value = self._get_nested_config(self.config, list(path))
         return default if value is None else value
 
     def set(self, *path_and_value) -> None:
@@ -242,7 +242,7 @@ class Config:
 
         path = path_and_value[:-1]
         value = path_and_value[-1]
-        self._set_nested_config(self.config, path, value)
+        self._set_nested_config(self.config, list(path), value)
 
     def as_dict(self) -> Dict[str, Any]:
         """Return the full configuration as a dictionary."""

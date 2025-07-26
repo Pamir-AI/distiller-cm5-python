@@ -1280,7 +1280,7 @@ class DistillerWiFiService:
                         )
 
                         # Start mDNS service if not already running
-                        if not self.device_config.registered_services:
+                        if not self.device_config.registered_services and current_status.ip_address:
                             self.logger.info("Starting mDNS service for current connection")
                             mdns_success = self.device_config.start_mdns_service(
                                 current_status.ip_address, self.web_port
@@ -1553,15 +1553,15 @@ class DistillerWiFiService:
             return
         try:
             self.logger.info("Updating e-ink display for setup mode")
-            # Create and display setup image with hotspot information
-            create_wifi_setup_image(
-                ssid=self.hotspot_ssid,
-                password=self.hotspot_password,
-                ip_address=self.hotspot_ip or "localhost",  # Use actual hotspot IP
-                port=self.web_port,
-                filename="wifi_setup_display.png",
-                auto_display=True,  # Automatically display on e-ink
-            )
+            # TODO: Implement e-ink display functions
+            # create_wifi_setup_image(
+            #     ssid=self.hotspot_ssid,
+            #     password=self.hotspot_password,
+            #     ip_address=self.hotspot_ip or "localhost",  # Use actual hotspot IP
+            #     port=self.web_port,
+            #     filename="wifi_setup_display.png",
+            #     auto_display=True,  # Automatically display on e-ink
+            # )
             self.logger.info("E-ink display updated for setup mode")
         except Exception as e:
             self.logger.error(f"E-ink setup update error: {e}")
@@ -1581,11 +1581,8 @@ class DistillerWiFiService:
                 from PIL import Image, ImageDraw, ImageFont
 
                 # Create a simple connecting image with dynamic dimensions
-                try:
-                    width, height = get_eink_display_dimensions()
-                except Exception as e:
-                    self.logger.warning(f"Could not get display dimensions: {e}, using fallback")
-                    width, height = 240, 416  # Fallback as specified
+                # TODO: Implement get_eink_display_dimensions function
+                width, height = 240, 416  # Fallback dimensions
                 img = Image.new("L", (width, height), 255)  # White background
                 draw = ImageDraw.Draw(img)
 
@@ -1663,13 +1660,13 @@ class DistillerWiFiService:
             return
         try:
             self.logger.info(f"Updating e-ink display for successful connection to {ssid}")
-            # Create and display success image with connection information
-            create_wifi_success_image(
-                ssid=ssid,
-                ip_address=ip_address,
-                filename="wifi_success_display.png",
-                auto_display=True,  # Automatically display on e-ink
-            )
+            # TODO: Implement e-ink display functions
+            # create_wifi_success_image(
+            #     ssid=ssid,
+            #     ip_address=ip_address,
+            #     filename="wifi_success_display.png",
+            #     auto_display=True,  # Automatically display on e-ink
+            # )
             self.logger.info("E-ink display updated for success state")
         except Exception as e:
             self.logger.error(f"E-ink success update error: {e}")
@@ -1680,11 +1677,11 @@ class DistillerWiFiService:
             return
         try:
             self.logger.info("Updating e-ink display with current WiFi information")
-            # Create and display WiFi info image showing current connection details
-            create_wifi_info_image(
-                filename="wifi_info_display.png",
-                auto_display=True,  # Automatically display on e-ink
-            )
+            # TODO: Implement e-ink display functions
+            # create_wifi_info_image(
+            #     filename="wifi_info_display.png",
+            #     auto_display=True,  # Automatically display on e-ink
+            # )
             self.logger.info("E-ink display updated with WiFi info")
         except Exception as e:
             self.logger.error(f"E-ink WiFi info update error: {e}")

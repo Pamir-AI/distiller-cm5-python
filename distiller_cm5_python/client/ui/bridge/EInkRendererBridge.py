@@ -165,7 +165,8 @@ class EInkRendererBridge(QObject):
 
                 # Send the data to the display
                 try:
-                    self.eink_driver.pic_display(display_data)
+                    if self.eink_driver:
+                        self.eink_driver.pic_display(display_data)
                     # if config["display"]["Full_Refresh_LUT_MODE"]:
                     #     time.sleep(1.3)
                 except Exception as e:
@@ -177,6 +178,10 @@ class EInkRendererBridge(QObject):
 
     def _apply_refresh_strategy(self):
         """Apply the appropriate refresh strategy based on frame count"""
+        if not self.eink_driver:
+            logger.debug("E-ink driver not available, skipping refresh strategy")
+            return
+            
         if self._first_frame:
             # First frame after initialization - already in fast mode
             self._first_frame = False
@@ -208,7 +213,7 @@ class EInkRendererBridge(QObject):
             except Exception as e:
                 logger.error(f"Failed to recover driver: {e}")
 
-    def frame_to_eink_data(self, frame_data: bytearray, width: int, height: int) -> bytes:
+    def frame_to_eink_data(self, frame_data: bytearray, width: int, height: int) -> list[int]:
         """
         Convert frame data directly to e-ink display format.
 

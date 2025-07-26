@@ -33,10 +33,10 @@ if config["display"]["eink_enabled"]:
 
 class App(QObject):  # Inherit from QObject to support signals/slots
     # --- Signals ---
-    transcriptionUpdate = pyqtSignal(str, arguments=["transcription"])
-    transcriptionComplete = pyqtSignal(str, arguments=["full_text"])
-    recordingStateChanged = pyqtSignal(bool, arguments=["is_recording"])
-    recordingError = pyqtSignal(str, arguments=["error_message"])  # New signal for errors
+    transcriptionUpdate = pyqtSignal(str)
+    transcriptionComplete = pyqtSignal(str)
+    recordingStateChanged = pyqtSignal(bool)
+    recordingError = pyqtSignal(str)  # New signal for errors
     # --- End Signals ---
 
     def __init__(self):
@@ -263,7 +263,8 @@ class App(QObject):  # Inherit from QObject to support signals/slots
                 self.bridge.shutdown()
 
             # E-Ink Cleanup
-            if config.get("display").get("eink_enabled"):
+            display_config = config.get("display")
+            if display_config and display_config.get("eink_enabled"):
                 self._cleanup_eink()
 
         except Exception as e:
@@ -365,7 +366,8 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             self.loop.stop()
 
         # Clean up the E-Ink renderer if it exists
-        if config.get("display").get("eink_enabled"):
+        display_config = config.get("display")
+        if display_config and display_config.get("eink_enabled"):
             self._cleanup_eink()
 
         # Disconnect SAM
@@ -382,21 +384,24 @@ class App(QObject):  # Inherit from QObject to support signals/slots
     def _set_display_dimensions(self):
         """Set display dimensions from the config file as context properties for QML."""
         # Get width and height from config or use defaults
-        width = int(config.get("display").get("width") or 240)
-        height = int(config.get("display").get("height") or 416)
+        display_config = config.get("display")
+        width = int((display_config.get("width") if display_config else None) or 240)
+        height = int((display_config.get("height") if display_config else None) or 416)
 
         # Set as context properties for QML
         rc = self.engine.rootContext()
-        rc.setContextProperty("configWidth", width)
-        rc.setContextProperty("configHeight", height)
+        if rc:
+            rc.setContextProperty("configWidth", width)
+            rc.setContextProperty("configHeight", height)
 
         logger.info(f"Set display dimensions from config: {width}x{height}")
 
     def _apply_window_constraints(self):
         """Apply fixed size constraints to the main window after QML is loaded."""
         # Get display dimensions from config
-        width = int(config.get("display").get("width") or 240)
-        height = int(config.get("display").get("height") or 416)
+        display_config = config.get("display")
+        width = int((display_config.get("width") if display_config else None) or 240)
+        height = int((display_config.get("height") if display_config else None) or 416)
 
         # Find the root window object - use self.main_window if already assigned
         main_window = self.main_window
@@ -435,13 +440,17 @@ class App(QObject):  # Inherit from QObject to support signals/slots
     # E-Ink Methods
     def _init_eink_renderer(self):
         """Initialize the simplified E-Ink renderer."""
-        if not config.get("display").get("eink_enabled"):
+        display_config = config.get("display")
+        if not (display_config and display_config.get("eink_enabled")):
             logger.warning("E-Ink display mode disabled in configuration")
             return False
 
         logger.info("E-Ink display mode enabled")
 
         try:
+            # Import EInkRenderer dynamically to avoid unbound variable issues
+            from distiller_cm5_python.client.ui.bridge.EInkRenderer import EInkRenderer
+            
             # Create the E-Ink renderer
             self.eink_renderer = EInkRenderer(parent=self.app)
 

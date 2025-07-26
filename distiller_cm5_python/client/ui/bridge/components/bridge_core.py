@@ -92,7 +92,7 @@ class BridgeCore(QObject):
 
         # Initialize specialized components
         self.event_handler = BridgeEventHandler(
-            self.dispatcher, self.status_manager, self, type(self).is_connected
+            self.dispatcher, self.status_manager, self, BridgeCore.is_connected
         )
         # Give the event handler direct access to the conversation manager
         self.event_handler.signals.conversation_manager = self.conversation_manager
@@ -108,7 +108,7 @@ class BridgeCore(QObject):
             self.status_manager,
             self.conversation_manager,
             self.server_discovery,
-            type(self).is_connected,
+            BridgeCore.is_connected,
             self.error_handler,
         )
 
@@ -436,7 +436,7 @@ class BridgeCore(QObject):
     async def _do_restart(self):
         """Perform application restart by resetting state and reconnecting."""
         await self.lifecycle_manager.restart_application(
-            type(self).is_connected,
+            BridgeCore.is_connected,
             self.mcp_client,
             self.connection_manager.disconnect_from_server,
             self.connection_manager.connect_to_selected_server,

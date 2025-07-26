@@ -304,7 +304,8 @@ class HeadlessRenderer(QObject):
                         painter = QPainter(image)
                         # This likely won't work in offscreen mode, but worth trying
                         if hasattr(content_item, "render"):
-                            content_item.render(painter)
+                            # Type checking workaround: we verified the attribute exists
+                            getattr(content_item, "render")(painter)
                             painter.end()
                             logger.debug("Successfully rendered using manual QPainter method")
                             return image
