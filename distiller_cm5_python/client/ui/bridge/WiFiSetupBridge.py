@@ -9,6 +9,8 @@ import asyncio
 import logging
 import threading
 import time
+import io
+import base64
 from typing import Optional, Dict, Any
 from enum import Enum
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QTimer, QMetaObject, Qt
@@ -40,6 +42,7 @@ class WiFiSetupBridge(QObject):
     setupStateChanged = pyqtSignal(str)
     setupMessageChanged = pyqtSignal(str)
     hotspotInfoChanged = pyqtSignal(str, str, str)  # ssid, password, ip
+    qrCodeChanged = pyqtSignal(str)  # base64 encoded QR code image
     networkConnected = pyqtSignal(str, str)  # ssid, ip
     errorOccurred = pyqtSignal(str)
 
@@ -52,6 +55,7 @@ class WiFiSetupBridge(QObject):
         self._hotspot_ssid = ""
         self._hotspot_password = ""
         self._hotspot_ip = ""
+        self._qr_code_data = ""
         self._connected_network = ""
         self._connected_ip = ""
         self._error_message = ""
@@ -89,6 +93,10 @@ class WiFiSetupBridge(QObject):
     def hotspotIP(self) -> str:
         return self._hotspot_ip
 
+    @pyqtProperty(str, notify=qrCodeChanged)
+    def qrCodeData(self) -> str:
+        return self._qr_code_data
+
     @pyqtProperty(str, notify=networkConnected)
     def connectedNetwork(self) -> str:
         return self._connected_network
@@ -112,6 +120,9 @@ class WiFiSetupBridge(QObject):
         self._set_state(WiFiSetupState.INITIALIZING, "Starting WiFi setup...")
 
         try:
+            # Regenerate password for new setup session
+            self._regenerate_hotspot_password()
+
             # Initialize WiFi service
             self._wifi_service = DistillerWiFiService(
                 enable_eink=False  # We're using GUI instead
@@ -222,6 +233,53 @@ class WiFiSetupBridge(QObject):
         except Exception as e:
             logger.error(f"Error monitoring service state: {e}")
 
+    def _regenerate_hotspot_password(self):
+        """Regenerate hotspot password for new setup session"""
+        try:
+            from .network.device_config import get_device_config
+
+            device_config = get_device_config()
+            new_password = device_config.regenerate_hotspot_password()
+            logger.info(f"Regenerated hotspot password for setup session")
+        except Exception as e:
+            logger.error(f"Failed to regenerate hotspot password: {e}")
+
+    def _generate_wifi_qr_code(self, ssid: str, password: str) -> str:
+        """Generate QR code for WiFi connection as base64 encoded PNG"""
+        try:
+            import qrcode
+            from PIL import Image
+
+            # Create WiFi QR code content in standard format
+            # WIFI:T:WPA;S:SSID;P:password;H:false;;
+            wifi_content = f"WIFI:T:WPA;S:{ssid};P:{password};H:false;;"
+
+            # Generate QR code
+            qr = qrcode.QRCode(
+                version=1,  # Small size
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=4,
+                border=2,
+            )
+            qr.add_data(wifi_content)
+            qr.make(fit=True)
+
+            # Create monochrome image (for e-ink compatibility)
+            img = qr.make_image(fill_color="black", back_color="white")
+
+            # Convert to base64 for QML display
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            img_data = buffer.getvalue()
+            base64_encoded = base64.b64encode(img_data).decode("utf-8")
+
+            logger.info(f"Generated QR code for WiFi: {ssid}")
+            return f"data:image/png;base64,{base64_encoded}"
+
+        except Exception as e:
+            logger.error(f"Failed to generate QR code: {e}")
+            return ""
+
     def _set_state(self, state: WiFiSetupState, message: str):
         """Update setup state and message"""
         if self._setup_state != state or self._setup_message != message:
@@ -232,7 +290,7 @@ class WiFiSetupBridge(QObject):
             logger.info(f"Setup state: {state.value} - {message}")
 
     def _set_hotspot_info(self, ssid: str, password: str, ip: str):
-        """Update hotspot information"""
+        """Update hotspot information and generate QR code"""
         changed = (
             self._hotspot_ssid != ssid
             or self._hotspot_password != password
@@ -243,6 +301,13 @@ class WiFiSetupBridge(QObject):
             self._hotspot_ssid = ssid
             self._hotspot_password = password
             self._hotspot_ip = ip
+
+            # Generate QR code for WiFi connection
+            qr_data = self._generate_wifi_qr_code(ssid, password)
+            if qr_data != self._qr_code_data:
+                self._qr_code_data = qr_data
+                self.qrCodeChanged.emit(qr_data)
+
             self.hotspotInfoChanged.emit(ssid, password, ip)
 
     def _set_network_connected(self, ssid: str, ip: str):

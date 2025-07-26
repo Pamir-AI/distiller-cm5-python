@@ -436,6 +436,70 @@ Rectangle {
                 }
             }
 
+            // QR Code section
+            Rectangle {
+                width: parent.width
+                height: qrCodeInfo.height + ThemeManager.spacingSmall * 2
+                color: ThemeManager.backgroundColor
+                border.width: ThemeManager.borderWidth
+                border.color: ThemeManager.black
+                radius: ThemeManager.borderRadius
+                visible: bridge && bridge.wifiSetupBridge && bridge.wifiSetupBridge.qrCodeData !== ""
+
+                Column {
+                    id: qrCodeInfo
+
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: ThemeManager.spacingSmall
+                    spacing: ThemeManager.spacingSmall
+
+                    Text {
+                        text: "SCAN QR CODE"
+                        font.pixelSize: FontManager.fontSizeSmall
+                        font.family: FontManager.primaryFontFamily
+                        font.bold: true
+                        color: ThemeManager.textColor
+                        renderType: Text.NativeRendering
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: "Scan this QR code with your phone's camera to quickly connect to the WiFi hotspot:"
+                        font: FontManager.small
+                        color: ThemeManager.textColor
+                        wrapMode: Text.WordWrap
+                        renderType: Text.NativeRendering
+                    }
+
+                    // QR Code Image
+                    Item {
+                        width: parent.width
+                        height: qrCodeImage.visible ? 120 : 0
+
+                        Image {
+                            id: qrCodeImage
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: 100
+                            height: 100
+                            fillMode: Image.PreserveAspectFit
+                            smooth: false  // Keep crisp for QR codes
+                            source: bridge && bridge.wifiSetupBridge ? bridge.wifiSetupBridge.qrCodeData : ""
+                            visible: source !== ""
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: "transparent"
+                                border.width: 1
+                                border.color: ThemeManager.black
+                                z: -1
+                            }
+                        }
+                    }
+                }
+            }
+
             // Web interface info
             Rectangle {
                 width: parent.width

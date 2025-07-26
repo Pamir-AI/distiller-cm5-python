@@ -61,6 +61,10 @@ class DeviceConfigManager:
         """Generate random alphanumeric suffix"""
         return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
+    def _generate_random_password(self, length: int = 8) -> str:
+        """Generate random 8-digit numeric password"""
+        return "".join(random.choices(string.digits, k=length))
+
     def _is_distiller_hostname(self, hostname: str) -> bool:
         """Check if hostname is in distiller-XXXX format"""
         import re
@@ -149,7 +153,7 @@ class DeviceConfigManager:
                     "hostname": current_hostname,
                     "friendly_name": f"Distiller {suffix}",
                     "hotspot_ssid": f"DistillerSetup-{suffix}",
-                    "hotspot_password": "setup123",
+                    "hotspot_password": self._generate_random_password(),
                     "web_port": 8080,
                     "created_at": int(time.time()),
                     "version": "1.0",
@@ -163,7 +167,7 @@ class DeviceConfigManager:
                     "hostname": f"distiller-{random_suffix.lower()}",
                     "friendly_name": f"Distiller {random_suffix}",
                     "hotspot_ssid": f"DistillerSetup-{random_suffix}",
-                    "hotspot_password": "setup123",
+                    "hotspot_password": self._generate_random_password(),
                     "web_port": 8080,
                     "created_at": int(time.time()),
                     "version": "1.0",
@@ -194,7 +198,7 @@ class DeviceConfigManager:
                 "hostname": "distiller-temp",
                 "friendly_name": "Distiller Device",
                 "hotspot_ssid": "DistillerSetup-TEMP",
-                "hotspot_password": "setup123",
+                "hotspot_password": self._generate_random_password(),
                 "web_port": 8080,
             }
 
@@ -227,6 +231,25 @@ class DeviceConfigManager:
     def get_web_port(self) -> int:
         """Get web server port"""
         return self.get_config().get("web_port", 8080)
+
+    def regenerate_hotspot_password(self) -> str:
+        """Generate a new random password for hotspot and update config"""
+        new_password = self._generate_random_password()
+
+        # Update cached config
+        if self._config_cache:
+            self._config_cache["hotspot_password"] = new_password
+
+            # Save updated config to file
+            try:
+                with open(self.config_file, "w") as f:
+                    json.dump(self._config_cache, f, indent=2)
+                os.chmod(self.config_file, 0o644)
+                logger.info(f"Generated new hotspot password: {new_password}")
+            except Exception as e:
+                logger.error(f"Failed to save new password to config: {e}")
+
+        return new_password
 
     def _update_system_hostname(self, hostname: str) -> bool:
         """Update system hostname with graceful fallback"""
