@@ -19,8 +19,10 @@ override_dh_auto_install:
 	# Create installation directory
 	install -d $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)
 	
-	# Copy source code
+	# Copy source code (excluding cache directories)
 	cp -r $(CURDIR)/distiller_cm5_python $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
+	# Remove cache directories from the copied source
+	find $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/distiller_cm5_python -name "cache" -type d -exec rm -rf {} + 2>/dev/null || true
 	cp -r $(CURDIR)/main.py $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
 	cp -r $(CURDIR)/run.sh $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
 	cp -r $(CURDIR)/spin_up.sh $(CURDIR)/debian/$(PACKAGE_NAME)$(INSTALL_DIR)/
@@ -79,6 +81,9 @@ override_dh_auto_clean:
 	# Remove Python cache files
 	find . -name "*.pyc" -delete
 	find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+	
+	# Remove cache directories
+	find . -name "cache" -type d -exec rm -rf {} + 2>/dev/null || true
 	
 	# Remove uv cache if it exists
 	rm -rf .uv_cache || true

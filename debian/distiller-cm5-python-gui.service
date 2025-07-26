@@ -18,6 +18,7 @@ Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 WorkingDirectory=/opt/distiller-cm5-python
 ExecStartPre=/bin/bash -c 'cd /opt/distiller-cm5-python && if command -v uv >/dev/null 2>&1; then uv sync --quiet 2>/dev/null || true; elif [ -f "/usr/local/bin/uv" ]; then /usr/local/bin/uv sync --quiet 2>/dev/null || true; fi'
+ExecStartPre=/bin/sleep 5
 ExecStart=/opt/distiller-cm5-python/.venv/bin/python /opt/distiller-cm5-python/main.py --gui
 Restart=always
 RestartSec=5
@@ -25,17 +26,22 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=distiller-cm5-python-gui
 
-# Security settings
-NoNewPrivileges=true
+# Security settings (relaxed for hardware access)
+NoNewPrivileges=false
 PrivateTmp=true
-ProtectSystem=strict
+ProtectSystem=false
 ProtectHome=false
+PrivateDevices=false
+DeviceAllow=/dev/gpiomem rw
+DeviceAllow=/dev/spidev0.0 rw
+DeviceAllow=/dev/serial0 rw
+DeviceAllow=/dev/pamir-sam rw
+DeviceAllow=/dev/input/event* rw
 ReadWritePaths=/opt/distiller-cm5-python
 ReadWritePaths=/var/log/distiller-cm5-python
 ReadWritePaths=/etc/distiller
-ReadWritePaths=/dev/gpiomem
-ReadWritePaths=/dev/spidev0.0
-ReadWritePaths=/dev/serial0
+ReadWritePaths=/sys/class/
+ReadWritePaths=/sys/devices/platform
 
 # Resource limits
 LimitNOFILE=65536

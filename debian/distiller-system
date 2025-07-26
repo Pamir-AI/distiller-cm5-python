@@ -27,6 +27,38 @@ distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hosts
 distiller ALL=(ALL) NOPASSWD: /bin/hostname
 distiller ALL=(ALL) NOPASSWD: /bin/sh -c echo * > /etc/hostname
 
+# System configuration file management
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/avahi/avahi-daemon.conf
+distiller ALL=(ALL) NOPASSWD: /bin/tee /etc/avahi/avahi-daemon.conf
+
+# LED control via sysfs (requires sudo for write operations)
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/class/leds/*
+distiller ALL=(ALL) NOPASSWD: /bin/tee /sys/class/leds/*
+
+# Audio hardware control (microphone gain and speaker volume)
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/devices/platform/axi/*/i2c/*/input_gain
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/devices/platform/axi/*/i2c/*/volume_level
+distiller ALL=(ALL) NOPASSWD: /bin/tee /sys/devices/platform/axi/*/i2c/*/input_gain
+distiller ALL=(ALL) NOPASSWD: /bin/tee /sys/devices/platform/axi/*/i2c/*/volume_level
+distiller ALL=(ALL) NOPASSWD: /usr/bin/cat /sys/devices/platform/axi/*/i2c/*/input_gain
+distiller ALL=(ALL) NOPASSWD: /usr/bin/cat /sys/devices/platform/axi/*/i2c/*/volume_level
+distiller ALL=(ALL) NOPASSWD: /bin/cat /sys/devices/platform/axi/*/i2c/*/input_gain
+distiller ALL=(ALL) NOPASSWD: /bin/cat /sys/devices/platform/axi/*/i2c/*/volume_level
+
+# Text-to-speech Piper binary execution
+distiller ALL=(ALL) NOPASSWD: /usr/local/bin/piper
+distiller ALL=(ALL) NOPASSWD: /opt/*/piper
+
+# Input device access for hardware key monitoring
+distiller ALL=(ALL) NOPASSWD: /bin/chown distiller /dev/input/event*
+distiller ALL=(ALL) NOPASSWD: /bin/chmod 664 /dev/input/event*
+
+# UART device access for power management
+distiller ALL=(ALL) NOPASSWD: /bin/chown distiller /dev/pamir-sam
+distiller ALL=(ALL) NOPASSWD: /bin/chmod 664 /dev/pamir-sam
+distiller ALL=(ALL) NOPASSWD: /bin/chown distiller /dev/serial*
+distiller ALL=(ALL) NOPASSWD: /bin/chmod 664 /dev/serial*
+
 # Allow distiller user to manage power operations
 distiller ALL=(ALL) NOPASSWD: /sbin/shutdown
 distiller ALL=(ALL) NOPASSWD: /sbin/reboot
