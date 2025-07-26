@@ -254,17 +254,18 @@ def signal_app_start() -> bool:
 
 
 def signal_app_shutdown() -> bool:
-    """Signal that the application is shutting down."""
-    success = send_power_status(0)
-    if not success:
-        logger.error("Failed to send power status during shutdown")
-        return False
+    # """Signal that the application is shutting down."""
+    # success = send_power_status(0)
+    # if not success:
+    #     logger.error("Failed to send power status during shutdown")
+    #     return False
 
-    # Also send shutdown notification
-    send_shutdown_notification()
+    # # Also send shutdown notification
+    # send_shutdown_notification()
 
-    success = send_btn_power_packet()
-    if not success:
-        logger.error("Failed to send BTN_POWER packet during shutdown")
-        return False
-    return success
+    # success = send_btn_power_packet()
+    # if not success:
+    #     logger.error("Failed to send BTN_POWER packet during shutdown")
+    #     return False
+    # return success
+    return 0

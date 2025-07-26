@@ -349,7 +349,7 @@ class MCPClientBridge(BridgeCore):
             import time
             
             pre_shutdown_cmd = config.get("system", "pre_shutdown_command", default="").strip()
-            timeout = config.get("system", "pre_shutdown_timeout", default=5)
+            timeout = config.get("system", "pre_shutdown_timeout", default=15)
             
             if not pre_shutdown_cmd:
                 return
@@ -378,6 +378,7 @@ class MCPClientBridge(BridgeCore):
                     text=True,
                     timeout=timeout
                 )
+                time.sleep(3)
                 
                 if result.returncode == 0:
                     logger.info(f"Pre-shutdown command completed successfully: {result.stdout}")
