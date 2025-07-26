@@ -158,7 +158,9 @@ def send_power_status(status: int) -> bool:
     """
     power_state = POWER_STATE_RUNNING if status else POWER_STATE_OFF
     packet = create_packet(
-        TYPE_POWER | POWER_CMD_SET, power_state, 0x00  # Flags (reserved)
+        TYPE_POWER | POWER_CMD_SET,
+        power_state,
+        0x00,  # Flags (reserved)
     )
 
     success = send_packet(packet)
@@ -178,7 +180,9 @@ def send_btn_power_packet() -> bool:
         True if successful, False otherwise
     """
     packet = create_packet(
-        TYPE_BUTTON | BUTTON_POWER, 0x00, 0x00  # Reserved  # Reserved
+        TYPE_BUTTON | BUTTON_POWER,
+        0x00,
+        0x00,  # Reserved  # Reserved
     )
 
     success = send_packet(packet)

@@ -5,10 +5,10 @@ import threading
 import logging
 import errno
 import select
-import sys 
+import sys
 
 # Only import evdev on Linux
-if sys.platform == 'linux':
+if sys.platform == "linux":
     import evdev
 else:
     # Define a dummy evdev or raise an error if needed on other platforms
@@ -35,9 +35,7 @@ class InputMonitor(QObject):
         """
         QObject.__init__(self)
         self.target_window = target_window
-        self._input_device_path = (
-            "/dev/input/event2"  # Default, will be dynamically found
-        )
+        self._input_device_path = "/dev/input/event2"  # Default, will be dynamically found
         self._input_thread = None
         self._stop_input_thread = threading.Event()
 
@@ -80,9 +78,7 @@ class InputMonitor(QObject):
         device_path = self._find_input_device_path(device_name)
 
         if not device_path:
-            logger.error(
-                f"Failed to find input device '{device_name}'. Cannot start monitor."
-            )
+            logger.error(f"Failed to find input device '{device_name}'. Cannot start monitor.")
             return
 
         if not self.target_window:
@@ -172,12 +168,8 @@ class InputMonitor(QObject):
                                             )
                                             continue
                                         # Post the event to the target window
-                                        QApplication.postEvent(
-                                            target_window, press_event
-                                        )
-                                        logger.debug(
-                                            f"Posted KeyPress {qt_key} to {target_window}"
-                                        )
+                                        QApplication.postEvent(target_window, press_event)
+                                        logger.debug(f"Posted KeyPress {qt_key} to {target_window}")
                     except BlockingIOError:
                         # This can happen if select() returns but read() has no data yet
                         continue
@@ -232,9 +224,7 @@ class InputMonitor(QObject):
                 # Wait for the thread to finish, with a timeout
                 self._input_thread.join(timeout=1.0)
                 if self._input_thread.is_alive():
-                    logger.warning(
-                        "Input monitor thread did not stop gracefully within timeout."
-                    )
+                    logger.warning("Input monitor thread did not stop gracefully within timeout.")
                 else:
                     logger.info("Input monitor thread stopped.")
             except Exception as e:

@@ -34,7 +34,6 @@ config = {
             "font_size_large": 18,
             "font_size_xlarge": 20,
         },
-
         # Flip screen orientation
         "flip_screen": True,
     }

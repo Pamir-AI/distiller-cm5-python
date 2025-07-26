@@ -48,9 +48,7 @@ class BridgeCore(QObject):
     errorOccurred = pyqtSignal(str)  # Signal for errors
     bridgeReady = pyqtSignal()  # Signal for when the bridge is fully initialized
     recordingStateChanged = pyqtSignal(bool)  # Signal for recording state changes
-    recordingError = pyqtSignal(
-        str
-    )  # Signal specifically for recording/transcription errors
+    recordingError = pyqtSignal(str)  # Signal specifically for recording/transcription errors
     actionReceived = pyqtSignal(str, str, str)  # Signal for actions
     infoReceived = pyqtSignal(str, str, str)  # Signal for info messages
     warningReceived = pyqtSignal(str, str, str)  # Signal for warnings
@@ -65,9 +63,7 @@ class BridgeCore(QObject):
     functionReceived = pyqtSignal(str, str, str)  # Signal for function events
     observationReceived = pyqtSignal(str, str, str)  # Signal for observation events
     planReceived = pyqtSignal(str, str, str)  # Signal for plan events
-    messageSchemaReceived = pyqtSignal(
-        "QVariantMap"
-    )  # Signal for raw message schema objects
+    messageSchemaReceived = pyqtSignal("QVariantMap")  # Signal for raw message schema objects
 
     def __init__(self, parent=None):
         """
@@ -187,9 +183,7 @@ class BridgeCore(QObject):
                 return
 
             if not self._is_connected:
-                raise ConnectionError(
-                    "Not connected to any server. Please connect first."
-                )
+                raise ConnectionError("Not connected to any server. Please connect first.")
 
             # Add user message
             user_message = {
@@ -229,9 +223,7 @@ class BridgeCore(QObject):
     @pyqtSlot(str, str, "QVariant")
     def setConfigValue(self, section: str, key: str, value):
         """Set a configuration value (Stub method)."""
-        logger.warning(
-            f"ConfigManager removed: setConfigValue({section}, {key}, {value}) ignored"
-        )
+        logger.warning(f"ConfigManager removed: setConfigValue({section}, {key}, {value}) ignored")
 
     async def connect_to_server(self):
         """Ask the user to select a server from the list of available servers."""
@@ -276,16 +268,12 @@ class BridgeCore(QObject):
         """Connect to the selected MCP server."""
         try:
             if not self.connection_manager.selected_server_path:
-                raise ValueError(
-                    "No server selected. Please choose a server before connecting."
-                )
+                raise ValueError("No server selected. Please choose a server before connecting.")
 
             # Use utility to extract server name for status messages
             from distiller_cm5_python.utils.server_utils import extract_server_name
 
-            server_name = extract_server_name(
-                self.connection_manager.selected_server_path
-            )
+            server_name = extract_server_name(self.connection_manager.selected_server_path)
 
             if not os.path.exists(self.connection_manager.selected_server_path):
                 raise FileNotFoundError(
@@ -296,9 +284,7 @@ class BridgeCore(QObject):
             self.status_manager.update_status(StatusManager.STATUS_CONNECTING)
 
             # Create task to connect in the background
-            asyncio.create_task(
-                self.connection_manager.connect_to_selected_server(server_name)
-            )
+            asyncio.create_task(self.connection_manager.connect_to_selected_server(server_name))
             return ""  # Empty string indicates success (no error)
 
         except Exception as e:
@@ -322,9 +308,7 @@ class BridgeCore(QObject):
 
             # Check if client is connected
             if not self._is_connected:
-                raise ConnectionError(
-                    "Cannot activate voice: not connected to any server."
-                )
+                raise ConnectionError("Cannot activate voice: not connected to any server.")
 
             # Emit signal for UI update
             self.listeningStarted.emit()

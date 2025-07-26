@@ -54,29 +54,31 @@ class WiFiManager:
     def _should_use_sudo(self) -> bool:
         """Determine if we should use sudo for privileged commands"""
         # Use sudo if we're running as the 'distiller' user
-        current_user = os.getenv('USER') or os.getenv('USERNAME') or 'unknown'
-        return current_user == 'distiller'
+        current_user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
+        return current_user == "distiller"
 
     def _build_command(self, base_cmd: list[str]) -> list[str]:
         """Build command with sudo prefix if needed for privileged operations"""
-        privileged_commands = {'nmcli', 'ip', 'hostname', 'systemctl', 'iwconfig', 'iwgetid'}
-        
+        privileged_commands = {"nmcli", "ip", "hostname", "systemctl", "iwconfig", "iwgetid"}
+
         if self._use_sudo and base_cmd and base_cmd[0] in privileged_commands:
-            return ['sudo'] + base_cmd
+            return ["sudo"] + base_cmd
         return base_cmd
 
     async def get_connection_status(self) -> ConnectionStatus:
         """Get current WiFi connection status"""
         try:
-            cmd = self._build_command([
-                "nmcli",
-                "-t",
-                "-f",
-                "TYPE,DEVICE,STATE,NAME",
-                "connection",
-                "show",
-                "--active",
-            ])
+            cmd = self._build_command(
+                [
+                    "nmcli",
+                    "-t",
+                    "-f",
+                    "TYPE,DEVICE,STATE,NAME",
+                    "connection",
+                    "show",
+                    "--active",
+                ]
+            )
 
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -120,7 +122,9 @@ class WiFiManager:
         """Get SSID of connected device"""
         try:
             # First try to get the connection name
-            cmd = self._build_command(["nmcli", "-t", "-f", "GENERAL.CONNECTION", "device", "show", device])
+            cmd = self._build_command(
+                ["nmcli", "-t", "-f", "GENERAL.CONNECTION", "device", "show", device]
+            )
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -132,15 +136,17 @@ class WiFiManager:
                     return connection_name
 
             # Fallback: Try to get SSID directly from wireless properties
-            cmd = self._build_command([
-                "nmcli",
-                "-t",
-                "-f",
-                "GENERAL.WIFI-PROPERTIES.SSID",
-                "device",
-                "show",
-                device,
-            ])
+            cmd = self._build_command(
+                [
+                    "nmcli",
+                    "-t",
+                    "-f",
+                    "GENERAL.WIFI-PROPERTIES.SSID",
+                    "device",
+                    "show",
+                    device,
+                ]
+            )
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -209,15 +215,17 @@ class WiFiManager:
             await asyncio.sleep(2)
 
             # Get scan results
-            cmd = self._build_command([
-                "nmcli",
-                "-t",
-                "-f",
-                "SSID,SIGNAL,SECURITY,FREQ,IN-USE",
-                "device",
-                "wifi",
-                "list",
-            ])
+            cmd = self._build_command(
+                [
+                    "nmcli",
+                    "-t",
+                    "-f",
+                    "SSID,SIGNAL,SECURITY,FREQ,IN-USE",
+                    "device",
+                    "wifi",
+                    "list",
+                ]
+            )
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -312,15 +320,17 @@ class WiFiManager:
                 return None
 
             # Get active connections to find the hotspot interface
-            cmd = self._build_command([
-                "nmcli",
-                "-t",
-                "-f",
-                "TYPE,DEVICE,STATE,NAME",
-                "connection",
-                "show",
-                "--active",
-            ])
+            cmd = self._build_command(
+                [
+                    "nmcli",
+                    "-t",
+                    "-f",
+                    "TYPE,DEVICE,STATE,NAME",
+                    "connection",
+                    "show",
+                    "--active",
+                ]
+            )
 
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -357,9 +367,7 @@ class WiFiManager:
             self.logger.error(f"Error getting hotspot IP: {e}")
             return None
 
-    async def start_hotspot(
-        self, ssid: str, password: str
-    ) -> tuple[bool, Optional[str]]:
+    async def start_hotspot(self, ssid: str, password: str) -> tuple[bool, Optional[str]]:
         """Start WiFi hotspot with proper state management
 
         Returns:
@@ -371,9 +379,7 @@ class WiFiManager:
             # Step 1: Disconnect from current WiFi if connected
             current_status = await self.get_connection_status()
             if current_status.connected:
-                self.logger.info(
-                    "Disconnecting from current WiFi before starting hotspot"
-                )
+                self.logger.info("Disconnecting from current WiFi before starting hotspot")
                 if not await self.disconnect_current_wifi():
                     raise WiFiManagerError("Failed to disconnect from current WiFi")
 
@@ -393,9 +399,7 @@ class WiFiManager:
                 # Get the actual IP address
                 ip_address = await self.get_hotspot_ip()
                 if ip_address:
-                    self.logger.info(
-                        f"Hotspot '{ssid}' started successfully at {ip_address}"
-                    )
+                    self.logger.info(f"Hotspot '{ssid}' started successfully at {ip_address}")
                     return True, ip_address
                 else:
                     self.logger.warning(
@@ -417,21 +421,23 @@ class WiFiManager:
         """Create and activate hotspot connection"""
         try:
             # Create hotspot connection
-            cmd = self._build_command([
-                "nmcli",
-                "connection",
-                "add",
-                "type",
-                "wifi",
-                "ifname",
-                "*",
-                "con-name",
-                self._hotspot_connection_name,
-                "autoconnect",
-                "no",
-                "ssid",
-                ssid,
-            ])
+            cmd = self._build_command(
+                [
+                    "nmcli",
+                    "connection",
+                    "add",
+                    "type",
+                    "wifi",
+                    "ifname",
+                    "*",
+                    "con-name",
+                    self._hotspot_connection_name,
+                    "autoconnect",
+                    "no",
+                    "ssid",
+                    ssid,
+                ]
+            )
 
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -443,60 +449,72 @@ class WiFiManager:
 
             # Configure hotspot settings
             config_commands = [
-                self._build_command([
-                    "nmcli",
-                    "connection",
-                    "modify",
-                    self._hotspot_connection_name,
-                    "802-11-wireless.mode",
-                    "ap",
-                ]),
-                self._build_command([
-                    "nmcli",
-                    "connection",
-                    "modify",
-                    self._hotspot_connection_name,
-                    "802-11-wireless.band",
-                    "bg",
-                ]),
-                self._build_command([
-                    "nmcli",
-                    "connection",
-                    "modify",
-                    self._hotspot_connection_name,
-                    "ipv4.method",
-                    "shared",
-                ]),
-                self._build_command([
-                    "nmcli",
-                    "connection",
-                    "modify",
-                    self._hotspot_connection_name,
-                    "ipv4.addresses",
-                    "192.168.4.1/24",
-                ]),
+                self._build_command(
+                    [
+                        "nmcli",
+                        "connection",
+                        "modify",
+                        self._hotspot_connection_name,
+                        "802-11-wireless.mode",
+                        "ap",
+                    ]
+                ),
+                self._build_command(
+                    [
+                        "nmcli",
+                        "connection",
+                        "modify",
+                        self._hotspot_connection_name,
+                        "802-11-wireless.band",
+                        "bg",
+                    ]
+                ),
+                self._build_command(
+                    [
+                        "nmcli",
+                        "connection",
+                        "modify",
+                        self._hotspot_connection_name,
+                        "ipv4.method",
+                        "shared",
+                    ]
+                ),
+                self._build_command(
+                    [
+                        "nmcli",
+                        "connection",
+                        "modify",
+                        self._hotspot_connection_name,
+                        "ipv4.addresses",
+                        "192.168.4.1/24",
+                    ]
+                ),
             ]
 
             # Add security if password provided
             if password:
                 config_commands.extend(
                     [
-                        self._build_command([
-                            "nmcli",
-                            "connection",
-                            "modify",
-                            self._hotspot_connection_name,
-                            "802-11-wireless-security.key-mgmt",
-                            "wpa-psk",
-                        ]),
-                        self._build_command([
-                            "nmcli",
-                            "connection",
-                            "modify",
-                            self._hotspot_connection_name,
-                            "802-11-wireless-security.psk",
-                            password,
-                        ]),
+                        self._build_command(
+                            [
+                                "nmcli",
+                                "connection",
+                                "modify",
+                                self._hotspot_connection_name,
+                                "802-11-wireless-security.key-mgmt",
+                                "wpa-psk",
+                            ]
+                        ),
+                        self._build_command(
+                            [
+                                "nmcli",
+                                "connection",
+                                "modify",
+                                self._hotspot_connection_name,
+                                "802-11-wireless-security.psk",
+                                password,
+                            ]
+                        ),
                     ]
                 )
 
@@ -542,7 +560,9 @@ class WiFiManager:
             # Deactivate and remove hotspot connection
             cmds = [
                 self._build_command(["nmcli", "connection", "down", self._hotspot_connection_name]),
-                self._build_command(["nmcli", "connection", "delete", self._hotspot_connection_name]),
+                self._build_command(
+                    ["nmcli", "connection", "delete", self._hotspot_connection_name]
+                ),
             ]
 
             for cmd in cmds:
@@ -585,15 +605,11 @@ class WiFiManager:
 
                 # Check if password is needed
                 if target_network.security != "open" and not password:
-                    self.logger.error(
-                        f"Network '{ssid}' requires a password but none provided"
-                    )
+                    self.logger.error(f"Network '{ssid}' requires a password but none provided")
                     return False
             else:
                 self.logger.warning(f"Network '{ssid}' not found in scan results")
-                self.logger.info(
-                    f"Available networks: {[net.ssid for net in networks]}"
-                )
+                self.logger.info(f"Available networks: {[net.ssid for net in networks]}")
                 # Continue anyway - network might be hidden
 
             # Step 2: Stop hotspot if active
@@ -632,9 +648,7 @@ class WiFiManager:
             if password:
                 # Use --ask flag for password authentication
                 cmd = self._build_command(["nmcli", "--ask", "device", "wifi", "connect", ssid])
-                self.logger.debug(
-                    f"Running command: {' '.join(cmd[:-1])} [password hidden]"
-                )
+                self.logger.debug(f"Running command: {' '.join(cmd[:-1])} [password hidden]")
 
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
@@ -675,7 +689,9 @@ class WiFiManager:
                     if status.connected:
                         # Check if we're connected to the target network
                         # Handle cases where NetworkManager appends numbers (e.g., "Network 1", "Network 2")
-                        if status.ssid and (status.ssid == ssid or status.ssid.startswith(ssid + " ")):
+                        if status.ssid and (
+                            status.ssid == ssid or status.ssid.startswith(ssid + " ")
+                        ):
                             self.logger.info(
                                 f"Successfully connected to '{ssid}' (detected as '{status.ssid}') at {status.ip_address} (attempt {attempt + 1})"
                             )
@@ -691,7 +707,11 @@ class WiFiManager:
                 status = await self.get_connection_status()
 
                 # If we're connected but SSID doesn't match exactly, try flexible matching
-                if status.connected and status.ssid and (status.ssid == ssid or status.ssid.startswith(ssid + " ")):
+                if (
+                    status.connected
+                    and status.ssid
+                    and (status.ssid == ssid or status.ssid.startswith(ssid + " "))
+                ):
                     self.logger.info(
                         f"Successfully connected to '{ssid}' (detected as '{status.ssid}') at {status.ip_address}"
                     )
@@ -714,7 +734,11 @@ class WiFiManager:
                     return True
 
                 # Final check with flexible SSID matching
-                if status.connected and status.ssid and (status.ssid == ssid or status.ssid.startswith(ssid + " ")):
+                if (
+                    status.connected
+                    and status.ssid
+                    and (status.ssid == ssid or status.ssid.startswith(ssid + " "))
+                ):
                     self.logger.info(
                         f"Successfully connected to '{ssid}' (detected as '{status.ssid}') at {status.ip_address}"
                     )
@@ -750,7 +774,9 @@ class WiFiManager:
     async def _verify_connection_by_profile(self, ssid: str) -> bool:
         """Verify connection by checking if the connection profile is active"""
         try:
-            cmd = self._build_command(["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"])
+            cmd = self._build_command(
+                ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"]
+            )
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -804,7 +830,7 @@ class WiFiManager:
 
             if process.returncode == 0:
                 current_ssid = stdout.decode().strip()
-                # Check for exact match or SSID with appended number  
+                # Check for exact match or SSID with appended number
                 if current_ssid == ssid or current_ssid.startswith(ssid + " "):
                     return True
 
@@ -829,7 +855,9 @@ class WiFiManager:
     async def _cleanup_hotspot_connection(self):
         """Clean up hotspot connection"""
         try:
-            cmd = self._build_command(["nmcli", "connection", "delete", self._hotspot_connection_name])
+            cmd = self._build_command(
+                ["nmcli", "connection", "delete", self._hotspot_connection_name]
+            )
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
@@ -844,9 +872,7 @@ class WiFiManager:
                 self.logger.info("No original connection to restore")
                 return False
 
-            self.logger.info(
-                f"Attempting to restore connection to {self._original_connection}"
-            )
+            self.logger.info(f"Attempting to restore connection to {self._original_connection}")
 
             # Try to reconnect to original network
             cmd = self._build_command(["nmcli", "connection", "up", self._original_connection])

@@ -64,9 +64,7 @@ class MessageSchema(BaseModel):
     @staticmethod
     def tool_call(tool_call_dict: dict) -> "ActionEvent":
         """Create an action event for a tool call."""
-        tool_name = tool_call_dict.get("function", {}).get(
-            "name", tool_call_dict.get("name", "")
-        )
+        tool_name = tool_call_dict.get("function", {}).get("name", tool_call_dict.get("name", ""))
         tool_args = tool_call_dict.get("function", {}).get(
             "arguments", tool_call_dict.get("arguments", {})
         )
@@ -206,9 +204,7 @@ class CacheEvent(MessageSchema):
         )
 
     @staticmethod
-    def restoration_failed(
-        error_message: str, model_name: Optional[str] = None
-    ) -> "CacheEvent":
+    def restoration_failed(error_message: str, model_name: Optional[str] = None) -> "CacheEvent":
         """Create an event for when cache restoration fails"""
         return CacheEvent(
             type=EventType.CACHE,

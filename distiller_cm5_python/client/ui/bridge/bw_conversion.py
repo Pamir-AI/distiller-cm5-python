@@ -97,9 +97,7 @@ def convert_to_bw(pixels, config):
     """
     # Get configuration settings
     bw_config = config.get("eink_bw_conversion", {})
-    use_gamma = bw_config.get(
-        "use_gamma", True
-    )  # Default to True for better E-Ink contrast
+    use_gamma = bw_config.get("use_gamma", True)  # Default to True for better E-Ink contrast
     gamma_value = bw_config.get("gamma_value", 0.8)  # Optimized for E-Ink UI content
     threshold = config.get("eink_threshold", 128)
 

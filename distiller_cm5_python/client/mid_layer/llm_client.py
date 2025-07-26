@@ -96,14 +96,10 @@ class _ToolCallAccumulator:
                     f"Dispatching completed tool call: {tool_call['id']} - {tool_call['function']['name']}"
                 )
                 # We need to pass a copy without the internal '_dispatched' flag
-                dispatch_payload = {
-                    k: v for k, v in tool_call.items() if k != "_dispatched"
-                }
+                dispatch_payload = {k: v for k, v in tool_call.items() if k != "_dispatched"}
                 self._dispatcher.dispatch(MessageSchema.tool_call(dispatch_payload))
             else:
-                logger.warning(
-                    "Tool call completed but no dispatcher available to send event."
-                )
+                logger.warning("Tool call completed but no dispatcher available to send event.")
 
     def get_final_calls(self) -> List[Dict[str, Any]]:
         """Returns the list of fully accumulated and valid tool calls."""
@@ -119,17 +115,21 @@ class _ToolCallAccumulator:
                     # Get the raw arguments
                     raw_arguments = tool_function.get("arguments")
                     parsed_arguments = transform_tool_arguments(raw_arguments, tool_name)
-                    
+
                     # Update the tool with parsed arguments
-                    final_tool_function = tool_function.copy() # Avoid modifying the original _calls entry directly if not needed elsewhere
+                    final_tool_function = (
+                        tool_function.copy()
+                    )  # Avoid modifying the original _calls entry directly if not needed elsewhere
                     final_tool_function["arguments"] = parsed_arguments
-                    
+
                     final_tool = {
                         "id": tool_id,
-                        "type": tool.get("type", "function"), # Preserve type if present, default to function
-                        "function": final_tool_function
+                        "type": tool.get(
+                            "type", "function"
+                        ),  # Preserve type if present, default to function
+                        "function": final_tool_function,
                     }
-                    
+
                     final_calls.append(final_tool)
 
                 except ValueError as e:
@@ -140,9 +140,7 @@ class _ToolCallAccumulator:
                 logger.warning(
                     f"_ToolCallAccumulator: Skipping incomplete accumulated tool call at index {i} (missing id or name): {tool}"
                 )
-        logger.debug(
-            f"_ToolCallAccumulator: Returning {len(final_calls)} final tool calls."
-        )
+        logger.debug(f"_ToolCallAccumulator: Returning {len(final_calls)} final tool calls.")
         return final_calls
 
 
@@ -157,9 +155,7 @@ async def _parse_llm_stream(
         try:
             buffer += chunk.decode("utf-8")
         except UnicodeDecodeError as e:
-            logger.error(
-                f"Unicode decode error in stream chunk: {e}. Chunk (bytes): {chunk!r}"
-            )
+            logger.error(f"Unicode decode error in stream chunk: {e}. Chunk (bytes): {chunk!r}")
             yield {"type": "error", "error": e, "detail": "Unicode decode error"}
             continue  # Skip this chunk
 
@@ -184,17 +180,13 @@ async def _parse_llm_stream(
                     chunk_data = json.loads(data_str)
                     yield {"type": "data", "payload": chunk_data}
                 except json.JSONDecodeError as json_err:
-                    log_buffer_snippet = buffer[:200] + (
-                        "..." if len(buffer) > 200 else ""
-                    )
+                    log_buffer_snippet = buffer[:200] + ("..." if len(buffer) > 200 else "")
                     logger.error(
                         f"JSON Decode Error in streaming response line: '{line}' | Error: {json_err}. Buffer snippet: '{log_buffer_snippet}'"
                     )  # Added buffer
                     yield {"type": "error", "error": json_err, "line": line}
                 except Exception as e:  # Catch other potential errors during processing
-                    log_buffer_snippet = buffer[:200] + (
-                        "..." if len(buffer) > 200 else ""
-                    )
+                    log_buffer_snippet = buffer[:200] + ("..." if len(buffer) > 200 else "")
                     logger.error(
                         f"Unexpected error processing stream line '{line}': {e}. Buffer snippet: '{log_buffer_snippet}'",
                         exc_info=True,
@@ -270,9 +262,7 @@ class LLMClient:
 
         elif self.provider_type == "openrouter":
             # Check connection for OpenRouter (or compatible API)
-            if (
-                not self._check_cloud_api_connection_sync()
-            ):  # Use sync check during init
+            if not self._check_cloud_api_connection_sync():  # Use sync check during init
                 #  logger.error(f"LLMClient.__init__: Could not connect to API at {self.server_url}")
                 raise UserVisibleError(
                     f"Could not connect to API at {self.server_url}. Check URL and API key."
@@ -381,9 +371,7 @@ class LLMClient:
             # Use the synchronous check for external calls to check_connection
             return self._check_cloud_api_connection_sync()
         else:
-            logger.error(
-                f"Checking connection for unknown provider type: {self.provider_type}"
-            )
+            logger.error(f"Checking connection for unknown provider type: {self.provider_type}")
             return False
 
     # --- New method for Llama-cpp sync connection check ---
@@ -401,14 +389,10 @@ class LLMClient:
                 )
                 return False
         except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"Sync llama-cpp connection check failed at {endpoint}. Error: {e}"
-            )
+            logger.warning(f"Sync llama-cpp connection check failed at {endpoint}. Error: {e}")
             return False
         except Exception as e:
-            logger.error(
-                f"Unexpected error during sync llama-cpp connection check: {e}"
-            )
+            logger.error(f"Unexpected error during sync llama-cpp connection check: {e}")
             return False
 
     # --- End new method ---
@@ -430,9 +414,7 @@ class LLMClient:
             response = requests.get(endpoint, timeout=10, headers=headers)
 
             if response.status_code == 200:
-                logger.debug(
-                    f"Sync cloud API connection successful to {self.server_url}."
-                )
+                logger.debug(f"Sync cloud API connection successful to {self.server_url}.")
                 return True
             else:
                 logger.warning(
@@ -440,9 +422,7 @@ class LLMClient:
                 )
                 return False
         except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"Sync cloud API connection check failed at {endpoint}. Error: {e}"
-            )
+            logger.warning(f"Sync cloud API connection check failed at {endpoint}. Error: {e}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error during sync cloud connection check: {e}")
@@ -454,9 +434,7 @@ class LLMClient:
         endpoint = self._get_endpoint(self.models_url)
         headers = self._get_headers()
         if not headers.get("Authorization"):
-            logger.error(
-                f"Cannot check connection async to {self.server_url}: API key is missing."
-            )
+            logger.error(f"Cannot check connection async to {self.server_url}: API key is missing.")
             return False
 
         try:
@@ -465,13 +443,11 @@ class LLMClient:
                 total=10,  # Total timeout for connection check
                 connect=10,  # Connection timeout
                 sock_read=10,  # Read timeout
-                sock_connect=10  # Socket connection timeout
+                sock_connect=10,  # Socket connection timeout
             )
-            
+
             async with aiohttp.ClientSession(timeout=check_timeout) as session:
-                async with session.get(
-                    endpoint, headers=headers
-                ) as response:
+                async with session.get(endpoint, headers=headers) as response:
                     if response.status == 200:
                         return True
                     else:
@@ -481,9 +457,7 @@ class LLMClient:
                         )
                         return False
         except aiohttp.ClientError as e:
-            logger.warning(
-                f"Async cloud API connection check failed at {endpoint}. Error: {e}"
-            )
+            logger.warning(f"Async cloud API connection check failed at {endpoint}. Error: {e}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error during async cloud connection check: {e}")
@@ -506,9 +480,7 @@ class LLMClient:
             "stream": stream,
             "inference_configs": self.inference_configs,
             # Include load_model_configs for llama.cpp provider
-            "load_model_configs": (
-                {"n_ctx": N_CTX} if self.provider_type == "llama-cpp" else {}
-            ),
+            "load_model_configs": ({"n_ctx": N_CTX} if self.provider_type == "llama-cpp" else {}),
         }
         if tools:
             payload["tools"] = tools
@@ -527,9 +499,7 @@ class LLMClient:
     async def restore_cache(self, messages: List[Dict], tools: List[Dict]):
         """(Llama-cpp only) Restore the KV cache via API call."""
         if self.provider_type != "llama-cpp":
-            logger.warning(
-                "Restore cache is only supported for llama-cpp provider. Skipping."
-            )
+            logger.warning("Restore cache is only supported for llama-cpp provider. Skipping.")
             return {"status": "skipped", "detail": "Not a llama-cpp provider"}
 
         logger.debug("LLMClient.restore_cache: Restoring llama-cpp cache via API")
@@ -545,9 +515,9 @@ class LLMClient:
                 total=self.timeout,  # Total timeout
                 connect=30,  # Connection timeout
                 sock_read=self.timeout,  # Read timeout
-                sock_connect=30  # Socket connection timeout
+                sock_connect=30,  # Socket connection timeout
             )
-            
+
             async with aiohttp.ClientSession(timeout=request_timeout) as session:
                 async with session.post(
                     endpoint,
@@ -570,9 +540,7 @@ class LLMClient:
     async def load_model(self):
         """(Llama-cpp only) Request the server to load the current model via API call."""
         if self.provider_type != "llama-cpp":
-            logger.warning(
-                "Loading model is only supported for llama-cpp provider. Skipping."
-            )
+            logger.warning("Loading model is only supported for llama-cpp provider. Skipping.")
             return {"status": "skipped", "detail": "Not a llama-cpp provider"}
 
         logger.debug(
@@ -588,9 +556,9 @@ class LLMClient:
                 total=load_timeout,  # Total timeout for model loading
                 connect=30,  # Connection timeout
                 sock_read=load_timeout,  # Read timeout
-                sock_connect=30  # Socket connection timeout
+                sock_connect=30,  # Socket connection timeout
             )
-            
+
             async with aiohttp.ClientSession(timeout=request_timeout) as session:
                 async with session.post(
                     endpoint,
@@ -616,9 +584,9 @@ class LLMClient:
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = [],
-        callback: Optional[
-            Callable[[str, uuid.UUID, EventType], None]
-        ] = lambda text, msg_id, evt_type: logger.info(f"LLM Response Text: {text}"),
+        callback: Optional[Callable[[str, uuid.UUID, EventType], None]] = lambda text,
+        msg_id,
+        evt_type: logger.info(f"LLM Response Text: {text}"),
     ) -> Dict[str, Any]:
         """Sends a request to the LLM and returns the full response (non-streaming).
 
@@ -643,13 +611,11 @@ class LLMClient:
                 total=self.timeout,  # Total timeout for non-streaming
                 connect=30,  # Connection timeout
                 sock_read=self.timeout,  # Read timeout
-                sock_connect=30  # Socket connection timeout
+                sock_connect=30,  # Socket connection timeout
             )
-            
+
             async with aiohttp.ClientSession(timeout=request_timeout) as session:
-                async with session.post(
-                    endpoint, json=payload, headers=headers
-                ) as response:
+                async with session.post(endpoint, json=payload, headers=headers) as response:
                     status_code = response.status
                     response_text = await response.text()
                     # logger.debug(f"Response Status: {status_code}") # Removed: Redundant, status checked below
@@ -669,9 +635,7 @@ class LLMClient:
                             ctx_info = check_is_c_ntx_too_long(str(error_detail))
                             if ctx_info:
                                 error_msg = f"Requested tokens ({ctx_info[0]}) exceed context window ({ctx_info[1]})."
-                                logger.error(
-                                    f"LLMClient.get_chat_completion_response: {error_msg}"
-                                )
+                                logger.error(f"LLMClient.get_chat_completion_response: {error_msg}")
                                 raise UserVisibleError(
                                     f"{error_msg} Please reduce message history length or query size."
                                 )
@@ -689,18 +653,12 @@ class LLMClient:
                 "id": response_data.get("id"),
                 "model": response_data.get("model"),
                 "usage_prompt": response_data.get("usage", {}).get("prompt_tokens"),
-                "usage_completion": response_data.get("usage", {}).get(
-                    "completion_tokens"
-                ),
+                "usage_completion": response_data.get("usage", {}).get("completion_tokens"),
                 "has_content": bool(
-                    response_data.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("content")
+                    response_data.get("choices", [{}])[0].get("message", {}).get("content")
                 ),
                 "num_tool_calls": len(
-                    response_data.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("tool_calls", [])
+                    response_data.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
                 ),
                 "duration_s": round(end_time_req - start_time_req, 2),
             }
@@ -708,12 +666,8 @@ class LLMClient:
                 f"Received successful non-streaming LLM response: {log_summary}"
             )  # Changed level and content
 
-            if not response_data.get("choices") or not response_data["choices"][0].get(
-                "message"
-            ):
-                raise ValueError(
-                    "Invalid response structure: 'choices[0].message' missing."
-                )
+            if not response_data.get("choices") or not response_data["choices"][0].get("message"):
+                raise ValueError("Invalid response structure: 'choices[0].message' missing.")
 
             message = response_data["choices"][0]["message"]
             full_response_content = message.get("content", "")
@@ -722,22 +676,15 @@ class LLMClient:
             if "tool_calls" in message and message["tool_calls"]:
                 logger.debug("Found tool calls directly in response message object.")
                 tool_calls = message["tool_calls"]
-            elif (
-                isinstance(full_response_content, str)
-                and "<tool_call>" in full_response_content
-            ):
-                logger.debug(
-                    "Found <tool_call> tags in response content, attempting to parse."
-                )
+            elif isinstance(full_response_content, str) and "<tool_call>" in full_response_content:
+                logger.debug("Found <tool_call> tags in response content, attempting to parse.")
                 tool_calls = parse_tool_calls(full_response_content)
                 if tool_calls:
-                    full_response_content = full_response_content.split("<tool_call>")[
-                        0
-                    ].strip()
+                    full_response_content = full_response_content.split("<tool_call>")[0].strip()
                     logger.debug(
                         f"Content updated after extracting tool calls: '{full_response_content[:100]}...'"
                     )
-                    
+
             result = {
                 "message": {
                     "content": full_response_content,
@@ -791,9 +738,7 @@ class LLMClient:
         self, dispatcher: EventDispatcher, id: str, event_type: EventType, content: str
     ):
         dispatcher.dispatch(
-            MessageSchema(
-                id=id, type=event_type, content=content, status=StatusType.SUCCESS
-            )
+            MessageSchema(id=id, type=event_type, content=content, status=StatusType.SUCCESS)
         )
 
     async def get_chat_completion_streaming_response(
@@ -838,13 +783,11 @@ class LLMClient:
                 total=None,  # No total timeout for streaming
                 connect=30,  # Connection timeout
                 sock_read=None,  # No read timeout for streaming
-                sock_connect=30  # Socket connection timeout
+                sock_connect=30,  # Socket connection timeout
             )
-            
+
             async with aiohttp.ClientSession(timeout=streaming_timeout) as session:
-                async with session.post(
-                    endpoint, json=payload, headers=headers
-                ) as response:
+                async with session.post(endpoint, json=payload, headers=headers) as response:
                     # --- Initial Response Check ---
                     if response.status != 200:
                         response_text = await response.text()
@@ -859,9 +802,7 @@ class LLMClient:
 
                         # Check for specific llama-cpp context length error
                         if self.provider_type == "llama-cpp":
-                            req_tokens, ctx_window = check_is_c_ntx_too_long(
-                                str(error_detail)
-                            )
+                            req_tokens, ctx_window = check_is_c_ntx_too_long(str(error_detail))
                             if req_tokens is not None:
                                 error_msg = f"Requested tokens ({req_tokens}) exceed context window ({ctx_window})."
                                 logger.error(
@@ -882,25 +823,26 @@ class LLMClient:
                         if event["type"] == "data":
                             try:
                                 chunk_data = event["payload"]
-                                if (
-                                    "choices" in chunk_data
-                                    and len(chunk_data["choices"]) > 0
-                                ):
+                                if "choices" in chunk_data and len(chunk_data["choices"]) > 0:
                                     delta = chunk_data["choices"][0].get("delta", {})
 
                                     # -- Handle Content Delta --
-                                    if (
-                                        "content" in delta
-                                        and delta["content"] is not None
-                                    ):
+                                    if "content" in delta and delta["content"] is not None:
                                         delta_content = delta["content"]
-                                        # adapt for thinking method in Qwen 3 
-                                        if "<think>" in delta_content or "</think>" in delta_content: 
-                                            delta_content = delta_content.replace("<think>", "").replace("</think>", "").strip()
+                                        # adapt for thinking method in Qwen 3
+                                        if (
+                                            "<think>" in delta_content
+                                            or "</think>" in delta_content
+                                        ):
+                                            delta_content = (
+                                                delta_content.replace("<think>", "")
+                                                .replace("</think>", "")
+                                                .strip()
+                                            )
 
                                         if delta_content == "" or delta_content == "\n\n":
                                             continue
-                                            
+
                                         full_response_content += delta_content
                                         # Detect potential inline tool call markers (fallback)
                                         # Switch content type if marker found and not already ACTION
@@ -941,9 +883,7 @@ class LLMClient:
                                         # in case content follows later
                                         for tool_call_chunk in delta["tool_calls"]:
                                             index = tool_call_chunk.get("index")
-                                            tool_accumulator.add_chunk(
-                                                index, tool_call_chunk
-                                            )
+                                            tool_accumulator.add_chunk(index, tool_call_chunk)
 
                             except Exception as processing_error:
                                 logger.error(
@@ -966,7 +906,9 @@ class LLMClient:
                                 f"Stream parsing error: {event.get('error')} on line: {event.get('line', 'N/A')}"
                             )
                             if dispatcher:
-                                error_content = f"Error parsing response stream: {event.get('error')}"
+                                error_content = (
+                                    f"Error parsing response stream: {event.get('error')}"
+                                )
                                 if event.get("detail"):
                                     error_content += f" ({event['detail']})"
                                 error_event = MessageSchema(
@@ -1012,9 +954,7 @@ class LLMClient:
                 final_tool_calls = parse_tool_calls(full_response_content)
                 if final_tool_calls:
                     # Remove the tool call section from the final content
-                    full_response_content = full_response_content.split("<tool_call>")[
-                        0
-                    ].strip()
+                    full_response_content = full_response_content.split("<tool_call>")[0].strip()
                     logger.debug(
                         f"Content updated after extracting tool calls from text: '{full_response_content[:100]}...'"
                     )
@@ -1032,15 +972,21 @@ class LLMClient:
                                     f"Skipping dispatch of invalid tool call parsed from text: {call}"
                                 )
                         if not full_response_content:
-                            self._emit_success(dispatcher, str(uuid.uuid4()), EventType.MESSAGE, "please retry")
+                            self._emit_success(
+                                dispatcher, str(uuid.uuid4()), EventType.MESSAGE, "please retry"
+                            )
                 else:
-                    self._emit_success(dispatcher, str(uuid.uuid4()), EventType.MESSAGE, "tool call parsing failed, please retry")
+                    self._emit_success(
+                        dispatcher,
+                        str(uuid.uuid4()),
+                        EventType.MESSAGE,
+                        "tool call parsing failed, please retry",
+                    )
 
             logger.info(
                 f"LLMClient.get_chat_completion_streaming_response: Processed result. Content length: {len(full_response_content)}, Tool calls: {len(final_tool_calls)}"
             )
 
-            
             return {
                 "message": {
                     "content": full_response_content,
@@ -1064,18 +1010,14 @@ class LLMClient:
                         status=StatusType.FAILED,
                     )
                 )
-            raise LogOnlyError(
-                error_msg
-            ) from e  # Convert to LogOnlyError for MCPClient
+            raise LogOnlyError(error_msg) from e  # Convert to LogOnlyError for MCPClient
         except (
             aiohttp.ClientError
         ) as e:  # Catch other ClientErrors like connection issues, timeouts during streaming
             error_msg = f"HTTP Client Error during streaming: {e}"
             try:
                 if "response" in locals() and response:
-                    error_msg += (
-                        f" (Status: {response.status}, Reason: {response.reason})"
-                    )
+                    error_msg += f" (Status: {response.status}, Reason: {response.reason})"
             except (AttributeError, NameError):
                 pass
             logger.error(error_msg, exc_info=True)

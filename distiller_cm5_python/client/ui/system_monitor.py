@@ -10,9 +10,7 @@ class SystemMonitor:
         self.temperature = 0.0
         self.llm_model = "Local"  # Default LLM model name
         self.last_update_time = 0
-        self.update_interval = (
-            2.0  # Update every 2 seconds to avoid excessive resource usage
-        )
+        self.update_interval = 2.0  # Update every 2 seconds to avoid excessive resource usage
 
     def get_ram_usage(self):
         """Return current RAM usage as a percentage."""

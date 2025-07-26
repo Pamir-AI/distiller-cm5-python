@@ -80,17 +80,13 @@ class CLIEventHandler:
             if evt.status == StatusType.IN_PROGRESS:
                 # Use tool_name from ActionEvent if available
                 tool_name = (
-                    evt.tool_name
-                    if hasattr(evt, "tool_name") and evt.tool_name
-                    else "Action"
+                    evt.tool_name if hasattr(evt, "tool_name") and evt.tool_name else "Action"
                 )
                 print(f"{Fore.BLUE}Running: {tool_name}...{Style.RESET_ALL}")
             elif evt.status == StatusType.SUCCESS:
                 # Indicate success, maybe show tool name again
                 tool_name = (
-                    evt.tool_name
-                    if hasattr(evt, "tool_name") and evt.tool_name
-                    else "Action"
+                    evt.tool_name if hasattr(evt, "tool_name") and evt.tool_name else "Action"
                 )
                 print(
                     f"{Fore.GREEN}{tool_name} finished.{Style.RESET_ALL} , output : {evt.content}"
@@ -145,13 +141,9 @@ async def chat_loop(client: MCPClient, asr_instance):
                 await asyncio.to_thread(input)  # Wait for Enter press
 
                 if await asyncio.to_thread(asr_instance.start_recording):
-                    print(
-                        f"{Fore.YELLOW}Recording... Press Enter to stop.{Style.RESET_ALL}"
-                    )
+                    print(f"{Fore.YELLOW}Recording... Press Enter to stop.{Style.RESET_ALL}")
                     await asyncio.to_thread(input)  # Wait for Enter press to stop
-                    audio_data = await asyncio.to_thread(
-                        asr_instance.stop_recording
-                    )
+                    audio_data = await asyncio.to_thread(asr_instance.stop_recording)
 
                     if audio_data:
                         print(f"{Fore.YELLOW}Transcribing...{Style.RESET_ALL}")
@@ -168,26 +160,18 @@ async def chat_loop(client: MCPClient, asr_instance):
 
                         except Exception as e:
                             logger.error(f"Error during transcription: {e}")
-                            print(
-                                f"{Fore.RED}\nError during transcription: {e}{Style.RESET_ALL}"
-                            )
+                            print(f"{Fore.RED}\nError during transcription: {e}{Style.RESET_ALL}")
                             continue  # Skip processing this turn
 
                         if transcribed_segments:
                             transcribed_text = " ".join(transcribed_segments).strip()
-                            print(
-                                f"{Style.BRIGHT}You (Audio): {Style.RESET_ALL}{transcribed_text}"
-                            )
-                            user_input_for_llm = (
-                                transcribed_text  # Use transcribed text
-                            )
+                            print(f"{Style.BRIGHT}You (Audio): {Style.RESET_ALL}{transcribed_text}")
+                            user_input_for_llm = transcribed_text  # Use transcribed text
                             # Send transcribed text to client
                             await client.process_query(user_input_for_llm)
                             continue  # Skip the second process_query call
                         else:
-                            print(
-                                f"{Fore.YELLOW}Transcription returned no text.{Style.RESET_ALL}"
-                            )
+                            print(f"{Fore.YELLOW}Transcription returned no text.{Style.RESET_ALL}")
                             continue  # Skip processing if transcription is empty
                     else:
                         print(f"{Fore.YELLOW}No audio recorded.{Style.RESET_ALL}")
@@ -214,9 +198,7 @@ async def chat_loop(client: MCPClient, asr_instance):
                 # Decide how to handle history - MCPClient already logged the error
                 # Maybe add a placeholder message?
                 # client.message_processor.add_message("assistant", "[Error processing request]")
-            except (
-                UserVisibleError
-            ) as e:  # Catch user-visible errors from process_query
+            except UserVisibleError as e:  # Catch user-visible errors from process_query
                 logger.error(f"Error during response generation: {e}")
                 print(f"{Fore.RED}\nError: {e}{Style.RESET_ALL}")
                 # History is handled by process_query yielding the error message
@@ -260,12 +242,8 @@ def parse_arguments():
         help="LLM provider type (e.g., llama-cpp, openai)",
     )
     parser.add_argument("--model", default=MODEL_NAME, help="LLM model name")
-    parser.add_argument(
-        "--api-key", default=API_KEY, help="API key for the LLM provider"
-    )
-    parser.add_argument(
-        "--timeout", type=int, default=TIMEOUT, help="Request timeout in seconds"
-    )
+    parser.add_argument("--api-key", default=API_KEY, help="API key for the LLM provider")
+    parser.add_argument("--timeout", type=int, default=TIMEOUT, help="Request timeout in seconds")
     parser.add_argument(
         "--log-level",
         default=LOGGING_LEVEL,

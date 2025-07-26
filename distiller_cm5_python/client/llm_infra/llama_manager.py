@@ -22,9 +22,7 @@ logger = logging.getLogger(__name__)
 class LlamaCppServerManager:
     """Handles starting, stopping, and checking a local llama-cpp server process."""
 
-    def __init__(
-        self, server_url: str, model_name: str, health_endpoint: str = "/health"
-    ):
+    def __init__(self, server_url: str, model_name: str, health_endpoint: str = "/health"):
         """Initialize the manager.
 
         Args:
@@ -57,9 +55,7 @@ class LlamaCppServerManager:
             logger.debug(f"Found llama-cpp server script at: {server_script}")
             return os.path.abspath(server_script)
         else:
-            logger.error(
-                f"Could not find llama-cpp server script expected at {server_script}"
-            )
+            logger.error(f"Could not find llama-cpp server script expected at {server_script}")
             return None
 
     def start(self) -> bool:
@@ -69,15 +65,11 @@ class LlamaCppServerManager:
             True if the server is started and connected successfully, False otherwise.
         """
         if self.is_running():
-            logger.info(
-                f"Llama.cpp server already running (PID: {self.pid}) and responsive."
-            )
+            logger.info(f"Llama.cpp server already running (PID: {self.pid}) and responsive.")
             return True
 
         if not self.script_path:
-            raise UserVisibleError(
-                "Cannot start llama-cpp server: server script not found."
-            )
+            raise UserVisibleError("Cannot start llama-cpp server: server script not found.")
 
         # Parse host and port
         try:
@@ -131,9 +123,7 @@ class LlamaCppServerManager:
                     f"Server process {self.pid} terminated prematurely with code {self.process.returncode}."
                 )
                 self._clear_process_info()
-                raise UserVisibleError(
-                    "Local llama-cpp server process failed to stay running."
-                )
+                raise UserVisibleError("Local llama-cpp server process failed to stay running.")
 
             if self.check_connection():  # Use the manager's own check method
                 connection_ok = True
@@ -145,9 +135,7 @@ class LlamaCppServerManager:
                 f"Failed to connect to the llama-cpp service at {self.server_url} within {LLAMA_CPP_START_WAIT_TIME}s."
             )
             self.stop()  # Attempt to terminate the potentially hung process
-            raise UserVisibleError(
-                "Could not start or connect to local llama-cpp LLM server."
-            )
+            raise UserVisibleError("Could not start or connect to local llama-cpp LLM server.")
 
         logger.info(
             f"Llama-cpp server started successfully (PID: {self.pid}) and connection verified."
@@ -168,9 +156,7 @@ class LlamaCppServerManager:
             try:
                 process_to_stop = psutil.Process(pid_to_stop)
             except psutil.NoSuchProcess:
-                logger.info(
-                    f"Process with PID {pid_to_stop} not found (already stopped?)."
-                )
+                logger.info(f"Process with PID {pid_to_stop} not found (already stopped?).")
                 self._clear_process_info()
                 return True  # Considered success if not found
             except Exception as e:
@@ -179,16 +165,12 @@ class LlamaCppServerManager:
 
         if process_to_stop is not None:
             pid_to_stop = process_to_stop.pid  # Ensure PID matches process object
-            logger.info(
-                f"Attempting to terminate llama-cpp server process PID: {pid_to_stop}"
-            )
+            logger.info(f"Attempting to terminate llama-cpp server process PID: {pid_to_stop}")
             try:
                 process_to_stop.terminate()  # Try graceful termination
                 try:
                     process_to_stop.wait(timeout=3)  # Wait up to 3 seconds
-                    logger.info(
-                        f"Llama.cpp server process {pid_to_stop} terminated gracefully."
-                    )
+                    logger.info(f"Llama.cpp server process {pid_to_stop} terminated gracefully.")
                 except (
                     psutil.TimeoutExpired,
                     getattr(subprocess, "TimeoutExpired", Exception),
@@ -204,9 +186,7 @@ class LlamaCppServerManager:
                         psutil.TimeoutExpired,
                         getattr(subprocess, "TimeoutExpired", Exception),
                     ):
-                        logger.error(
-                            f"Process {pid_to_stop} did not terminate after kill."
-                        )
+                        logger.error(f"Process {pid_to_stop} did not terminate after kill.")
                 self._clear_process_info()
                 return True
             except psutil.NoSuchProcess:

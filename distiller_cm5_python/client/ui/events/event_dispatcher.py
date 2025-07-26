@@ -64,9 +64,7 @@ class EventDispatcher(QObject):
                         logger.error(f"Error in event handler: {e}")
 
         elif not isinstance(evt, MessageSchema):
-            logger.warning(
-                f"Invalid event type received: {type(evt)}, expected MessageSchema"
-            )
+            logger.warning(f"Invalid event type received: {type(evt)}, expected MessageSchema")
 
     def register_handler(self, event_type: EventType, handler: Callable):
         """Register a handler for a specific event type"""
@@ -77,10 +75,7 @@ class EventDispatcher(QObject):
 
     def unregister_handler(self, event_type: EventType, handler: Callable):
         """Unregister a handler for a specific event type"""
-        if (
-            event_type in self._event_handlers
-            and handler in self._event_handlers[event_type]
-        ):
+        if event_type in self._event_handlers and handler in self._event_handlers[event_type]:
             self._event_handlers[event_type].remove(handler)
         return self
 

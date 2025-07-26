@@ -34,28 +34,29 @@ def timestamp_to_time(timestamp):
 
 # --- Pydantic Models for Message Structure ---
 
-DEFAULT_SYSTEM_MESSAGE = ''
+DEFAULT_SYSTEM_MESSAGE = ""
 
-ROLE = 'role'
-CONTENT = 'content'
-REASONING_CONTENT = 'reasoning_content'
-NAME = 'name'
+ROLE = "role"
+CONTENT = "content"
+REASONING_CONTENT = "reasoning_content"
+NAME = "name"
 
-SYSTEM = 'system'
-USER = 'user'
-ASSISTANT = 'assistant'
-TOOL = 'tool' # API role for tool results
+SYSTEM = "system"
+USER = "user"
+ASSISTANT = "assistant"
+TOOL = "tool"  # API role for tool results
 
 # Content Types (for potential future multi-modal use)
-TEXT = 'text'
-FILE = 'file'
-IMAGE = 'image'
-AUDIO = 'audio'
-VIDEO = 'video'
+TEXT = "text"
+FILE = "file"
+IMAGE = "image"
+AUDIO = "audio"
+VIDEO = "video"
 
 
 class BaseModelCompatibleDict(BaseModel):
-    """ Base model providing dictionary-like access and serialization control. """
+    """Base model providing dictionary-like access and serialization control."""
+
     def __getitem__(self, item):
         try:
             return getattr(self, item)
@@ -66,14 +67,14 @@ class BaseModelCompatibleDict(BaseModel):
         setattr(self, key, value)
 
     def model_dump(self, **kwargs):
-        if 'exclude_none' not in kwargs:
-            kwargs['exclude_none'] = True
+        if "exclude_none" not in kwargs:
+            kwargs["exclude_none"] = True
         dumped_data = super().model_dump(**kwargs)
         return dumped_data
 
     def model_dump_json(self, **kwargs):
-        if 'exclude_none' not in kwargs:
-            kwargs['exclude_none'] = True
+        if "exclude_none" not in kwargs:
+            kwargs["exclude_none"] = True
         # Use the custom model_dump logic
         dict_repr = self.model_dump(**kwargs)
         return json.dumps(dict_repr, **kwargs)
@@ -85,54 +86,58 @@ class BaseModelCompatibleDict(BaseModel):
         # Exclude 'extra' from string representation for brevity if empty
         dump = self.model_dump()
         # Clean up extra field for printing
-        if 'extra' in dump:
-            if not dump['extra']:
-                del dump['extra']
+        if "extra" in dump:
+            if not dump["extra"]:
+                del dump["extra"]
             # Avoid printing potentially large args in tool_calls within extra
-            elif 'tool_calls' in dump['extra']:
-                 dump['extra'] = {**dump['extra'], 'tool_calls': '[present]'}
+            elif "tool_calls" in dump["extra"]:
+                dump["extra"] = {**dump["extra"], "tool_calls": "[present]"}
 
-        return f'{self.__class__.__name__}({dump})'
+        return f"{self.__class__.__name__}({dump})"
 
     def __repr__(self):
         return self.__str__()
 
     class Config:
         # Allow extra fields to be stored but not validated (useful for 'extra')
-        extra = 'allow'
+        extra = "allow"
 
 
 class Message(BaseModelCompatibleDict):
-    """ Represents a single message in the conversation history using Pydantic. """
+    """Represents a single message in the conversation history using Pydantic."""
+
     role: str
     content: str
     tool_calls: Optional[List[Dict[str, Any]]] = None
     tool_call_id: Optional[str] = None
-    extra: Optional[Dict[str, Any]] = None # Flexible field for additional metadata
+    extra: Optional[Dict[str, Any]] = None  # Flexible field for additional metadata
 
-    def __init__(self,
-                 role: str,
-                 content: str,
-                 name: Optional[str] = None,
-                 tool_calls: Optional[List[Dict[str, Any]]] = None,
-                 tool_call_id: Optional[str] = None,
-                 extra: Optional[Dict[str, Any]] = None,
-                 **kwargs): # Allow capturing other potential fields into extra
-
+    def __init__(
+        self,
+        role: str,
+        content: str,
+        name: Optional[str] = None,
+        tool_calls: Optional[List[Dict[str, Any]]] = None,
+        tool_call_id: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):  # Allow capturing other potential fields into extra
         # Consolidate extra fields passed via kwargs
         if kwargs:
             if extra is None:
                 extra = {}
             extra.update(kwargs)
 
-        super().__init__(role=role,
-                         content=content,
-                         name=name,
-                         tool_calls=tool_calls,
-                         tool_call_id=tool_call_id,
-                         extra=extra)
+        super().__init__(
+            role=role,
+            content=content,
+            name=name,
+            tool_calls=tool_calls,
+            tool_call_id=tool_call_id,
+            extra=extra,
+        )
 
-    @field_validator('role')
+    @field_validator("role")
     def role_checker(cls, value: str) -> str:
         # Allow 'tool' initially for easier transition from old format, map later if needed
         allowed_roles = [USER, ASSISTANT, SYSTEM, TOOL]
@@ -140,16 +145,17 @@ class Message(BaseModelCompatibleDict):
             raise ValueError(f"Role '{value}' must be one of {', '.join(allowed_roles)}")
         return value
 
-    
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_role_specific_fields(self):
         # Tool calls should only exist for assistant messages
         if self.role != ASSISTANT and self.tool_calls is not None:
-            raise ValueError(f"'tool_calls' field is only applicable for role '{ASSISTANT}'. Role is '{self.role}'.")
+            raise ValueError(
+                f"'tool_calls' field is only applicable for role '{ASSISTANT}'. Role is '{self.role}'."
+            )
 
         # Tool call ID should only exist for function/tool messages
         if self.role != TOOL and self.tool_call_id is not None:
-             raise ValueError(f"'tool_call_id' field is only applicable for role '{TOOL}'.")
+            raise ValueError(f"'tool_call_id' field is only applicable for role '{TOOL}'.")
 
         # Function/tool messages must have a tool_call_id
         if self.role == TOOL and self.tool_call_id is None:
@@ -158,12 +164,15 @@ class Message(BaseModelCompatibleDict):
         # Assistant messages with tool_calls might have None or empty string content
         if self.role == ASSISTANT and self.tool_calls:
             if self.content is not None and not isinstance(self.content, (str, list)):
-                 # This case should ideally be caught by content_validator, but double-checking
-                 raise ValueError("Assistant message content must be string, list, or None.")
-        elif self.content is None and self.role != ASSISTANT: # Only assistant can have None content (with tool calls)
-             raise ValueError(f"Message content cannot be None for role '{self.role}'.")
+                # This case should ideally be caught by content_validator, but double-checking
+                raise ValueError("Assistant message content must be string, list, or None.")
+        elif (
+            self.content is None and self.role != ASSISTANT
+        ):  # Only assistant can have None content (with tool calls)
+            raise ValueError(f"Message content cannot be None for role '{self.role}'.")
 
         return self
+
 
 # --- End Pydantic Models ---
 
@@ -175,35 +184,31 @@ class MessageProcessor:
         """Initialize the message processor"""
         super().__init__()  # No verbose parameter needed
 
-        self.message_history: List[Message] = [] # Use Pydantic Message model
+        self.message_history: List[Message] = []  # Use Pydantic Message model
         self.session_start_time = timestamp_to_time(time.time()).replace(":", "-")
 
         # Check config for enabling debug message traffic dump
         self.save_debug_traffic = LOGGING_LEVEL == "DEBUG"
-        self.debug_history_file = (
-            f"debug_message_traffic_{self.session_start_time}.json"
-        )
+        self.debug_history_file = f"debug_message_traffic_{self.session_start_time}.json"
 
         logger.debug(
             f"MessageProcessor.__init__: Initialized with {'Enabled' if self.save_debug_traffic else 'Disabled'} mode"
         )
-    
+
     def cleanup(self):
         """Cleanup the message processor"""
         self.message_history = []
         self.session_start_time = timestamp_to_time(time.time()).replace(":", "-")
         self.save_debug_traffic = LOGGING_LEVEL == "DEBUG"
-        self.debug_history_file = (
-            f"debug_message_traffic_{self.session_start_time}.json"
-        )
+        self.debug_history_file = f"debug_message_traffic_{self.session_start_time}.json"
 
     def add_message(
         self,
         role: str,
         content: str,
         metadata: Dict[str, Any] = None,
-        tool_calls: Optional[List[Dict[str, Any]]] = None, # Raw tool calls for assistant
-        tool_call_id: Optional[str] = None, # ID for tool results
+        tool_calls: Optional[List[Dict[str, Any]]] = None,  # Raw tool calls for assistant
+        tool_call_id: Optional[str] = None,  # ID for tool results
     ) -> None:
         """Add a message to the conversation history using the Message model.
 
@@ -236,14 +241,16 @@ class MessageProcessor:
                 content=content if content else "",
                 tool_calls=tool_calls,
                 tool_call_id=tool_call_id,
-                extra=metadata # Pass metadata dict (or None) as extra
+                extra=metadata,  # Pass metadata dict (or None) as extra
             )
             self.message_history.append(new_message)
-        except (ValueError, TypeError) as e: # Catch Pydantic validation errors or TypeErrors
-            logger.error(f"MessageProcessor.add_message: Failed to create Message object. Role: '{role}', Content snippet: '{str(content)[:50]}...', Error: {e}")
+        except (ValueError, TypeError) as e:  # Catch Pydantic validation errors or TypeErrors
+            logger.error(
+                f"MessageProcessor.add_message: Failed to create Message object. Role: '{role}', Content snippet: '{str(content)[:50]}...', Error: {e}"
+            )
             # Encapsulate as a LogOnlyError to prevent verbose user-facing errors for internal validation issues
             raise LogOnlyError(f"Internal error processing message for role '{role}': {e}")
-        
+
         finally:
             # This will be executed even if an early return happens (e.g., for TOOL role)
             # or if LogOnlyError is raised from the Message creation.
@@ -260,9 +267,7 @@ class MessageProcessor:
             metadata: Optional metadata for the message
         """
         # Remove any existing system messages
-        self.message_history = [
-            msg for msg in self.message_history if msg.role != SYSTEM
-        ]
+        self.message_history = [msg for msg in self.message_history if msg.role != SYSTEM]
 
         # Add the new system message
         metadata = metadata or {}
@@ -298,11 +303,20 @@ class MessageProcessor:
 
             # Ensure the last message is an ASSISTANT message suitable for appending tool calls.
             # If not, or if it already has content, add a new ASSISTANT message.
-            if not self.message_history or self.message_history[-1].role != ASSISTANT or (self.message_history[-1].role == ASSISTANT and self.message_history[-1].content != ""):
+            if (
+                not self.message_history
+                or self.message_history[-1].role != ASSISTANT
+                or (
+                    self.message_history[-1].role == ASSISTANT
+                    and self.message_history[-1].content != ""
+                )
+            ):
                 # The Message model initializes tool_calls to None if not provided.
-                self.add_message(role=ASSISTANT, content="", tool_calls=[]) # Initialize with empty list
-            
-            assistant_message = self.message_history[-1] # Get the (potentially new) last message
+                self.add_message(
+                    role=ASSISTANT, content="", tool_calls=[]
+                )  # Initialize with empty list
+
+            assistant_message = self.message_history[-1]  # Get the (potentially new) last message
 
             # Ensure tool_calls list exists on the assistant_message Pydantic model
             if assistant_message.tool_calls is None:
@@ -313,8 +327,13 @@ class MessageProcessor:
             assistant_message.tool_calls.append(
                 {
                     "id": tool_call_id,
-                    "type": "function", # Standard type for tool calls
-                    "function": {"name": tool_name, "arguments": json.dumps(tool_args_raw) if isinstance(tool_args_raw, dict) else tool_args_raw},
+                    "type": "function",  # Standard type for tool calls
+                    "function": {
+                        "name": tool_name,
+                        "arguments": json.dumps(tool_args_raw)
+                        if isinstance(tool_args_raw, dict)
+                        else tool_args_raw,
+                    },
                 }
             )
 
@@ -365,21 +384,19 @@ class MessageProcessor:
         tool_call_id = tool_call_dict.get("id", "unknown_gen_failure_id")
         tool_name = tool_call_dict.get("function", {}).get(
             "name", "__llm_tool_parse_error__"
-        ) # Default to the special name
+        )  # Default to the special name
 
         metadata = {
             "tool_name": tool_name,
             "tool_call_id": tool_call_id,
-            "is_tool_result": True, # Still a result, albeit an error one
+            "is_tool_result": True,  # Still a result, albeit an error one
             "is_generation_failure": True,
             "message_type": "tool_generation_failure",
         }
 
         # Add the failed assistant message
         self.add_message(
-            role=ASSISTANT,
-            content=f"<tool_call>{original_snippet}</tool_call>",
-            tool_calls=[]
+            role=ASSISTANT, content=f"<tool_call>{original_snippet}</tool_call>", tool_calls=[]
         )
 
         # add error output message
@@ -398,15 +415,13 @@ class MessageProcessor:
     ) -> None:
         """Add a message indicating a failure during tool execution."""
         tool_call_id = attempted_tool_call_dict.get("id", "unknown_exec_failure_id")
-        tool_name = attempted_tool_call_dict.get("function", {}).get(
-            "name", "unknown_tool"
-        )
+        tool_name = attempted_tool_call_dict.get("function", {}).get("name", "unknown_tool")
         tool_args = attempted_tool_call_dict.get("function", {}).get("arguments", {})
 
         metadata = {
             "tool_name": tool_name,
             "tool_call_id": tool_call_id,
-            "tool_args": tool_args, # Include args for execution failures
+            "tool_args": tool_args,  # Include args for execution failures
             "is_tool_result": True,
             "is_execution_failure": True,
             "message_type": "tool_execution_failure",
@@ -450,7 +465,7 @@ class MessageProcessor:
                         {
                             "role": TOOL,
                             "tool_call_id": message.tool_call_id,
-                            "content": message.content, # Content is the string result
+                            "content": message.content,  # Content is the string result
                         }
                     )
                 else:
@@ -464,20 +479,21 @@ class MessageProcessor:
                 # exclude_none=True is important if content is None but tool_calls are present.
                 if message.tool_calls:
                     msg_dict = message.model_dump(
-                        include={'role', 'content', 'tool_calls'},
-                        exclude_none=True
+                        include={"role", "content", "tool_calls"}, exclude_none=True
                     )
                 else:
-                    msg_dict = message.model_dump(include={'role', 'content'})
+                    msg_dict = message.model_dump(include={"role", "content"})
                 formatted_messages.append(msg_dict)
 
             elif role in [USER, SYSTEM]:
                 # User and System messages typically only have role and content.
-                msg_dict = message.model_dump(include={'role', 'content'})
+                msg_dict = message.model_dump(include={"role", "content"})
                 formatted_messages.append(msg_dict)
             else:
-                logger.warning(f"Unhandled message role '{role}' during formatting. Skipping message.")
-        
+                logger.warning(
+                    f"Unhandled message role '{role}' during formatting. Skipping message."
+                )
+
         logger.debug(
             f"MessageProcessor.get_formatted_messages: {len(formatted_messages)} messages returned"
         )
@@ -497,12 +513,12 @@ class MessageProcessor:
 
             debug_data = {
                 "session_start": self.session_start_time,
-                "debug_traffic_api_format": api_formatted_messages, # Just save the API format
+                "debug_traffic_api_format": api_formatted_messages,  # Just save the API format
             }
 
             with open(self.debug_history_file, "w", encoding="utf-8") as f:
                 # Dump the API-formatted data
-                json.dump(debug_data, f, indent=2, default=str) # default=str for safety
+                json.dump(debug_data, f, indent=2, default=str)  # default=str for safety
 
             logger.debug(
                 f"MessageProcessor._save_debug_traffic: Debug traffic saved to {self.debug_history_file}"
@@ -511,12 +527,15 @@ class MessageProcessor:
             # Catch any general exception during formatting or dumping
             logger.error(f"MessageProcessor._save_debug_traffic: Failed to save debug traffic: {e}")
             # Log the data we attempted to dump if possible
-            if 'api_formatted_messages' in locals():
+            if "api_formatted_messages" in locals():
                 try:
                     import pprint
-                    logger.error(f"Data attempted to dump:\n{pprint.pformat(api_formatted_messages)}")
+
+                    logger.error(
+                        f"Data attempted to dump:\n{pprint.pformat(api_formatted_messages)}"
+                    )
                 except Exception as log_e:
-                     logger.error(f"Could not log the data structure due to: {log_e}")
+                    logger.error(f"Could not log the data structure due to: {log_e}")
 
     def process(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Process messages and return formatted messages for LLM API
@@ -529,26 +548,28 @@ class MessageProcessor:
         # Pydantic Message objects, and returns the API-ready formatted list.
         for message_dict in messages:
             # Extract data from the input dictionary
-            role = message_dict.get("role", USER) # Default to USER if role missing
-            content = message_dict.get("content", None) # Allow None content for input
+            role = message_dict.get("role", USER)  # Default to USER if role missing
+            content = message_dict.get("content", None)  # Allow None content for input
             metadata = message_dict.get("metadata", {})
             # Potentially extract tool_calls or tool_call_id if they can appear in raw input
             raw_tool_calls = message_dict.get("tool_calls")
-            tool_call_id = message_dict.get("tool_call_id") # Relevant if input can contain tool results
+            tool_call_id = message_dict.get(
+                "tool_call_id"
+            )  # Relevant if input can contain tool results
 
             # Use add_message to convert dict to internal Pydantic Message object and add to history
             try:
                 self.add_message(
-                    role=role,\
-                    content=content,\
-                    metadata=metadata,\
-                    tool_calls=raw_tool_calls, # Pass raw tool calls if present
-                    tool_call_id=tool_call_id  # Pass tool_call_id if present
+                    role=role,
+                    content=content,
+                    metadata=metadata,
+                    tool_calls=raw_tool_calls,  # Pass raw tool calls if present
+                    tool_call_id=tool_call_id,  # Pass tool_call_id if present
                 )
             except Exception as e:
-                 logger.error(f"Error processing input message dict: {message_dict}. Error: {e}")
-                 # Decide whether to skip this message or raise error
-                 continue
+                logger.error(f"Error processing input message dict: {message_dict}. Error: {e}")
+                # Decide whether to skip this message or raise error
+                continue
 
         # Return the messages formatted for the API call
         return self.get_formatted_messages()
@@ -566,9 +587,7 @@ class ToolProcessor:
         self.session = session
         self.tools = []
 
-        logger.debug(
-            f"ToolProcessor.__init__: Initialized with session: {session is not None}"
-        )
+        logger.debug(f"ToolProcessor.__init__: Initialized with session: {session is not None}")
 
     async def refresh_capabilities(self) -> None:
         """Refresh available tools from the MCP server"""
@@ -585,16 +604,12 @@ class ToolProcessor:
             tools_response = await self.session.list_tools()
             self.tools = tools_response.tools
 
-            logger.debug(
-                f"ToolProcessor.refresh_capabilities: Got {len(self.tools)} tools"
-            )
+            logger.debug(f"ToolProcessor.refresh_capabilities: Got {len(self.tools)} tools")
             for tool in self.tools:
                 logger.debug(f"ToolProcessor.refresh_capabilities: Tool: {tool.name}")
 
         except Exception as e:
-            logger.error(
-                f"ToolProcessor.refresh_capabilities: Failed to refresh tools: {e}"
-            )
+            logger.error(f"ToolProcessor.refresh_capabilities: Failed to refresh tools: {e}")
             self.tools = []
 
     def format_tools(self) -> List[Dict[str, Any]]:
@@ -626,9 +641,7 @@ class ToolProcessor:
             }
             formatted_tools.append(formatted_tool)
 
-        logger.debug(
-            f"ToolProcessor.format_tools: Return {len(formatted_tools)} formatted tools"
-        )
+        logger.debug(f"ToolProcessor.format_tools: Return {len(formatted_tools)} formatted tools")
         return formatted_tools
 
     async def execute_tool_call_async(self, tool_call: Dict[str, Any]) -> str:
@@ -641,9 +654,7 @@ class ToolProcessor:
             The result of the tool execution
         """
         if not self.session:
-            logger.error(
-                "ToolProcessor.execute_tool_call_async: No MCP session available"
-            )
+            logger.error("ToolProcessor.execute_tool_call_async: No MCP session available")
             return json.dumps({"error": "MCP session not available"})
 
         tool_name = tool_call.get("function", {}).get("name", "")
@@ -753,9 +764,7 @@ class PromptProcessor:
         """Format the prompts for the MCP server"""
         prompts = []
         available_prompts = await session.list_prompts()
-        logger.debug(
-            f"PromptProcessor.format_prompts: Available prompts: {available_prompts}"
-        )
+        logger.debug(f"PromptProcessor.format_prompts: Available prompts: {available_prompts}")
         for prompt in available_prompts.prompts:
             prompt_result = await session.get_prompt(
                 prompt.name, prompt.arguments if prompt.arguments else {}
@@ -785,9 +794,7 @@ class PromptProcessor:
         if additional_prompt:
             prompt += "\n\n" + additional_prompt
 
-        logger.debug(
-            f"PromptProcessor.generate_system_prompt: Generated system prompt: {prompt}"
-        )
+        logger.debug(f"PromptProcessor.generate_system_prompt: Generated system prompt: {prompt}")
         return prompt
 
 

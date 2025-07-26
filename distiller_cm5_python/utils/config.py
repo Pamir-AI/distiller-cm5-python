@@ -35,9 +35,7 @@ class Config:
                 return json.load(f)
 
         except FileNotFoundError:
-            print(
-                f"Warning: Default configuration file not found at {default_config_path}"
-            )
+            print(f"Warning: Default configuration file not found at {default_config_path}")
             # Provide a minimal fallback configuration
             return {
                 "llm": {
@@ -80,18 +78,14 @@ class Config:
         Environment variables primarily override settings for the *active* LLM provider.
         """
         active_provider = self.get("active_llm_provider", default="<missing>")
-        if active_provider == "<missing>" or not self.get(
-            "llm_providers", active_provider
-        ):
+        if active_provider == "<missing>" or not self.get("llm_providers", active_provider):
             print(
                 f"Warning: Cannot apply environment overrides. Active provider '{active_provider}' not found or defined in llm_providers."
             )
             # Process only non-provider-specific settings like logging level
             log_level = os.environ.get("LOG_LEVEL")
             if log_level:
-                self._set_nested_config(
-                    self.config, ["logging", "level"], log_level.upper()
-                )
+                self._set_nested_config(self.config, ["logging", "level"], log_level.upper())
             return
 
         # Define environment variable mappings to the *active* provider's settings
@@ -137,9 +131,7 @@ class Config:
         # Non-provider specific settings
         log_level = os.environ.get("LOG_LEVEL")
         if log_level:
-            self._set_nested_config(
-                self.config, ["logging", "level"], log_level.upper()
-            )
+            self._set_nested_config(self.config, ["logging", "level"], log_level.upper())
 
         mcp_server_script = os.environ.get("MCP_SERVER_SCRIPT_PATH")
         if mcp_server_script:
@@ -221,9 +213,7 @@ class Config:
                 return curr
         return curr
 
-    def _set_nested_config(
-        self, config: Dict[str, Any], path: list, value: Any
-    ) -> None:
+    def _set_nested_config(self, config: Dict[str, Any], path: list, value: Any) -> None:
         """Set a value in nested config using a path list."""
         curr = config
         for i, key in enumerate(path):
@@ -308,9 +298,7 @@ PROVIDER_TYPE = get_active_config(
 API_KEY = get_active_config("api_key", "")  # Default to empty string if missing
 TIMEOUT = get_active_config("timeout", 120)  # Provide a sensible default
 STREAMING_ENABLED = get_active_config("streaming", True)  # Default to True
-STREAMING_CHUNK_SIZE = get_active_config(
-    "streaming_chunk_size", 4
-)  # Default based on old config
+STREAMING_CHUNK_SIZE = get_active_config("streaming_chunk_size", 4)  # Default based on old config
 
 # Other parameters from the active provider (with defaults)
 TEMPERATURE = get_active_config("temperature", 0.7)
@@ -331,6 +319,4 @@ DEFAULT_SYSTEM_PROMPT = config.get(
 MCP_SERVER_SCRIPT_PATH = config.get(
     "mcp_server", "server_script_path", "mcp_server/wifi_mac_server.py"
 )  # Provide default
-LOGGING_LEVEL = config.get(
-    "logging", "level", "INFO"
-).upper()  # Default to INFO, ensure uppercase
+LOGGING_LEVEL = config.get("logging", "level", "INFO").upper()  # Default to INFO, ensure uppercase

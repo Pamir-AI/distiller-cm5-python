@@ -138,9 +138,7 @@ class ServerDiscovery:
             return True
 
         except Exception as e:
-            logger.error(
-                f"Failed to process server file {file_path}: {e}", exc_info=True
-            )
+            logger.error(f"Failed to process server file {file_path}: {e}", exc_info=True)
             return False
 
     def cleanup(self):

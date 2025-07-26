@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 def load_toml_config(config_path: Path) -> Optional[Dict[str, Any]]:
     """
     Load configuration from a TOML file.
-    
+
     Args:
         config_path: Path to the TOML configuration file
-        
+
     Returns:
         Loaded configuration dictionary or None if file doesn't exist/error
     """
@@ -34,10 +34,10 @@ def load_toml_config(config_path: Path) -> Optional[Dict[str, Any]]:
 def get_config_path(relative_path: str) -> Path:
     """
     Get absolute path to a configuration file relative to the utils directory.
-    
+
     Args:
         relative_path: Path relative to the utils directory
-        
+
     Returns:
         Absolute path to the configuration file
     """

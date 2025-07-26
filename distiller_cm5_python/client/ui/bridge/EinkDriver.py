@@ -482,15 +482,13 @@ class EinkDriver:
         # Async SPI communication setup
         self._spi_lock = Lock()
         self._write_queue = queue.Queue()
-        self._executor = ThreadPoolExecutor(
-            max_workers=2, thread_name_prefix="eink_spi"
-        )
+        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="eink_spi")
         self._running = True
 
         # Start the SPI worker thread
         self._spi_worker = Thread(target=self._spi_worker_thread, daemon=True)
         self._spi_worker.start()
-        
+
         # Thread-safe busy flag and completion callback
         self._is_busy = False
         self._busy_lock = Lock()
@@ -567,16 +565,16 @@ class EinkDriver:
         """Thread-safe getter for busy status."""
         with self._busy_lock:
             return self._is_busy
-    
+
     def set_completion_callback(self, callback: Optional[Callable[[], None]]) -> None:
         """Set a callback to be invoked when the display refresh completes.
-        
+
         Args:
             callback: A callable that takes no arguments, or None to clear the callback
         """
         with self._busy_lock:
             self._completion_callback = callback
-            
+
     def _set_busy(self, busy: bool) -> None:
         """Internal method to set busy flag and invoke callback if needed."""
         with self._busy_lock:
@@ -587,7 +585,7 @@ class EinkDriver:
                     self._completion_callback()
                 except Exception as e:
                     logger.error(f"Error in completion callback: {e}", exc_info=True)
-    
+
     def cleanup(self) -> None:
         # Stop the SPI worker thread
         if hasattr(self, "_running"):
@@ -670,10 +668,12 @@ class EinkDriver:
         # For lgpio, 0 means low which indicates busy
         start_time = time.time()
         timeout = 5.0  # 5 second timeout to prevent infinite blocking
-        
+
         while lgpio.gpio_read(self.lgpio_handle, self.BUSY_PIN) == 0:
             if time.time() - start_time > timeout:
-                logger.warning(f"Display busy timeout after {timeout}s - hardware may be disconnected")
+                logger.warning(
+                    f"Display busy timeout after {timeout}s - hardware may be disconnected"
+                )
                 break
             time.sleep(0.01)  # Wait 10ms before checking again
 
@@ -754,7 +754,9 @@ class EinkDriver:
         # Panel Setting - using software-based vertical flipping instead of hardware
         # Keep panel setting constant and handle flipping in the data buffer
         panel_setting = 0x0D  # Always use normal scan direction
-        logger.info(f"epd_w21_init_4g: flip_screen={self.flip_screen}, panel_setting=0x{panel_setting:02X}")
+        logger.info(
+            f"epd_w21_init_4g: flip_screen={self.flip_screen}, panel_setting=0x{panel_setting:02X}"
+        )
         self.epd_w21_write_cmd(0x00)
         self.epd_w21_write_data(0xFF)  # LUT from MCU
         self.epd_w21_write_data(panel_setting)
@@ -818,7 +820,7 @@ class EinkDriver:
 
         # Set busy flag at the start of display operation
         self._set_busy(True)
-        
+
         # Apply 180-degree rotation (vertical + horizontal flip)
         if self.flip_screen:
             # Reshape to image dimensions: 416 rows x 60 bytes (240 pixels / 4 pixels per byte)
@@ -827,7 +829,7 @@ class EinkDriver:
             datas_np = np.flipud(datas_np)
             # Flip horizontally (left-right) - reverse bytes in each row
             datas_np = np.fliplr(datas_np)
-            
+
             # Also need to reverse bits within each byte for horizontal flip
             # Since each byte contains 4 pixels (2 bits each), we need to reverse the pixel order
             flipped_bytes = np.zeros_like(datas_np)
@@ -841,10 +843,10 @@ class EinkDriver:
                     p3 = (byte >> 0) & 0x03
                     # Reverse pixel order
                     flipped_bytes[i, j] = (p3 << 6) | (p2 << 4) | (p1 << 2) | (p0 << 0)
-            
+
             # Flatten back
             datas = flipped_bytes.flatten().tolist()
-        
+
         # Convert to NumPy array and reshape to (12480, 2)
         datas_np = np.array(datas, dtype=np.uint8).reshape(12480, 2)
         byte0, byte1 = datas_np[:, 0], datas_np[:, 1]
@@ -899,7 +901,7 @@ class EinkDriver:
 
         # Set busy flag at the start of display operation
         self._set_busy(True)
-        
+
         # Apply 180-degree rotation (vertical + horizontal flip)
         if self.flip_screen:
             # Reshape to image dimensions: 416 rows x 30 bytes (240 pixels / 8 pixels per byte)
@@ -908,7 +910,7 @@ class EinkDriver:
             data_np = np.flipud(data_np)
             # Flip horizontally (left-right) - reverse bytes in each row
             data_np = np.fliplr(data_np)
-            
+
             # Also need to reverse bits within each byte for horizontal flip
             # Since each byte contains 8 pixels (1 bit each), we need to reverse the bit order
             flipped_bytes = np.zeros_like(data_np)
@@ -919,12 +921,12 @@ class EinkDriver:
                     reversed_byte = 0
                     for bit in range(8):
                         if byte & (1 << bit):
-                            reversed_byte |= (1 << (7 - bit))
+                            reversed_byte |= 1 << (7 - bit)
                     flipped_bytes[i, j] = reversed_byte
-            
+
             # Flatten back
             new_data = flipped_bytes.flatten().tolist()
-        
+
         # Queue the display sequence for async execution
         def display_sequence():
             # Transfer old data
@@ -1033,7 +1035,7 @@ class EinkDriver:
 
         # Set busy flag at the start of clear operation
         self._set_busy(True)
-        
+
         # Queue the clear sequence for async execution
         def clear_sequence():
             # Transfer old data
@@ -1062,7 +1064,7 @@ class EinkDriver:
 
             if poweroff:
                 self.power_off()  # Optionally power off the display after clearing
-            
+
             # Clear busy flag and invoke callback
             self._set_busy(False)
 

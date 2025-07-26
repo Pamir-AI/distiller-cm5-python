@@ -55,9 +55,7 @@ class MCPClientBridge(BridgeCore):
     messageSchemaReceived = pyqtSignal("QVariantMap")
 
     # New signal for cache events
-    cacheEventReceived = pyqtSignal(
-        str, str, str, arguments=["content", "event_id", "timestamp"]
-    )
+    cacheEventReceived = pyqtSignal(str, str, str, arguments=["content", "event_id", "timestamp"])
 
     # Audio/Transcription signals - these will be connected to App's signals
     transcriptionUpdate = pyqtSignal(str, arguments=["transcription"])
@@ -85,9 +83,7 @@ class MCPClientBridge(BridgeCore):
         self.wifi_setup_bridge = WiFiSetupBridge(self)
 
         # Initialize event dispatcher with debug mode
-        self.dispatcher = EventDispatcher(
-            debug=logger.getEffectiveLevel() == logging.DEBUG
-        )
+        self.dispatcher = EventDispatcher(debug=logger.getEffectiveLevel() == logging.DEBUG)
 
         # Initialize MCP client with dispatcher first
         self.mcp_client = MCPClient(dispatcher=self.dispatcher, api_key=API_KEY)
@@ -126,9 +122,7 @@ class MCPClientBridge(BridgeCore):
         self.dispatcher.message_dispatched.connect(self._handle_event)
 
         # MCPClientBridge-specific initialization
-        self._current_log_level = config.get(
-            "logging", "level", default="DEBUG"
-        ).upper()
+        self._current_log_level = config.get("logging", "level", default="DEBUG").upper()
         self._selected_server_path = None
 
         # Initialize client-related properties from parent
@@ -143,7 +137,7 @@ class MCPClientBridge(BridgeCore):
         self._server_discovery_cache_timeout = 5  # seconds
         self._config_cache = {}
         self._config_dirty = False
-        
+
         # EInk renderer reference for text streaming optimization
         self._eink_renderer = None
 
@@ -184,21 +178,21 @@ class MCPClientBridge(BridgeCore):
         logger.debug(
             f"MCPClientBridge received event: type={getattr(event, 'type', None)}, status={getattr(event, 'status', None)}"
         )
-        
+
         # Handle EInk renderer text streaming mode based on event type
         if self._eink_renderer:
-            event_type = getattr(event, 'type', None)
-            event_status = getattr(event, 'status', None)
-            
+            event_type = getattr(event, "type", None)
+            event_status = getattr(event, "status", None)
+
             # Enable text streaming mode for message events
-            if event_type == 'message' and event_status in ['in_progress', 'streaming']:
+            if event_type == "message" and event_status in ["in_progress", "streaming"]:
                 self._eink_renderer.set_text_streaming_mode(True)
                 self._eink_renderer.request_update()
-            elif event_type == 'message' and event_status in ['success', 'complete']:
+            elif event_type == "message" and event_status in ["success", "complete"]:
                 self._eink_renderer.set_text_streaming_mode(False)
-            elif event_type in ['tool_call_started', 'tool_call_complete', 'conversation_updated']:
+            elif event_type in ["tool_call_started", "tool_call_complete", "conversation_updated"]:
                 self._eink_renderer.request_update()
-        
+
         # Just delegate to the event handler
         self.event_handler.handle_event(event)
 
@@ -264,10 +258,7 @@ class MCPClientBridge(BridgeCore):
                 config as display_config,
             )
 
-            if (
-                "display" in display_config
-                and "show_system_stats" in display_config["display"]
-            ):
+            if "display" in display_config and "show_system_stats" in display_config["display"]:
                 return display_config["display"]["show_system_stats"]
 
             return True  # Default to enabled if missing
@@ -314,7 +305,7 @@ class MCPClientBridge(BridgeCore):
                 "present": False,
                 "technology": "Unknown",
                 "shouldShowWarning": False,
-                "shouldShutdown": False
+                "shouldShutdown": False,
             }
 
     @pyqtSlot(result=bool)
@@ -323,23 +314,23 @@ class MCPClientBridge(BridgeCore):
         try:
             # Execute pre-shutdown command if configured
             self._execute_pre_shutdown_command()
-            
+
             # Lazy import to avoid circular imports
             from distiller_cm5_python.utils.uart_utils import send_shutdown_notification
-            
+
             logger.info("Sending POWER_CMD_SHUTDOWN packet for coordinated shutdown")
             success = send_shutdown_notification()
-            
+
             if success:
                 logger.info("POWER_CMD_SHUTDOWN packet sent successfully")
             else:
                 logger.error("Failed to send POWER_CMD_SHUTDOWN packet")
-                
+
             return success
         except Exception as e:
             logger.error(f"Error sending power shutdown signal: {e}")
             return False
-    
+
     def _execute_pre_shutdown_command(self):
         """Execute the pre-shutdown command if configured."""
         try:
@@ -347,17 +338,19 @@ class MCPClientBridge(BridgeCore):
             from distiller_cm5_python.utils.config import config
             import subprocess
             import time
-            
+
             pre_shutdown_cmd = config.get("system", "pre_shutdown_command", default="").strip()
             timeout = config.get("system", "pre_shutdown_timeout", default=15)
-            
+
             if not pre_shutdown_cmd:
                 return
-            
+
             # Stop and cleanup e-ink renderer if it exists
-            if hasattr(self, '_eink_renderer') and self._eink_renderer:
+            if hasattr(self, "_eink_renderer") and self._eink_renderer:
                 try:
-                    logger.info("Stopping and cleaning up e-ink renderer before pre-shutdown command")
+                    logger.info(
+                        "Stopping and cleaning up e-ink renderer before pre-shutdown command"
+                    )
                     self._eink_renderer.stop()
                     self._eink_renderer.cleanup()
                     # Give hardware time to fully release
@@ -366,30 +359,28 @@ class MCPClientBridge(BridgeCore):
                 except Exception as e:
                     logger.error(f"Error cleaning up e-ink renderer: {e}")
                     # Continue with pre-shutdown command even if cleanup fails
-            
+
             logger.info(f"Executing pre-shutdown command: {pre_shutdown_cmd}")
-            
+
             # Execute with timeout - use shell=True for complex commands
             try:
                 result = subprocess.run(
-                    pre_shutdown_cmd,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout
+                    pre_shutdown_cmd, shell=True, capture_output=True, text=True, timeout=timeout
                 )
                 time.sleep(3)
-                
+
                 if result.returncode == 0:
                     logger.info(f"Pre-shutdown command completed successfully: {result.stdout}")
                 else:
-                    logger.error(f"Pre-shutdown command failed with code {result.returncode}: {result.stderr}")
-                    
+                    logger.error(
+                        f"Pre-shutdown command failed with code {result.returncode}: {result.stderr}"
+                    )
+
             except subprocess.TimeoutExpired:
                 logger.error(f"Pre-shutdown command timed out after {timeout} seconds")
             except Exception as e:
                 logger.error(f"Pre-shutdown command execution failed: {e}")
-                
+
         except Exception as e:
             logger.error(f"Error executing pre-shutdown command: {e}")
             # Don't prevent shutdown if pre-shutdown command fails
@@ -403,20 +394,20 @@ class MCPClientBridge(BridgeCore):
         logger.info("Closing application from QML bridge call")
         try:
             # Perform cleanup first
-            if hasattr(self, 'cleanup') and callable(self.cleanup):
+            if hasattr(self, "cleanup") and callable(self.cleanup):
                 try:
                     # Run cleanup synchronously
-                    asyncio.run_coroutine_threadsafe(
-                        self.cleanup(), self._loop
-                    ).result(timeout=2.0)  # 2-second timeout for cleanup
+                    asyncio.run_coroutine_threadsafe(self.cleanup(), self._loop).result(
+                        timeout=2.0
+                    )  # 2-second timeout for cleanup
                     logger.info("Cleanup completed successfully")
                 except Exception as e:
                     logger.error(f"Error during cleanup: {e}")
-            
+
             # Schedule application exit with a short delay to allow cleanup to complete
             QApplication.instance().quit()
             logger.info("Application exit scheduled")
-            
+
         except Exception as e:
             logger.error(f"Error during application close: {e}")
             # Force quit if normal exit fails
@@ -425,41 +416,39 @@ class MCPClientBridge(BridgeCore):
             except:
                 # Last resort: terminate process
                 os._exit(1)
-                
+
     @pyqtSlot(str)
     def executeSystemCommand(self, command: str):
         """
         Execute a system command with proper security checks.
-        
+
         Args:
             command: The system command to execute
         """
         # Only allow specific system commands
-        allowed_commands = {
-            "shutdown now": "sudo shutdown now",
-            "poweroff": "sudo poweroff"
-        }
-        
+        allowed_commands = {"shutdown now": "sudo shutdown now", "poweroff": "sudo poweroff"}
+
         logger.info(f"Received system command request: {command}")
-        
+
         if command not in allowed_commands:
             logger.error(f"Unauthorized system command attempt: {command}")
             return
-            
+
         try:
             # Execute the allowed command
             import subprocess
+
             logger.info(f"Executing system command: {allowed_commands[command]}")
-            
+
             # Run the command in a separate process
             subprocess.Popen(allowed_commands[command], shell=True)
-            
+
             # Return immediately to allow the command to complete
             return
-            
+
         except Exception as e:
             logger.error(f"Error executing system command: {e}")
-    
+
     @pyqtSlot(str)
     def setLlmModel(self, model_name):
         """Set the current LLM model name."""
@@ -469,17 +458,16 @@ class MCPClientBridge(BridgeCore):
             system_monitor.set_llm_model(model_name)
         except Exception as e:
             logger.error(f"Error setting LLM model: {e}")
-    
+
     @pyqtSlot()
     def reconnectToServer(self):
         """Reconnect to the currently selected server."""
         try:
-            if hasattr(self, 'connection_manager') and self.connection_manager.selected_server_path:
+            if hasattr(self, "connection_manager") and self.connection_manager.selected_server_path:
                 # Run the reconnection asynchronously
                 if self._loop and not self._loop.is_closed():
                     asyncio.ensure_future(
-                        self.connection_manager.connect_to_selected_server(),
-                        loop=self._loop
+                        self.connection_manager.connect_to_selected_server(), loop=self._loop
                     )
                     logger.info("Reconnection attempt initiated")
                 else:
@@ -488,21 +476,21 @@ class MCPClientBridge(BridgeCore):
                 logger.warning("No server path available for reconnection")
         except Exception as e:
             logger.error(f"Error during reconnection: {e}")
-    
+
     @pyqtProperty(QObject, constant=True)
     def wifiSetupBridge(self):
         """Expose WiFi setup bridge to QML."""
         return self.wifi_setup_bridge
-    
+
     async def cleanup(self):
         """Override cleanup to include WiFi setup cleanup."""
         try:
             # Cleanup WiFi setup bridge first
-            if hasattr(self, 'wifi_setup_bridge') and self.wifi_setup_bridge:
+            if hasattr(self, "wifi_setup_bridge") and self.wifi_setup_bridge:
                 self.wifi_setup_bridge.cleanup()
                 logger.info("WiFi setup bridge cleanup completed")
         except Exception as e:
             logger.error(f"Error during WiFi setup cleanup: {e}")
-        
+
         # Call parent cleanup
         await super().cleanup()
