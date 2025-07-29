@@ -275,25 +275,6 @@ class CommonUtils {
           currentInterval = config.slowInterval;
         }
 
-        // Special handling for successful connection
-        if (
-          status.connected &&
-          status.current_state === "connected" &&
-          lastState &&
-          lastState.current_state === "connecting"
-        ) {
-          console.log("Connection completed - checking mDNS redirection");
-          // Give a few seconds for mDNS to stabilize, then check if we should redirect
-          setTimeout(() => {
-            if (
-              status.mdns_url &&
-              window.location.hostname !== new URL(status.mdns_url).hostname
-            ) {
-              console.log("Redirecting to mDNS URL:", status.mdns_url);
-              window.location.href = status.mdns_url + "/status";
-            }
-          }, 5000);
-        }
 
         lastState = status;
 
@@ -375,30 +356,6 @@ CommonUtils.onReady(() => {
         window.updateStatus(status);
       }
 
-      // Handle redirection for successful connections
-      if (
-        status.connected &&
-        status.current_state === "connected" &&
-        status.mdns_url
-      ) {
-        const currentHost = window.location.hostname;
-        const mdnsHost = new URL(status.mdns_url).hostname;
-
-        if (currentHost !== mdnsHost && !currentHost.endsWith(".local")) {
-          console.log("Connection complete - should redirect to mDNS URL");
-          // Show notification about redirection
-          CommonUtils.showNotification(
-            "Connection successful! Redirecting to device URL...",
-            "success",
-            3000,
-          );
-
-          // Redirect after a brief delay
-          setTimeout(() => {
-            window.location.href = status.mdns_url + window.location.pathname;
-          }, 3000);
-        }
-      }
     });
 
     window.statusPoller.start();

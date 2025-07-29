@@ -13,7 +13,15 @@ import io
 import base64
 from typing import Optional, Dict, Any
 from enum import Enum
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, pyqtProperty, QTimer, QMetaObject, Qt
+from PyQt6.QtCore import (
+    QObject,
+    pyqtSignal,
+    pyqtSlot,
+    pyqtProperty,
+    QTimer,
+    QMetaObject,
+    Qt,
+)
 from PyQt6.QtWidgets import QApplication
 
 from ..wifi_service import DistillerWiFiService, ServiceState
@@ -129,7 +137,9 @@ class WiFiSetupBridge(QObject):
             )
 
             # Start service in background thread
-            self._service_thread = threading.Thread(target=self._run_wifi_service_sync, daemon=True)
+            self._service_thread = threading.Thread(
+                target=self._run_wifi_service, daemon=True
+            )
             self._running = True
             self._service_thread.start()
 
@@ -170,8 +180,8 @@ class WiFiSetupBridge(QObject):
         """Check if setup is currently running"""
         return self._running
 
-    def _run_wifi_service_sync(self):
-        """Run the WiFi service in background thread (synchronous wrapper)"""
+    def _run_wifi_service(self):
+        """Run the WiFi service in background thread"""
         try:
             if self._wifi_service:
                 # Create a new event loop for this thread
@@ -191,7 +201,9 @@ class WiFiSetupBridge(QObject):
 
             # Map service state to UI state
             if service_state == ServiceState.INITIALIZING:
-                self._set_state(WiFiSetupState.INITIALIZING, "Initializing WiFi setup...")
+                self._set_state(
+                    WiFiSetupState.INITIALIZING, "Initializing WiFi setup..."
+                )
 
             elif service_state == ServiceState.HOTSPOT_MODE:
                 # Update hotspot information
@@ -200,30 +212,39 @@ class WiFiSetupBridge(QObject):
                 hotspot_ip = getattr(self._wifi_service, "hotspot_ip", "192.168.4.1")
 
                 self._set_hotspot_info(hotspot_ssid, hotspot_password, hotspot_ip)
-                self._set_state(WiFiSetupState.HOTSPOT_ACTIVE, f"Hotspot active: {hotspot_ssid}")
+                self._set_state(
+                    WiFiSetupState.HOTSPOT_ACTIVE, f"Hotspot active: {hotspot_ssid}"
+                )
 
             elif service_state == ServiceState.CONNECTING:
                 target_ssid = getattr(self._wifi_service, "target_ssid", "network")
-                self._set_state(WiFiSetupState.CONNECTING, f"Connecting to {target_ssid}...")
+                self._set_state(
+                    WiFiSetupState.CONNECTING, f"Connecting to {target_ssid}..."
+                )
 
             elif service_state == ServiceState.CONNECTED:
                 # Get connection details
-                ssid = getattr(self._wifi_service, "_successful_connection_ssid", "Unknown")
+                ssid = getattr(
+                    self._wifi_service, "_successful_connection_ssid", "Unknown"
+                )
                 ip = getattr(self._wifi_service, "_successful_connection_ip", "Unknown")
 
                 # Check if this was a new connection or already connected
                 was_connecting = (
-                    hasattr(self._wifi_service, "target_ssid") and self._wifi_service.target_ssid
+                    hasattr(self._wifi_service, "target_ssid")
+                    and self._wifi_service.target_ssid
                 )
 
                 self._set_network_connected(ssid, ip)
 
                 if was_connecting:
-                    self._set_state(WiFiSetupState.SUCCESS, f"Successfully connected to {ssid}")
+                    self._set_state(
+                        WiFiSetupState.SUCCESS, f"Successfully connected to {ssid}"
+                    )
                 else:
                     self._set_state(
                         WiFiSetupState.SUCCESS,
-                        f"Already connected to {ssid} - Web interface available",
+                        f"Connected to {ssid} - {ip}",
                     )
 
             elif service_state == ServiceState.ERROR:

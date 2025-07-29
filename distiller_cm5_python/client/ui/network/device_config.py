@@ -697,12 +697,6 @@ rlimit-nproc=3
 
         return discovered_devices
 
-    def get_device_mdns_id(self, device_id: Optional[str] = None) -> Optional[str]:
-        """Get mDNS URL for this device or another device by ID"""
-        if device_id is None:
-            device_id = self.get_device_id()
-
-        return f"http://{device_id}.local"
 
     def get_device_mdns_url(self, device_id: Optional[str] = None) -> Optional[str]:
         """Get mDNS URL for this device or another device by ID"""

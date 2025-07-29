@@ -152,6 +152,7 @@ Rectangle {
             bridge.wifiSetupBridge.errorOccurred.connect(function (error) {
                 errorMessage = error;
             });
+
         }
     }
 
@@ -632,7 +633,7 @@ Rectangle {
 
                     Text {
                         width: parent.width
-                        text: statusMessage.includes("Already connected") ? `Already connected to: ${connectedNetwork}` : `Successfully connected to: ${connectedNetwork}`
+                        text: statusMessage.includes("Connected") ? `Connected to: ${connectedNetwork}` : `Successfully connected to: ${connectedNetwork}`
                         font: FontManager.small
                         // font.bold: true
                         color: ThemeManager.textColor
@@ -662,7 +663,7 @@ Rectangle {
 
                     Text {
                         width: parent.width
-                        text: statusMessage.includes("Already connected") ? "Web interface is available for network management. You can access it from any device on the network." : "WiFi setup is complete. Web interface is now available for network management."
+                        text: statusMessage.includes("Connected") ? "Web interface is available for network management. You can access it from any device on the network." : "WiFi setup is complete. Web interface is now available for network management."
                         font: FontManager.small
                         color: ThemeManager.textColor
                         wrapMode: Text.WordWrap

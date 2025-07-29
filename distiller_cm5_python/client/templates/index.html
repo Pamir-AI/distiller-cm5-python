@@ -1,196 +1,172 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{{ device_name }} WiFi Setup</title>
-    <link
-      rel="icon"
-      href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
-    />
-    <!-- Allow insecure HTTP requests for local IoT device operation -->
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>{{ device_name }} WiFi Setup</title>
+	<link rel="icon" href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}" />
+	<!-- Allow insecure HTTP requests for local IoT device operation -->
+	<meta http-equiv="Content-Security-Policy" content="
         default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:;
         connect-src 'self' http: https: ws: wss:;
         img-src 'self' data: blob: http: https:;
         font-src 'self' data: http: https:;
         frame-src 'none';
         object-src 'none'
-    "
-    />
-    <!-- Common styles -->
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/common.css') }}"
-    />
-    <!-- Page-specific styles -->
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/index.css') }}"
-    />
-  </head>
+    " />
+	<!-- Common styles -->
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}" />
+	<!-- Page-specific styles -->
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}" />
+</head>
 
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>Distiller WiFi Setup</h1>
-      </div>
+<body>
+	<div class="container">
+		<div class="header">
+			<h1>Distiller WiFi Setup</h1>
+		</div>
 
-      <div class="content">
-        {% if error %}
-        <div class="error-info">{{ error }}</div>
-        {% endif %}
+		<div class="content">
+			{% if error %}
+			<div class="error-info">{{ error }}</div>
+			{% endif %} {% if current_ssid %}
+			<div class="status-info" style="
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+          ">
+				<strong>Currently connected to:</strong> {{ current_ssid }} {% if
+				current_ip %} <br /><strong>IP Address:</strong> {{ current_ip }} {%
+				endif %} <br /><small>Select a different network below to change WiFi settings</small>
+			</div>
+			{% endif %}
 
-        {% if current_ssid %}
-        <div class="status-info" style="margin-bottom: 20px; padding: 15px; background-color: #f0f0f0; border: 1px solid #ccc;">
-          <strong>Currently connected to:</strong> {{ current_ssid }}
-          {% if current_ip %}
-          <br><strong>IP Address:</strong> {{ current_ip }}
-          {% endif %}
-          <br><small>Select a different network below to change WiFi settings</small>
-        </div>
-        {% endif %}
+			<!-- <div class="network-list"> -->
+			<!-- 	{% for network in networks %} -->
+			<!-- 	<a href="{{ url_for('confirm', ssid=network.ssid, encrypted=network.security) }}" -->
+			<!-- 		class="network-btn {% if network.security == 'encrypted' %}encrypted{% endif %}"> -->
+			<!-- 		{{ network.ssid }} -->
+			<!-- 		<span class="signal">{{ network.signal_strength }}%</span> -->
+			<!-- 	</a> -->
+			<!-- 	{% endfor %} {% if not networks %} -->
+			<!-- 	<div class="status-info"> -->
+			<!-- 		No networks found. -->
+			<!-- 		<a href="javascript:location.reload()" style="color: #000; text-decoration: underline">Refresh</a> -->
+			<!-- 		to try again. -->
+			<!-- 	</div> -->
+			<!-- 	{% endif %} -->
+			<!-- </div> -->
 
-        <div class="network-list">
-          {% for network in networks %}
-          <a
-            href="{{ url_for('confirm', ssid=network.ssid, encrypted=network.security) }}"
-            class="network-btn {% if network.security == 'encrypted' %}encrypted{% endif %}"
-          >
-            {{ network.ssid }}
-            <span class="signal">{{ network.signal_strength }}%</span>
-          </a>
-          {% endfor %} {% if not networks %}
-          <div class="status-info">
-            No networks found.
-            <a
-              href="javascript:location.reload()"
-              style="color: #000; text-decoration: underline"
-              >Refresh</a
-            >
-            to try again.
-          </div>
-          {% endif %}
-        </div>
+			<div class="manual-form">
+				<h3>Connect to Hidden Network</h3>
+				<form action="{{ url_for('confirm') }}" method="get">
+					<input type="hidden" name="encrypted" value="encrypted" />
+					<div class="form-group">
+						<input type="text" name="ssid" class="form-input" placeholder="Enter network name" required />
+						<button type="submit" class="submit-btn">Connect</button>
+					</div>
+				</form>
+			</div>
+		</div>
 
-        <div class="manual-form">
-          <h3>Connect to Hidden Network</h3>
-          <form action="{{ url_for('confirm') }}" method="get">
-            <input type="hidden" name="encrypted" value="encrypted" />
-            <div class="form-group">
-              <input
-                type="text"
-                name="ssid"
-                class="form-input"
-                placeholder="Enter network name"
-                required
-              />
-              <button type="submit" class="submit-btn">Connect</button>
-            </div>
-          </form>
-        </div>
-      </div>
+		<div class="footer">
+			<div class="footer-content">
+				<img src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}" alt="Pamir AI"
+					class="footer-logo" />
+				<span class="footer-text">{{ device_name }} Network Setup</span>
+			</div>
+		</div>
+	</div>
 
-      <div class="footer">
-        <div class="footer-content">
-          <img
-            src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
-            alt="Pamir AI"
-            class="footer-logo"
-          />
-          <span class="footer-text">{{ device_name }} Network Setup</span>
-        </div>
-      </div>
-    </div>
+	<!-- Common JavaScript -->
+	<script src="{{ url_for('static', filename='js/common.js') }}"></script>
 
-    <!-- Common JavaScript -->
-    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
-    
-    <script>
-    let isLoading = false;
-    
-    // Show loading state
-    function showLoading() {
-        const networkList = document.querySelector('.network-list');
-        if (!networkList || isLoading) return;
-        
-        isLoading = true;
-        networkList.innerHTML = `
+	<script>
+		let isLoading = false;
+
+		// Show loading state
+		function showLoading() {
+			const networkList = document.querySelector(".network-list");
+			if (!networkList || isLoading) return;
+
+			isLoading = true;
+			networkList.innerHTML = `
             <div class="status-info">
                 <strong>Scanning for WiFi networks...</strong>
                 <br><small>This may take a few seconds</small>
             </div>
         `;
-    }
-    
-    // Load networks when page loads
-    async function loadNetworks() {
-        try {
-            showLoading();
-            const response = await CommonUtils.apiRequest('/api/networks');
-            isLoading = false;
-            
-            if (response.success && response.networks) {
-                displayNetworks(response.networks);
-            } else {
-                displayNetworks([]);
-            }
-        } catch (error) {
-            console.error('Failed to load networks:', error);
-            isLoading = false;
-            displayNetworks([]);
-        }
-    }
-    
-    function displayNetworks(networks) {
-        const networkList = document.querySelector('.network-list');
-        if (!networkList) return;
-        
-        // Clear existing content
-        networkList.innerHTML = '';
-        
-        if (networks.length === 0) {
-            networkList.innerHTML = `
+		}
+
+		// Load networks when page loads
+		async function loadNetworks() {
+			try {
+				showLoading();
+				const response = await CommonUtils.apiRequest("/api/networks");
+				isLoading = false;
+
+				if (response.success && response.networks) {
+					displayNetworks(response.networks);
+				} else {
+					displayNetworks([]);
+				}
+			} catch (error) {
+				console.error("Failed to load networks:", error);
+				isLoading = false;
+				displayNetworks([]);
+			}
+		}
+
+		function displayNetworks(networks) {
+			const networkList = document.querySelector(".network-list");
+			if (!networkList) return;
+
+			// Clear existing content
+			networkList.innerHTML = "";
+
+			if (networks.length === 0) {
+				networkList.innerHTML = `
                 <div class="status-info">
                     No networks found.
                     <a href="javascript:loadNetworks()" style="color: #000; text-decoration: underline">Scan again</a>
                     or check if WiFi is enabled.
                 </div>
             `;
-            return;
-        }
-        
-        // Add network buttons
-        networks.forEach(network => {
-            const link = document.createElement('a');
-            link.href = `/confirm?ssid=${encodeURIComponent(network.ssid)}&encrypted=${network.security}`;
-            link.className = `network-btn ${network.security === 'encrypted' ? 'encrypted' : ''}`;
-            link.innerHTML = `
+				return;
+			}
+
+			// Add network buttons
+			networks.forEach((network) => {
+				const link = document.createElement("a");
+				link.href = `/confirm?ssid=${encodeURIComponent(network.ssid)}&encrypted=${network.security}`;
+				link.className = `network-btn ${network.security === "encrypted" ? "encrypted" : ""}`;
+				link.innerHTML = `
                 ${network.ssid}
                 <span class="signal">${network.signal_strength}%</span>
             `;
-            networkList.appendChild(link);
-        });
-        
-        // Add refresh button at the bottom
-        const refreshDiv = document.createElement('div');
-        refreshDiv.style.marginTop = '20px';
-        refreshDiv.style.textAlign = 'center';
-        refreshDiv.innerHTML = `
+				networkList.appendChild(link);
+			});
+
+			// Add refresh button at the bottom
+			const refreshDiv = document.createElement("div");
+			refreshDiv.style.marginTop = "20px";
+			refreshDiv.style.textAlign = "center";
+			refreshDiv.innerHTML = `
             <a href="javascript:loadNetworks()" style="color: #666; text-decoration: underline; font-size: 14px">Refresh network list</a>
         `;
-        networkList.appendChild(refreshDiv);
-    }
-    
-    // Load networks on page load
-    CommonUtils.onReady(() => {
-        loadNetworks();
-        
-        // Reload networks every 30 seconds (less frequent to avoid interrupting user)
-        setInterval(loadNetworks, 30000);
-    });
-    </script>
-  </body>
+			networkList.appendChild(refreshDiv);
+		}
+
+		// Load networks on page load
+		CommonUtils.onReady(() => {
+			loadNetworks();
+
+			// Reload networks every 30 seconds (less frequent to avoid interrupting user)
+			setInterval(loadNetworks, 30000);
+		});
+	</script>
+</body>
+
 </html>

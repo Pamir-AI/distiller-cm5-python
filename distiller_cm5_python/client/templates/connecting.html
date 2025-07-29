@@ -1,558 +1,224 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Connecting to {{ ssid }}</title>
-    <link
-      rel="icon"
-      href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
-    />
-    <!-- Allow insecure HTTP requests for local IoT device operation -->
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Connecting to {{ ssid }}</title>
+	<link rel="icon" href="{{ url_for('static', filename='images/pamir-logo-01.svg') }}" />
+	<!-- Allow insecure HTTP requests for local IoT device operation -->
+	<meta http-equiv="Content-Security-Policy" content="
         default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:;
         connect-src 'self' http: https: ws: wss:;
         img-src 'self' data: blob: http: https:;
         font-src 'self' data: http: https:;
         frame-src 'none';
         object-src 'none'
-    "
-    />
-    <!-- Common styles -->
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/common.css') }}"
-    />
-    <!-- Page-specific styles -->
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/connecting.css') }}"
-    />
-  </head>
+    " />
+	<!-- Common styles -->
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}" />
+	<!-- Page-specific styles -->
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/connecting.css') }}" />
+</head>
 
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>WiFi Connection</h1>
-      </div>
+<body>
+	<div class="container">
+		<div class="header">
+			<h1>WiFi Connection</h1>
+		</div>
 
-      <div class="content">
-        <div class="connection-info">
-          <div class="network-name">{{ ssid }}</div>
-          <div class="status-code" id="status-code">[CONNECTING]</div>
-          <div class="status-title" id="status-title">
-            [CONNECTION IN PROGRESS]
-          </div>
-          <div class="status-message" id="status-message">
-            Your device is connecting to the WiFi network. This process may take
-            a few moments.
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" id="progress-fill"></div>
-          </div>
-          <div class="progress-text" id="progress-text">Initializing...</div>
-        </div>
+		<div class="content">
+			<div class="connection-info">
+				<div class="network-name">{{ ssid }}</div>
+				<!-- <div class="status-code" id="status-code">[CONNECTING]</div> -->
+				<div class="status-title" id="status-title">
+					[CONNECTION IN PROGRESS]
+				</div>
+				<div class="status-message" id="status-message">
+					Your device is connecting to the WiFi network. Please check the
+					device's e-ink display for real-time connection status and network
+					details.
 
-        <div class="instructions">
-          <div class="instruction-item">
-            <div class="instruction-title">[STATUS]:</div>
-            <div class="instruction-detail" id="current-step">
-              The device is switching from setup mode to your WiFi network
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">[NETWORK]:</div>
-            <div class="instruction-detail">
-              Your device may temporarily disconnect while the system switches networks.
-              This page will automatically detect when the connection is successful.
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">[SUCCESS]:</div>
-            <div class="instruction-detail">
-              You'll be automatically redirected to a success page with connection details
-              and remote access information.
-            </div>
-          </div>
-          <div class="instruction-item">
-            <div class="instruction-title">[FAILURE]:</div>
-            <div class="instruction-detail">
-              The device will return to setup mode. You can try again with different settings.
-            </div>
-          </div>
-        </div>
+					Close this page once the connection is established.
+				</div>
+				<!-- <div class="progress-bar"> -->
+				<!-- 	<div class="progress-fill" id="progress-fill"></div> -->
+				<!-- </div> -->
+				<!-- <div class="progress-text" id="progress-text">Initializing...</div> -->
+			</div>
 
-        <div class="button-group" id="button-group">
-          <a href="/status" class="btn btn-primary" id="status-btn">Check Status</a>
-          <a href="/" class="btn btn-secondary" id="setup-btn">Back to Setup</a>
-        </div>
-      </div>
+			<div class="instructions">
+				<div class="instruction-item">
+					<div class="instruction-title">[STATUS CHECK]:</div>
+					<div class="instruction-detail" id="current-step">
+						Check the device's e-ink display for real-time connection status
+						and network information
+					</div>
+				</div>
+				<div class="instruction-item">
+					<div class="instruction-title">[DISPLAY INFO]:</div>
+					<div class="instruction-detail">
+						The e-ink display will show connection progress, success/failure
+						status and IP address when the connection is established.
+					</div>
+				</div>
+				<div class="instruction-item">
+					<div class="instruction-title">[SUCCESS]:</div>
+					<div class="instruction-detail">
+						Once connected, the display will show the device's network details
+						including IP address for remote access. You can close this page
+						once the connection is successful.
+					</div>
+				</div>
+				<div class="instruction-item">
+					<div class="instruction-title">[FAILURE]:</div>
+					<div class="instruction-detail">
+						If connection fails, the display will show error details and the
+						device will return to setup mode automatically.
+					</div>
+				</div>
+			</div>
 
-      <div class="footer">
-        <div class="footer-content">
-          <img
-            src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}"
-            alt="Pamir AI"
-            class="footer-logo"
-          />
-          <span class="footer-text">{{ device_name }} Network Setup</span>
-        </div>
-      </div>
-    </div>
+			<!-- <div class="button-group" id="button-group"> -->
+			<!-- 	<a href="/status" class="btn btn-primary" id="status-btn">Check Status</a> -->
+			<!-- 	<a href="/" class="btn btn-secondary" id="setup-btn">Back to Setup</a> -->
+			<!-- </div> -->
+		</div>
 
-    <!-- Common JavaScript -->
-    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
-    <script>
-      // Session and device information
-      const SESSION_ID = '{{ session_id }}';
-      const DEVICE_ID = '{{ device_id }}';
-      const TARGET_SSID = '{{ ssid }}';
-      const HOTSPOT_IP = '{{ hotspot_ip }}';
-      const WEB_PORT = {{ web_port }};
-      
-      // Polling state
-      let pollInterval = 2000; // Start with 2 second intervals
-      const maxInterval = 10000; // Max 10 second intervals
-      const maxPollingTime = 300000; // 5 minutes max
-      let pollCount = 0;
-      let startTime = Date.now();
-      let currentPollTimer = null;
-      let networkChangeDetected = false;
-      
-      // Progress tracking
-      let progressPercent = 0;
-      const progressSteps = [
-        { percent: 10, text: "Stopping setup hotspot..." },
-        { percent: 30, text: "Connecting to target network..." },
-        { percent: 50, text: "Verifying connection..." },
-        { percent: 70, text: "Checking network accessibility..." },
-        { percent: 85, text: "Finalizing setup..." },
-        { percent: 100, text: "Connection successful!" }
-      ];
-      let currentStepIndex = 0;
+		<div class="footer">
+			<div class="footer-content">
+				<img src="{{ url_for('static', filename='images/pamir-logo-01.svg') }}" alt="Pamir AI"
+					class="footer-logo" />
+				<span class="footer-text">{{ device_name }} Network Setup</span>
+			</div>
+		</div>
+	</div>
 
-      // Store session info in localStorage for persistence across network changes
-      function storeSessionInfo() {
-        const sessionData = {
-          sessionId: SESSION_ID,
-          targetSsid: TARGET_SSID,
-          deviceId: DEVICE_ID,
-          startTime: startTime,
-          hotspotIp: HOTSPOT_IP
-        };
-        localStorage.setItem('distiller_setup_session', JSON.stringify(sessionData));
-        console.log('Session stored in localStorage:', sessionData);
-      }
+	<!-- Common JavaScript -->
+	<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+	<script>
+		// Device information for display purposes only
+		const DEVICE_ID = "{{ device_id }}";
+		const TARGET_SSID = "{{ ssid }}";
 
-      // Generate potential target addresses for polling
-      function generateTargetAddresses() {
-        const addresses = [];
-        
-        // Current hotspot address (while still connected)
-        if (HOTSPOT_IP && HOTSPOT_IP !== 'localhost') {
-          addresses.push(`http://${HOTSPOT_IP}:${WEB_PORT}`);
-        }
-        
-        // mDNS address on new network - try both possible hostnames
-        addresses.push(`http://${DEVICE_ID}.local:${WEB_PORT}`);
-        
-        // Also try common hostname variations in case of mismatch
-        const deviceIdParts = DEVICE_ID.split('-');
-        if (deviceIdParts.length >= 2) {
-          const baseHostname = deviceIdParts[0] + '-' + deviceIdParts[1]; // e.g., "distiller-cm5"
-          addresses.push(`http://${baseHostname}.local:${WEB_PORT}`);
-        }
-        
-        // Common local network addresses (in case mDNS fails)
-        const commonBases = ['192.168.1', '192.168.0', '10.0.0', '172.16.0'];
-        commonBases.forEach(base => {
-          for (let i = 1; i <= 20; i++) {
-            addresses.push(`http://${base}.${i}:${WEB_PORT}`);
-          }
-        });
-        
-        return addresses;
-      }
+		// Initialize when page loads
+		CommonUtils.onReady(function () {
+			console.log("Connecting page loaded");
+			console.log("Device ID:", DEVICE_ID);
+			console.log("Target SSID:", TARGET_SSID);
 
-      // Update progress bar and text
-      function updateProgress(percent, text) {
-        const progressFill = document.getElementById('progress-fill');
-        const progressText = document.getElementById('progress-text');
-        
-        if (progressFill) {
-          progressFill.style.width = percent + '%';
-        }
-        if (progressText) {
-          progressText.textContent = text;
-        }
-        
-        progressPercent = percent;
-      }
+			// Show simple connection message
+			document.getElementById("progress-text").textContent =
+				"Connection initiated...";
+			document.getElementById("progress-fill").style.width = "30%";
+		});
+	</script>
 
-      // Advance to next progress step
-      function advanceProgress() {
-        if (currentStepIndex < progressSteps.length) {
-          const step = progressSteps[currentStepIndex];
-          updateProgress(step.percent, step.text);
-          currentStepIndex++;
-        }
-      }
+	<style>
+		/* Monochrome 1-bit aesthetic - black and white only */
+		.progress-bar {
+			width: 100%;
+			height: 8px;
+			background-color: white;
+			border: 2px solid black;
+			margin: 20px 0 10px 0;
+		}
 
-      // Poll specific address for session status
-      async function pollAddress(address) {
-        try {
-          const url = `${address}/api/setup-status/${SESSION_ID}`;
-          console.log(`Polling: ${url}`);
-          
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 5000 // 5 second timeout
-          });
-          
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-          
-          const data = await response.json();
-          console.log(`Response from ${address}:`, data);
-          
-          return { success: true, data: data, address: address };
-          
-        } catch (error) {
-          console.log(`Failed to poll ${address}:`, error.message);
-          return { success: false, error: error.message, address: address };
-        }
-      }
+		.progress-fill {
+			height: 100%;
+			background: black;
+			transition: width 0.3s ease;
+			width: 0%;
+		}
 
-      // Poll multiple addresses simultaneously
-      async function pollMultipleAddresses() {
-        const addresses = generateTargetAddresses();
-        console.log('Polling addresses:', addresses);
-        
-        // Poll all addresses simultaneously
-        const promises = addresses.map(addr => pollAddress(addr));
-        const results = await Promise.allSettled(promises);
-        
-        // Find first successful response
-        for (const result of results) {
-          if (result.status === 'fulfilled' && result.value.success) {
-            const { data, address } = result.value;
-            console.log(`Successful response from ${address}:`, data);
-            return { success: true, data: data, address: address };
-          }
-        }
-        
-        return { success: false, message: 'No addresses responded successfully' };
-      }
+		.progress-text {
+			font-size: 14px;
+			color: black;
+			text-align: center;
+			margin-bottom: 20px;
+			font-family: "MartianMono", "Courier New", monospace;
+			font-weight: bold;
+		}
 
-      // Handle successful connection detection
-      function handleConnectionSuccess(data, sourceAddress) {
-        console.log('Connection success detected:', data);
-        
-        clearPolling();
-        
-        // Update UI to show success
-        updateProgress(100, "Connection successful!");
-        document.getElementById("status-code").textContent = "[CONNECTED]";
-        document.getElementById("status-title").textContent = "Connection Successful!";
-        
-        const connection = data.session?.connection_details || data.current_status || {};
-        const deviceInfo = data.device_info || {};
-        
-        // Show success message
-        const statusMessage = document.getElementById("status-message");
-        statusMessage.innerHTML = `
-          Successfully connected to <strong>${TARGET_SSID}</strong>!<br><br>
-          <strong>Device Information:</strong><br>
-          ${connection.ip_address ? `IP Address: ${connection.ip_address}<br>` : ''}
-          ${deviceInfo.mdns_url ? `mDNS: ${deviceInfo.mdns_url}<br>` : ''}
-          <br>
-          <strong>Redirecting to success page...</strong>
-        `;
-        
-        // Update current step
-        document.getElementById("current-step").textContent = "Connection completed successfully!";
-        
-        // Redirect to success page
-        if (data.redirect_to_success && data.success_url) {
-          console.log(`Redirecting to success page: ${data.success_url}`);
-          setTimeout(() => {
-            window.location.href = data.success_url;
-          }, 3000);
-        } else {
-          // Fallback to status page
-          setTimeout(() => {
-            window.location.href = "/status";
-          }, 5000);
-        }
-      }
+		.status-code {
+			font-family: "MartianMono", "Courier New", monospace;
+			font-weight: bold;
+			color: black;
+			font-size: 16px;
+			border: 2px solid black;
+			padding: 5px 10px;
+			background: white;
+			display: inline-block;
+		}
 
-      // Handle connection failure
-      function handleConnectionFailure(data) {
-        console.log('Connection failure detected:', data);
-        
-        clearPolling();
-        
-        updateProgress(0, "Connection failed");
-        document.getElementById("status-code").textContent = "[FAILED]";
-        document.getElementById("status-title").textContent = "Connection Failed";
-        document.getElementById("status-message").innerHTML = `
-          Connection to <strong>${TARGET_SSID}</strong> failed.<br><br>
-          <strong>Possible causes:</strong><br>
-          - Incorrect password<br>
-          - Network not available<br>
-          - Signal too weak<br>
-          - Network configuration issues<br><br>
-          The device has returned to setup mode. You can try again.
-        `;
-        
-        document.getElementById("current-step").textContent = "Connection failed - device returned to setup mode";
-        
-        // Enable retry button
-        const setupBtn = document.getElementById("setup-btn");
-        setupBtn.textContent = "Try Again";
-        setupBtn.classList.add("btn-primary");
-        setupBtn.classList.remove("btn-secondary");
-      }
+		.status-title {
+			font-weight: bold;
+			color: black;
+			margin: 15px 0;
+			font-size: 18px;
+		}
 
-      // Handle polling timeout
-      function handlePollingTimeout() {
-        console.log('Polling timeout reached');
-        
-        clearPolling();
-        
-        updateProgress(50, "Connection timeout");
-        document.getElementById("status-code").textContent = "[TIMEOUT]";
-        document.getElementById("status-title").textContent = "Connection Timeout";
-        document.getElementById("status-message").innerHTML = `
-          Unable to verify connection status after 5 minutes.<br><br>
-          <strong>What to do next:</strong><br>
-          - Check the device's e-ink display for connection status<br>
-          - Try accessing the status page manually<br>
-          - If needed, return to setup mode and try again<br><br>
-          <strong>Manual access options:</strong><br>
-          - Status page: <a href="/status" style="color: #000; text-decoration: underline;">Check Status</a><br>
-          - mDNS: <a href="http://${DEVICE_ID}.local:${WEB_PORT}" style="color: #000; text-decoration: underline;">http://${DEVICE_ID}.local:${WEB_PORT}</a>
-        `;
-        
-        document.getElementById("current-step").textContent = "Connection verification timed out";
-      }
+		.status-message {
+			color: black;
+			margin: 15px 0;
+			font-size: 14px;
+		}
 
-      // Main polling function
-      async function performPolling() {
-        const elapsed = Date.now() - startTime;
-        
-        // Check for timeout
-        if (elapsed > maxPollingTime) {
-          handlePollingTimeout();
-          return;
-        }
-        
-        pollCount++;
-        console.log(`Poll #${pollCount}, elapsed: ${Math.round(elapsed/1000)}s`);
-        
-        // Advance progress periodically
-        if (pollCount % 3 === 0 && currentStepIndex < progressSteps.length - 1) {
-          advanceProgress();
-        }
-        
-        try {
-          const result = await pollMultipleAddresses();
-          
-          if (result.success && result.data) {
-            const { session } = result.data;
-            
-            if (session) {
-              switch (session.status) {
-                case 'connected':
-                  // Session is connected, trust this status even if current_status is inconsistent
-                  // This handles network transition timing issues
-                  handleConnectionSuccess(result.data, result.address);
-                  return;
-                  
-                case 'failed':
-                  handleConnectionFailure(result.data);
-                  return;
-                  
-                case 'connecting':
-                  // Still connecting, continue polling
-                  console.log('Still connecting...');
-                  break;
-                  
-                default:
-                  console.log('Unknown session status:', session.status);
-              }
-            }
-          }
-          
-          // Continue polling with exponential backoff
-          pollInterval = Math.min(pollInterval * 1.1, maxInterval);
-          
-        } catch (error) {
-          console.error('Polling error:', error);
-        }
-        
-        // Schedule next poll
-        currentPollTimer = setTimeout(performPolling, pollInterval);
-      }
+		.connection-info {
+			text-align: center;
+			margin-bottom: 30px;
+			padding: 20px;
+			background: white;
+			border: 2px solid black;
+		}
 
-      // Clear polling timer
-      function clearPolling() {
-        if (currentPollTimer) {
-          clearTimeout(currentPollTimer);
-          currentPollTimer = null;
-        }
-      }
+		.network-name {
+			font-size: 24px;
+			font-weight: bold;
+			margin-bottom: 15px;
+			color: black;
+			font-family: "MartianMono", "Courier New", monospace;
+			border-bottom: 2px solid black;
+			padding-bottom: 10px;
+		}
 
-      // Start the polling process
-      function startPolling() {
-        console.log('Starting intelligent polling for session:', SESSION_ID);
-        
-        // Store session info for persistence
-        storeSessionInfo();
-        
-        // Start with initial progress
-        updateProgress(5, "Initializing connection process...");
-        
-        // Begin polling after short delay
-        setTimeout(() => {
-          performPolling();
-        }, 3000); // 3 second delay to allow connection process to start
-      }
+		.instructions {
+			background: white;
+			border: 2px solid black;
+			padding: 20px;
+			margin: 20px 0;
+		}
 
-      // Handle page visibility changes (for mobile devices)
-      document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-          console.log('Page hidden, continuing polling in background');
-        } else {
-          console.log('Page visible, resuming active polling');
-          // Could implement more aggressive polling when page is visible
-        }
-      });
+		.instruction-item {
+			margin-bottom: 15px;
+			border-bottom: 1px solid black;
+			padding-bottom: 10px;
+		}
 
-      // Initialize when page loads
-      CommonUtils.onReady(function () {
-        console.log('Connecting page loaded');
-        console.log('Session ID:', SESSION_ID);
-        console.log('Device ID:', DEVICE_ID);
-        console.log('Target SSID:', TARGET_SSID);
-        
-        startPolling();
-      });
+		.instruction-title {
+			font-weight: bold;
+			color: black;
+			margin-bottom: 5px;
+			text-transform: uppercase;
+			font-family: "MartianMono", "Courier New", monospace;
+		}
 
-      // Cleanup on page unload
-      window.addEventListener('beforeunload', function() {
-        clearPolling();
-      });
-    </script>
-    
-    <style>
-      /* Monochrome 1-bit aesthetic - black and white only */
-      .progress-bar {
-        width: 100%;
-        height: 8px;
-        background-color: white;
-        border: 2px solid black;
-        margin: 20px 0 10px 0;
-      }
-      
-      .progress-fill {
-        height: 100%;
-        background: black;
-        transition: width 0.3s ease;
-        width: 0%;
-      }
-      
-      .progress-text {
-        font-size: 14px;
-        color: black;
-        text-align: center;
-        margin-bottom: 20px;
-        font-family: 'Courier New', monospace;
-        font-weight: bold;
-      }
-      
-      .status-code {
-        font-family: 'Courier New', monospace;
-        font-weight: bold;
-        color: black;
-        font-size: 16px;
-        border: 2px solid black;
-        padding: 5px 10px;
-        background: white;
-        display: inline-block;
-      }
-      
-      .status-title {
-        font-weight: bold;
-        color: black;
-        margin: 15px 0;
-        font-size: 18px;
-      }
-      
-      .status-message {
-        color: black;
-        margin: 15px 0;
-        font-size: 14px;
-      }
-      
-      .connection-info {
-        text-align: center;
-        margin-bottom: 30px;
-        padding: 20px;
-        background: white;
-        border: 2px solid black;
-      }
-      
-      .network-name {
-        font-size: 24px;
-        font-weight: bold;
-        margin-bottom: 15px;
-        color: black;
-        font-family: 'Courier New', monospace;
-        border-bottom: 2px solid black;
-        padding-bottom: 10px;
-      }
-      
-      .instructions {
-        background: white;
-        border: 2px solid black;
-        padding: 20px;
-        margin: 20px 0;
-      }
-      
-      .instruction-item {
-        margin-bottom: 15px;
-        border-bottom: 1px solid black;
-        padding-bottom: 10px;
-      }
-      
-      .instruction-title {
-        font-weight: bold;
-        color: black;
-        margin-bottom: 5px;
-        text-transform: uppercase;
-        font-family: 'Courier New', monospace;
-      }
-      
-      .instruction-detail {
-        color: black;
-        font-size: 14px;
-        line-height: 1.5;
-      }
-      
-      @media (max-width: 768px) {
-        .progress-text {
-          font-size: 12px;
-        }
-        
-        .network-name {
-          font-size: 20px;
-        }
-      }
-    </style>
-  </body>
+		.instruction-detail {
+			color: black;
+			font-size: 14px;
+			line-height: 1.5;
+		}
+
+		@media (max-width: 768px) {
+			.progress-text {
+				font-size: 12px;
+			}
+
+			.network-name {
+				font-size: 20px;
+			}
+		}
+	</style>
+</body>
+
 </html>
