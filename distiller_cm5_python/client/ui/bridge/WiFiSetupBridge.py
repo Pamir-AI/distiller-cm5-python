@@ -132,9 +132,7 @@ class WiFiSetupBridge(QObject):
             self._regenerate_hotspot_password()
 
             # Initialize WiFi service
-            self._wifi_service = DistillerWiFiService(
-                enable_eink=False  # We're using GUI instead
-            )
+            self._wifi_service = DistillerWiFiService()
 
             # Start service in background thread
             self._service_thread = threading.Thread(
