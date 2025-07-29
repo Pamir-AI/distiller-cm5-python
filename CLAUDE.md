@@ -8,28 +8,38 @@ The Distiller CM5 Python project is a comprehensive AI assistant application for
 
 ## Architecture
 
+### Entry Points and Execution Flow
+
+**Main Entry Point (`main.py`):**
+- Uses asyncio for async operation
+- Handles LLM server lifecycle management (auto-start/stop llama-cpp servers)
+- Delegates to CLI or GUI modes via `--gui` flag
+- Integrates UART power management signaling via `signal_app_start()`
+- Manages cleanup on shutdown (KeyboardInterrupt handling)
+
 ### Core Components
 
 **Client Layer (`distiller_cm5_python/client/`):**
-- `cli.py`: Main CLI interface and argument parsing
+- `cli.py`: Main CLI interface with argument parsing and interactive chat loop
 - `mid_layer/`: Core business logic including LLM client, MCP client, and processors
-- `ui/`: Qt-based GUI application with QML components for voice assistant interface
-- `llm_infra/`: LLM server management and parsing utilities
+- `ui/`: Qt6/QML-based GUI application with voice assistant interface
+- `llm_infra/`: LLM server management (`LlamaCppServerManager`) and parsing utilities
 
 **Server Layer:**
-- `llm_server/`: Local LLM server implementation using llama-cpp-python
-- `mcp_server/`: MCP protocol servers for various tools and assistants
+- `llm_server/`: Local LLM server implementation using llama-cpp-python with FastAPI
+- `mcp_server/`: MCP (Model Context Protocol) servers for specialized tools and assistants
 
 **Utilities (`distiller_cm5_python/utils/`):**
-- Configuration management, logging, hardware interfaces (UART, server utilities)
+- Configuration management with JSON/TOML hybrid approach
+- Logging setup and hardware interfaces (UART, server utilities) 
 - Default configuration in `default_config.json`
-- Battery and specialized hardware config in TOML format
+- Hardware-specific config in TOML format (battery, display)
 
 **Hardware Integration:**
-- Audio processing using faster_whisper and pyaudio
-- E-ink display control via distiller-cm5-sdk
-- LED control via GPIO  
-- Input monitoring and device interfacing
+- Audio processing using faster_whisper and pyaudio for ASR/TTS
+- E-ink display control exclusively via distiller-cm5-sdk
+- LED control via GPIO, UART power management
+- Three-key input monitoring (Up/Down/Enter) and device interfacing
 
 ### Key Design Patterns
 
@@ -77,9 +87,18 @@ python main.py [--gui]
 
 ### Model Management
 ```bash
-# Download required LLM model (handled by install.sh)
+# Install script downloads both required models automatically
+./install.sh
+
+# Models downloaded by install.sh:
+# 1. qwen2.5-3b-instruct-q4_k_m.gguf (General purpose, 3B params)
+# 2. qwen3-0.6b-medical-expert-q6_k.gguf (Medical domain, 0.6B params)
+
+# Manual download if needed:
 wget -O distiller_cm5_python/llm_server/models/qwen2.5-3b-instruct-q4_k_m.gguf \
   https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
+
+# Models are stored in: distiller_cm5_python/llm_server/models/
 ```
 
 ### Testing and Development
@@ -88,19 +107,22 @@ wget -O distiller_cm5_python/llm_server/models/qwen2.5-3b-instruct-q4_k_m.gguf \
 python distiller_cm5_python/client/ui/bridge/EinkDriver.py
 python distiller_cm5_python/utils/uart_utils.py
 
-# Build Debian package
+# Build Debian package for ARM64 (CM5)
 ./build-deb.sh
 
 # Clean build artifacts
 ./build-deb.sh clean
 
-# Lint code (ruff configured in pyproject.toml)
+# Lint code (ruff configured in pyproject.toml, target line length: 100)
 uv run ruff check distiller_cm5_python/
 # Alternative if not using uv
 ruff check distiller_cm5_python/
 
 # Type checking (if pyright is available)
 uv run pyright distiller_cm5_python/
+
+# Install dependencies and download models
+./install.sh
 
 # Build distribution package
 uv build
@@ -195,10 +217,25 @@ The application uses a centralized configuration loading system:
 ## Common Development Tasks
 
 ### Adding New MCP Servers
-1. Create server script in `distiller_cm5_python/mcp_server/`
-2. Follow the pattern of existing servers (e.g., `medical_assistant_server.py`)
-3. Update configuration to reference new server script
-4. Register available tools/prompts in the server
+MCP (Model Context Protocol) servers provide specialized tools and prompts for domain-specific tasks:
+
+1. **Create server script** in `distiller_cm5_python/mcp_server/`
+2. **Follow existing patterns** (e.g., `medical_assistant_server.py`):
+   ```python
+   from mcp.server.fastmcp import FastMCP
+   
+   mcp = FastMCP("Your Server Name")
+   
+   @mcp.prompt()
+   def your_prompt() -> str:
+       return "Your specialized prompt here"
+   
+   if __name__ == "__main__":
+       mcp.run()
+   ```
+3. **Update configuration** in `default_config.json` to reference new server script
+4. **Register tools and prompts** within the server using FastMCP decorators
+5. **Test server independently** before integration: `python your_server.py`
 
 ### Extending Hardware Support
 1. Add new hardware modules to `distiller_cm5_python/client/ui/bridge/`
@@ -233,11 +270,13 @@ The application uses a centralized configuration loading system:
 - `numba`: Performance optimization
 
 ### Platform Requirements
-- **Target**: ARM64 Linux (CM5 platform) 
-- **Development**: Compatible with x86_64 Linux
-- **Python**: 3.11+ required (supports 3.11, 3.12, 3.13)
-- **Hardware**: Optional hardware gracefully handled when unavailable
-- **Package Manager**: uv preferred for dependency management, configured for aarch64 platform preference
+- **Target Platform**: ARM64 Linux (Raspberry Pi CM5)
+- **Development**: Compatible with x86_64 Linux for development
+- **Python Version**: 3.11+ required (supports 3.11, 3.12, 3.13)
+- **Package Manager**: uv preferred (modern Python package manager), falls back to pip
+- **Build System**: Hatchling backend with pyproject.toml configuration
+- **Hardware Dependencies**: Optional hardware gracefully handled when unavailable
+- **SDK Requirements**: distiller-cm5-sdk required for e-ink display functionality
 
 ## Error Handling Patterns
 
@@ -274,8 +313,11 @@ rm -rf distiller_cm5_python/llm_server/cache
 
 ### Common Issues
 - **Model loading fails**: Check if model file exists in GGUF format at `distiller_cm5_python/llm_server/models/`
-- **Hardware components fail**: Hardware gracefully degrades when unavailable; check device permissions and connections
-- **GUI won't start**: Ensure PyQt6 dependencies are installed and display is available
+- **Server startup issues**: Check if port 8000 is available; llama-cpp server auto-management in main.py handles most cases
+- **Hardware components fail**: Hardware gracefully degrades when unavailable; check device permissions and GPIO access
+- **GUI won't start**: Ensure PyQt6 dependencies are installed and display is available; try CLI mode first
+- **uv command not found**: Install uv package manager or use pip alternatives shown in commands
+- **Permission errors**: Ensure proper GPIO/UART permissions for hardware access
 
 ## Memory Annotations
 
@@ -285,6 +327,9 @@ rm -rf distiller_cm5_python/llm_server/cache
 
 ### Performance and Resource Management
 - Always remember to not use Animations, Transitions or Heavy processing QML stuff as this project is going to be running on a small raspberrypi cm5 with limited resources.
+
+### Code Quality Standards
+- **Never use emojis in any project code, files, comments, or user interfaces.** This project maintains a strict no-emoji policy for professional presentation and compatibility across all environments and display systems.
 
 ## UI Navigation and Focus Management Architecture
 
