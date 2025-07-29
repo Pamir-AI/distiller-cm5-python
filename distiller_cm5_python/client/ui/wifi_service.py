@@ -578,12 +578,12 @@ class DistillerWiFiService:
                 },
             }
 
-            # If session is connected and current status matches, include success redirect
-            if session.status == SessionStatus.CONNECTED and status_info.get(
-                "connected_to_target", False
-            ):
+            # If session is connected, include success redirect
+            # Trust the session status even if current WiFi status is inconsistent during transition
+            if session.status == SessionStatus.CONNECTED:
                 response_data["redirect_to_success"] = True
                 response_data["success_url"] = f"/setup/success/{session_id}"
+                self.logger.info(f"Session {session_id} is CONNECTED, providing redirect URL")
 
             return jsonify(response_data)
 
@@ -992,6 +992,19 @@ class DistillerWiFiService:
                 final_status = await self.wifi_manager.get_connection_status()
                 self._successful_connection_ip = final_status.ip_address
                 self._successful_connection_ssid = self.target_ssid
+                
+                # IMPORTANT: Update session status to connected IMMEDIATELY so the connecting page can detect it
+                # We'll update with full details later after mDNS is ready
+                initial_connection_details = {
+                    "ssid": self.target_ssid,
+                    "ip_address": final_status.ip_address,
+                    "interface": final_status.interface,
+                    "connected_at": time.time(),
+                }
+                self.session_manager.update_session_status(
+                    session_id, SessionStatus.CONNECTED, initial_connection_details
+                )
+                self.logger.info(f"Session {session_id} marked as CONNECTED immediately")
 
                 # Wait for network to fully stabilize before starting mDNS
                 self.logger.info("Waiting for network stability before starting mDNS...")
@@ -1437,11 +1450,12 @@ class DistillerWiFiService:
     async def _scan_networks_properly(self):
         """Scan for networks with proper hotspot handling"""
         try:
+            # Check if we're in the middle of a connection attempt
+            if self.current_state == ServiceState.CONNECTING:
+                self.logger.info("Connection in progress, skipping network scan")
+                return []
+            
             if self.current_state == ServiceState.HOTSPOT_MODE:
-                # Check if we're in the middle of a connection attempt
-                if self.current_state == ServiceState.CONNECTING:
-                    self.logger.info("Connection in progress, skipping network scan")
-                    return []
 
                 # Temporarily stop hotspot to get proper network scan
                 self.logger.info("Temporarily stopping hotspot for network scan")

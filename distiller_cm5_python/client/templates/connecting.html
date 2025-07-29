@@ -368,12 +368,10 @@
             if (session) {
               switch (session.status) {
                 case 'connected':
-                  // Check if current status also shows connection
-                  if (result.data.current_status?.connected_to_target) {
-                    handleConnectionSuccess(result.data, result.address);
-                    return;
-                  }
-                  break;
+                  // Session is connected, trust this status even if current_status is inconsistent
+                  // This handles network transition timing issues
+                  handleConnectionSuccess(result.data, result.address);
+                  return;
                   
                 case 'failed':
                   handleConnectionFailure(result.data);
