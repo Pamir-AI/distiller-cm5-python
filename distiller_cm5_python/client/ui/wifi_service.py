@@ -737,23 +737,68 @@ class DistillerWiFiService:
     async def _cleanup_existing_connections(self):
         """Clean up any existing NetworkManager connections to prevent race conditions"""
         try:
-            self.logger.info("Cleaning up existing connections to prevent race conditions")
-            
-            # Cancel any pending NetworkManager operations
+            self.logger.info(
+                "Cleaning up existing connections to prevent race conditions"
+            )
+
+            # Step 1: Cancel any pending NetworkManager operations
             try:
                 result = subprocess.run(
                     ["nmcli", "device", "disconnect", "wlan0"],
                     capture_output=True,
                     text=True,
-                    timeout=10
+                    timeout=10,
                 )
                 if result.returncode == 0:
                     self.logger.info("Disconnected wlan0 interface")
-                    await asyncio.sleep(1)  # Allow NetworkManager state to settle
+                else:
+                    self.logger.debug(f"Interface disconnect result: {result.stderr}")
             except subprocess.TimeoutExpired:
                 self.logger.warning("Timeout during interface disconnect")
             except Exception as e:
                 self.logger.debug(f"Interface disconnect: {e}")
+
+            # Step 2: Wait for NetworkManager to settle and clear any enqueued operations
+            await asyncio.sleep(3)
+
+            # Step 3: Force cleanup of any stuck connections
+            try:
+                # Get all active connections and forcefully disconnect them
+                result = subprocess.run(
+                    [
+                        "nmcli",
+                        "-t",
+                        "-f",
+                        "NAME,DEVICE",
+                        "connection",
+                        "show",
+                        "--active",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split("\n"):
+                        if line and ":" in line:
+                            name, device = line.split(":", 1)
+                            if device and device != "--":  # Has active device
+                                try:
+                                    subprocess.run(
+                                        ["nmcli", "connection", "down", name],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5,
+                                    )
+                                    self.logger.debug(f"Forced down connection: {name}")
+                                except:
+                                    pass
+            except Exception as e:
+                self.logger.debug(f"Connection cleanup: {e}")
+
+            # Step 4: Final settling period
+            await asyncio.sleep(2)
 
         except Exception as e:
             self.logger.error(f"Error cleaning up connections: {e}")
@@ -764,108 +809,115 @@ class DistillerWiFiService:
         if not self._connection_lock.acquire(blocking=False):
             self.logger.warning("Connection already in progress, skipping")
             return
-            
+
+        # Remember if we were already connected to WiFi (not hotspot)
+        was_wifi_connected = False
+        original_connection = None
+
         try:
             if not self.target_ssid:
                 return
 
+            # Check if we're switching from WiFi-to-WiFi or hotspot-to-WiFi
+            current_status = await self.wifi_manager.get_connection_status()
+            if current_status.connected and not self.wifi_manager.is_hotspot_active():
+                was_wifi_connected = True
+                original_connection = current_status.ssid
+                self.logger.info(
+                    f"WiFi-to-WiFi switch: {original_connection} → {self.target_ssid}"
+                )
+            else:
+                self.logger.info(f"Hotspot-to-WiFi switch: → {self.target_ssid}")
+
             self.logger.info(f"Starting connection to {self.target_ssid}")
             self.current_state = ServiceState.CONNECTING
 
-            # CRITICAL: Stop hotspot first before attempting connection
+            # Only stop hotspot if it's active - don't mess with WiFi connections yet
             if self.wifi_manager.is_hotspot_active():
                 self.logger.info("Stopping hotspot before connecting to target network")
                 await self.wifi_manager.stop_hotspot()
-                # Wait for interface to be ready (reduced from 3s to 2s)
-                await asyncio.sleep(2)
+                await asyncio.sleep(
+                    1
+                )  # Shorter wait since we're not switching from WiFi
 
-            # Clean up any existing connections to prevent race conditions
-            await self._cleanup_existing_connections()
+            # For WiFi-to-WiFi switches, use lighter cleanup
+            if was_wifi_connected:
+                self.logger.info("Light cleanup for WiFi-to-WiFi switch")
+                await asyncio.sleep(1)  # Just let NetworkManager settle briefly
+            else:
+                # Full cleanup only when coming from hotspot
+                await self._cleanup_existing_connections()
 
-            # Perform the connection (hotspot is now stopped)
-            # Handle None password properly
+            # Perform the connection
             password = self.target_password or ""
             success = await self.wifi_manager.connect_to_network(
                 self.target_ssid, password
             )
 
             if success:
-                self.logger.info(f"Initial connection successful to {self.target_ssid}")
+                self.logger.info(f"Successfully connected to {self.target_ssid}")
 
-                # Wait for connection to stabilize before marking as fully connected
-                self.logger.info("Waiting for connection to stabilize...")
-                await asyncio.sleep(
-                    2
-                )  # Reduced from 5s to 2s - Wait for DHCP and network setup
-
-                # Verify connection is still active and stable
-                verification_attempts = 3
-                for attempt in range(verification_attempts):
-                    status = await self.wifi_manager.get_connection_status()
-                    if status.connected and status.ip_address:
-                        self.logger.info(
-                            f"Connection verified (attempt {attempt + 1}): {status.ip_address}"
-                        )
-                        break
-                    else:
-                        self.logger.warning(
-                            f"Connection verification failed (attempt {attempt + 1})"
-                        )
-                        if attempt < verification_attempts - 1:
-                            await asyncio.sleep(2)  # Reduced from 3s to 2s
-                else:
-                    # All verification attempts failed
-                    self.logger.error(
-                        "Connection verification failed, treating as failed connection"
-                    )
-                    await self._start_hotspot_mode()
-                    return
-
-                # Connection is stable, mark as connected
-                # INSTANT CONNECTION SUCCESS - Just like QML does
-                self.current_state = ServiceState.CONNECTED
-                self.logger.info(
-                    f"Connection to {self.target_ssid} fully established - INSTANT WEB RESPONSE NOW AVAILABLE"
-                )
-
-                # CRITICAL: Store connection info for instant status API responses
+                # Quick verification for WiFi switches
+                await asyncio.sleep(1)
                 final_status = await self.wifi_manager.get_connection_status()
-                self._successful_connection_ip = final_status.ip_address
-                self._successful_connection_ssid = self.target_ssid
 
-                # INSTANT: Update session status to connected IMMEDIATELY - just like QML gets instant updates
-                initial_connection_details = {
-                    "ssid": self.target_ssid,
-                    "ip_address": final_status.ip_address,
-                    "interface": final_status.interface,
-                    "connected_at": time.time(),
-                    "instant_success": True,  # Flag for instant success
-                }
-                self.logger.info("INSTANT SUCCESS: Connection established and ready")
+                if final_status.connected and final_status.ip_address:
+                    # Connection successful
+                    self.current_state = ServiceState.CONNECTED
+                    self.logger.info(
+                        f"Connection to {self.target_ssid} established at {final_status.ip_address}"
+                    )
 
-                # Handle network transition
-                await self._handle_network_transition()
+                    # Store connection info
+                    self._successful_connection_ip = final_status.ip_address
+                    self._successful_connection_ssid = self.target_ssid
+
+                    # Handle network transition
+                    await self._handle_network_transition()
+                else:
+                    # Connection verification failed
+                    raise ConnectionError("Connection verification failed")
 
             else:
-                self.logger.error(f"Failed to connect to {self.target_ssid}")
-
-                # Update session status to failed
-
-                # Restore hotspot mode after connection failure
-                self.logger.info("Restoring hotspot mode after connection failure")
-                await self._start_hotspot_mode()
+                raise ConnectionError(f"Failed to connect to {self.target_ssid}")
 
         except Exception as e:
-            self.logger.error(f"Connection error: {e}")
-            # Restore hotspot mode on error
+            self.logger.error(f"Connection failed: {e}")
+
+            # Smart recovery based on original state
+            if was_wifi_connected and original_connection:
+                self.logger.info(
+                    f"Attempting to restore original WiFi connection: {original_connection}"
+                )
+                try:
+                    # Try to reconnect to original network
+                    restore_success = (
+                        await self.wifi_manager.restore_original_connection()
+                    )
+                    if restore_success:
+                        self.logger.info(
+                            f"Successfully restored connection to {original_connection}"
+                        )
+                        self.current_state = ServiceState.CONNECTED
+                        return
+                    else:
+                        self.logger.warning("Failed to restore original connection")
+                except Exception as restore_error:
+                    self.logger.error(
+                        f"Error restoring original connection: {restore_error}"
+                    )
+
+            # Only fall back to hotspot if we can't restore WiFi or we were originally in hotspot mode
+            self.logger.info("Starting hotspot mode as fallback")
             await self._start_hotspot_mode()
+
         finally:
             # Release the connection lock
             try:
                 self._connection_lock.release()
             except Exception:
                 pass  # Lock might not be held if we got here via exception
-            
+
             self.target_ssid = None
             self.target_password = None
             self.connection_start_time = None
@@ -947,30 +999,30 @@ class DistillerWiFiService:
         """Clean up NetworkManager state before starting hotspot"""
         try:
             self.logger.info("Cleaning up NetworkManager state")
-            
+
             # Stop any active connections
             try:
                 subprocess.run(
                     ["nmcli", "connection", "down", "id", self.hotspot_ssid],
                     capture_output=True,
-                    timeout=10
+                    timeout=10,
                 )
             except Exception:
                 pass  # Connection might not exist
-            
+
             # Delete any existing hotspot connection profiles
             try:
                 subprocess.run(
                     ["nmcli", "connection", "delete", "id", self.hotspot_ssid],
                     capture_output=True,
-                    timeout=10
+                    timeout=10,
                 )
             except Exception:
                 pass  # Profile might not exist
-            
+
             # Wait for NetworkManager to settle
             await asyncio.sleep(1)
-            
+
         except Exception as e:
             self.logger.warning(f"Error cleaning NetworkManager state: {e}")
 
@@ -980,48 +1032,50 @@ class DistillerWiFiService:
         for attempt in range(max_attempts):
             try:
                 self.logger.info(f"Hotspot start attempt {attempt + 1}/{max_attempts}")
-                
+
                 success, hotspot_ip = await self.wifi_manager.start_hotspot(
                     self.hotspot_ssid, self.hotspot_password
                 )
-                
+
                 if success:
                     return success, hotspot_ip
-                
+
                 if attempt < max_attempts - 1:
-                    self.logger.warning(f"Hotspot attempt {attempt + 1} failed, retrying...")
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                    
+                    self.logger.warning(
+                        f"Hotspot attempt {attempt + 1} failed, retrying..."
+                    )
+                    await asyncio.sleep(2**attempt)  # Exponential backoff
+
             except Exception as e:
                 self.logger.error(f"Hotspot attempt {attempt + 1} error: {e}")
                 if attempt < max_attempts - 1:
-                    await asyncio.sleep(2 ** attempt)
-                    
+                    await asyncio.sleep(2**attempt)
+
         return False, None
 
     async def _try_fallback_hotspot(self):
         """Try fallback hotspot configuration"""
         try:
             self.logger.info("Attempting fallback hotspot configuration")
-            
+
             # Use a simpler hotspot configuration
             fallback_ssid = f"Setup-{self.device_config.get_device_id()[-4:]}"
             fallback_password = "password123"
-            
+
             success, hotspot_ip = await self.wifi_manager.start_hotspot(
                 fallback_ssid, fallback_password
             )
-            
+
             if success:
                 self.hotspot_ssid = fallback_ssid
                 self.hotspot_password = fallback_password
                 self.hotspot_ip = hotspot_ip
                 self.logger.info(f"Fallback hotspot started: {fallback_ssid}")
                 return True
-                
+
         except Exception as e:
             self.logger.error(f"Fallback hotspot failed: {e}")
-            
+
         return False
 
     async def _transition_to_hotspot(self):
@@ -1083,50 +1137,22 @@ class DistillerWiFiService:
                 self.logger.error(f"Fallback restart failed: {fallback_error}")
                 self.current_state = ServiceState.ERROR
 
-    def _kill_processes_on_port(self, port: int) -> bool:
-        """Kill any processes using the specified port"""
-        try:
-            killed_any = False
-            for proc in psutil.process_iter(['pid', 'name', 'connections']):
-                try:
-                    connections = proc.info.get('connections', [])
-                    if connections:
-                        for conn in connections:
-                            if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == port:
-                                self.logger.warning(f"Killing process {proc.info['pid']} ({proc.info['name']}) using port {port}")
-                                proc.terminate()
-                                killed_any = True
-                                # Wait a bit for graceful termination
-                                try:
-                                    proc.wait(timeout=3)
-                                except psutil.TimeoutExpired:
-                                    proc.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-            return killed_any
-        except Exception as e:
-            self.logger.error(f"Error killing processes on port {port}: {e}")
-            return False
-
     def _stop_web_server(self):
         """Stop the web server gracefully"""
         try:
             # Stop the web server thread if it exists
             if self.web_server_thread and self.web_server_thread.is_alive():
                 self.logger.info("Stopping web server...")
-                
-                # Kill processes on the port
-                self._kill_processes_on_port(self.web_port)
-                
+
                 # Wait for thread to finish
                 self.web_server_thread.join(timeout=5)
-                
+
                 if self.web_server_thread.is_alive():
                     self.logger.warning("Web server thread did not stop gracefully")
-                
+
                 self.web_server_thread = None
                 self.logger.info("Web server stopped")
-                
+
         except Exception as e:
             self.logger.error(f"Error stopping web server: {e}")
 
@@ -1138,9 +1164,6 @@ class DistillerWiFiService:
 
         # Stop any existing server first
         self._stop_web_server()
-
-        # Kill any processes that might be using our port
-        self._kill_processes_on_port(self.web_port)
 
         def run_server():
             accessible_ip = self.hotspot_ip or "0.0.0.0"
@@ -1156,8 +1179,9 @@ class DistillerWiFiService:
                     )
             except Exception as e:
                 if "Address already in use" in str(e):
-                    self.logger.error(f"Port {self.web_port} still in use, attempting cleanup...")
-                    self._kill_processes_on_port(self.web_port)
+                    self.logger.error(
+                        f"Port {self.web_port} still in use, attempting cleanup..."
+                    )
                     time.sleep(2)  # Wait for cleanup
                     if self.app:
                         self.app.run(

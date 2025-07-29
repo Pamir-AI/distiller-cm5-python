@@ -5,7 +5,7 @@ E-Ink display configuration for Raspberry Pi.
 config = {
     "display": {
         # Core E-Ink Settings
-        "eink_enabled": True,
+        "eink_enabled": False,
         "width": 240,
         "height": 416,
         # Performance Settings

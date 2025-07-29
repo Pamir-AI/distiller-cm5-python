@@ -293,24 +293,55 @@ class WiFiManager:
             self._original_connection = status.ssid
             self.logger.info(f"Disconnecting from {status.ssid}")
 
-            # Disconnect using device interface
-            if not status.interface:
-                self.logger.error("No interface found for disconnection")
-                return False
-            cmd = self._build_command(["nmcli", "device", "disconnect", status.interface])
+            # First try to disconnect gracefully
+            if status.interface:
+                cmd = self._build_command(["nmcli", "device", "disconnect", status.interface])
+                process = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                _, stderr = await process.communicate()
+
+                if process.returncode == 0:
+                    self.logger.info("WiFi disconnected successfully")
+                    # Wait for disconnection to complete
+                    await asyncio.sleep(2)
+                    return True
+                else:
+                    self.logger.warning(f"Graceful disconnect failed: {stderr.decode()}")
+
+            # Force disconnect all WiFi connections if graceful disconnect failed
+            self.logger.info("Attempting force disconnect of all WiFi connections")
+            cmd = self._build_command(["nmcli", "device", "disconnect", "wlan0"])
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            _, stderr = await process.communicate()
+            await process.communicate()
+            
+            # Additional cleanup: down all WiFi connections
+            try:
+                cmd = self._build_command(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"])
+                process = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await process.communicate()
+                
+                if process.returncode == 0:
+                    for line in stdout.decode().strip().split('\n'):
+                        if line and ':' in line:
+                            name, conn_type = line.split(':', 1)
+                            if conn_type == "802-11-wireless":
+                                down_cmd = self._build_command(["nmcli", "connection", "down", name])
+                                down_process = await asyncio.create_subprocess_exec(
+                                    *down_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                                )
+                                await down_process.communicate()
+                                self.logger.debug(f"Forced down WiFi connection: {name}")
+            except Exception as e:
+                self.logger.debug(f"Force disconnect cleanup: {e}")
 
-            if process.returncode == 0:
-                self.logger.info("WiFi disconnected successfully")
-                # Wait for disconnection to complete
-                await asyncio.sleep(2)
-                return True
-            else:
-                self.logger.error(f"Failed to disconnect WiFi: {stderr.decode()}")
-                return False
+            # Wait for NetworkManager to settle
+            await asyncio.sleep(3)
+            return True
 
         except Exception as e:
             self.logger.error(f"Error disconnecting WiFi: {e}")
@@ -423,6 +454,9 @@ class WiFiManager:
     async def _create_and_activate_hotspot(self, ssid: str, password: str) -> bool:
         """Create and activate hotspot connection"""
         try:
+            # Wait for NetworkManager to be ready
+            await asyncio.sleep(1)
+            
             # Create hotspot connection
             cmd = self._build_command(
                 [
@@ -445,9 +479,10 @@ class WiFiManager:
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            await process.communicate()
+            stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
+                self.logger.error(f"Failed to create hotspot connection: {stderr.decode()}")
                 return False
 
             # Configure hotspot settings
@@ -532,20 +567,64 @@ class WiFiManager:
                     self.logger.error(f"Failed to configure: {' '.join(cmd)}")
                     return False
 
-            # Activate the hotspot
-            cmd = self._build_command(["nmcli", "connection", "up", self._hotspot_connection_name])
-            process = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            _, stderr = await process.communicate()
+            # Activate the hotspot with retry mechanism
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                self.logger.info(f"Attempting hotspot activation (attempt {attempt + 1}/{max_attempts})")
+                
+                cmd = self._build_command(["nmcli", "connection", "up", self._hotspot_connection_name])
+                process = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
 
-            if process.returncode == 0:
-                # Wait for activation to complete
-                await asyncio.sleep(3)
-                return True
-            else:
-                self.logger.error(f"Hotspot activation failed: {stderr.decode()}")
-                return False
+                if process.returncode == 0:
+                    # Wait for activation to complete
+                    await asyncio.sleep(3)
+                    self.logger.info(f"Hotspot activation successful on attempt {attempt + 1}")
+                    return True
+                else:
+                    error_msg = stderr.decode().strip()
+                    self.logger.warning(f"Hotspot activation attempt {attempt + 1} failed: {error_msg}")
+                    
+                    # If this isn't the last attempt, clean up and wait before retry
+                    if attempt < max_attempts - 1:
+                        await self._cleanup_hotspot_connection()
+                        await asyncio.sleep(2)
+                        
+                        # Recreate the connection for retry
+                        retry_cmd = self._build_command(
+                            [
+                                "nmcli",
+                                "connection",
+                                "add",
+                                "type",
+                                "wifi",
+                                "ifname",
+                                "*",
+                                "con-name",
+                                self._hotspot_connection_name,
+                                "autoconnect",
+                                "no",
+                                "ssid",
+                                ssid,
+                            ]
+                        )
+                        retry_process = await asyncio.create_subprocess_exec(
+                            *retry_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                        )
+                        await retry_process.communicate()
+                        
+                        # Reapply configuration
+                        for config_cmd in config_commands:
+                            config_process = await asyncio.create_subprocess_exec(
+                                *config_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                            )
+                            await config_process.communicate()
+            
+            # All attempts failed
+            self.logger.error(f"Hotspot activation failed after {max_attempts} attempts")
+            return False
 
         except Exception as e:
             self.logger.error(f"Error creating hotspot: {e}")
@@ -589,39 +668,44 @@ class WiFiManager:
             return False
 
     async def connect_to_network(self, ssid: str, password: str = "") -> bool:
-        """Connect to a WiFi network with proper hotspot management"""
+        """Connect to a WiFi network with smart connection management"""
         try:
             self.logger.info(f"Connecting to network: {ssid}")
 
-            # Step 1: Check if network exists and get its details
-            networks = await self.get_available_networks()
-            target_network = None
-            for net in networks:
-                if net.ssid == ssid:
-                    target_network = net
-                    break
-
-            if target_network:
-                self.logger.info(
-                    f"Found target network '{ssid}': signal={target_network.signal}%, security={target_network.security}"
-                )
-
-                # Check if password is needed
-                if target_network.security != "open" and not password:
-                    self.logger.error(f"Network '{ssid}' requires a password but none provided")
-                    return False
+            # Check current connection status for smarter handling
+            current_status = await self.get_connection_status()
+            is_wifi_switch = current_status.connected and not self._hotspot_active
+            
+            if is_wifi_switch:
+                self.logger.info(f"WiFi-to-WiFi switch from {current_status.ssid} to {ssid}")
             else:
-                self.logger.warning(f"Network '{ssid}' not found in scan results")
-                self.logger.info(f"Available networks: {[net.ssid for net in networks]}")
-                # Continue anyway - network might be hidden
+                self.logger.info(f"Connecting to {ssid} from {'hotspot' if self._hotspot_active else 'disconnected'} state")
 
-            # Step 2: Stop hotspot if active
+            # Step 1: Quick network validation (don't scan if we're doing a WiFi switch)
+            if not is_wifi_switch:
+                networks = await self.get_available_networks()
+                target_network = None
+                for net in networks:
+                    if net.ssid == ssid:
+                        target_network = net
+                        break
+
+                if target_network:
+                    self.logger.info(f"Found target network '{ssid}': signal={target_network.signal}%, security={target_network.security}")
+                    # Check if password is needed
+                    if target_network.security != "open" and not password:
+                        self.logger.error(f"Network '{ssid}' requires a password but none provided")
+                        return False
+                else:
+                    self.logger.info(f"Network '{ssid}' not found in scan - will attempt connection anyway")
+
+            # Step 2: Handle hotspot cleanup (only if hotspot is active)
             if self._hotspot_active:
                 self.logger.info("Stopping hotspot before connecting to network")
                 if not await self.stop_hotspot():
                     self.logger.warning("Failed to stop hotspot, continuing anyway")
 
-            # Step 3: Remove any existing connection with same SSID
+            # Step 3: For WiFi switches, just remove the conflicting connection profile
             await self._remove_existing_connection(ssid)
 
             # Step 4: Connect to network
@@ -634,7 +718,6 @@ class WiFiManager:
                 return True
             else:
                 self.logger.error(f"Failed to connect to {ssid}")
-                # Don't restore hotspot here - let the service decide
                 return False
 
         except Exception as e:
