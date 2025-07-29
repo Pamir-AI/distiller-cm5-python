@@ -43,21 +43,21 @@
 			</div>
 			{% endif %}
 
-			<!-- <div class="network-list"> -->
-			<!-- 	{% for network in networks %} -->
-			<!-- 	<a href="{{ url_for('confirm', ssid=network.ssid, encrypted=network.security) }}" -->
-			<!-- 		class="network-btn {% if network.security == 'encrypted' %}encrypted{% endif %}"> -->
-			<!-- 		{{ network.ssid }} -->
-			<!-- 		<span class="signal">{{ network.signal_strength }}%</span> -->
-			<!-- 	</a> -->
-			<!-- 	{% endfor %} {% if not networks %} -->
-			<!-- 	<div class="status-info"> -->
-			<!-- 		No networks found. -->
-			<!-- 		<a href="javascript:location.reload()" style="color: #000; text-decoration: underline">Refresh</a> -->
-			<!-- 		to try again. -->
-			<!-- 	</div> -->
-			<!-- 	{% endif %} -->
-			<!-- </div> -->
+			<div class="network-list">
+				{% for network in networks %}
+				<a href="{{ url_for('confirm', ssid=network.ssid, encrypted=network.security) }}"
+					class="network-btn {% if network.security == 'encrypted' %}encrypted{% endif %}">
+					{{ network.ssid }}
+					<span class="signal">{{ network.signal_strength }}%</span>
+				</a>
+				{% endfor %} {% if not networks %}
+				<div class="status-info">
+					No networks found.
+					<a href="javascript:location.reload()" style="color: #000; text-decoration: underline">Refresh</a>
+					to try again.
+				</div>
+				{% endif %}
+			</div>
 
 			<div class="manual-form">
 				<h3>Connect to Hidden Network</h3>
