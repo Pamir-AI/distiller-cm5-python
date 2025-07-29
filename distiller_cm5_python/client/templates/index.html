@@ -43,6 +43,16 @@
         <div class="error-info">{{ error }}</div>
         {% endif %}
 
+        {% if current_ssid %}
+        <div class="status-info" style="margin-bottom: 20px; padding: 15px; background-color: #f0f0f0; border: 1px solid #ccc;">
+          <strong>Currently connected to:</strong> {{ current_ssid }}
+          {% if current_ip %}
+          <br><strong>IP Address:</strong> {{ current_ip }}
+          {% endif %}
+          <br><small>Select a different network below to change WiFi settings</small>
+        </div>
+        {% endif %}
+
         <div class="network-list">
           {% for network in networks %}
           <a
@@ -97,5 +107,58 @@
 
     <!-- Common JavaScript -->
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    
+    <script>
+    // Load networks when page loads
+    async function loadNetworks() {
+        try {
+            const response = await CommonUtils.apiRequest('/api/networks');
+            if (response.success && response.networks) {
+                displayNetworks(response.networks);
+            }
+        } catch (error) {
+            console.error('Failed to load networks:', error);
+        }
+    }
+    
+    function displayNetworks(networks) {
+        const networkList = document.querySelector('.network-list');
+        if (!networkList) return;
+        
+        // Clear existing content
+        networkList.innerHTML = '';
+        
+        if (networks.length === 0) {
+            networkList.innerHTML = `
+                <div class="status-info">
+                    No networks found.
+                    <a href="javascript:location.reload()" style="color: #000; text-decoration: underline">Refresh</a>
+                    to try again.
+                </div>
+            `;
+            return;
+        }
+        
+        // Add network buttons
+        networks.forEach(network => {
+            const link = document.createElement('a');
+            link.href = `/confirm?ssid=${encodeURIComponent(network.ssid)}&encrypted=${network.security}`;
+            link.className = `network-btn ${network.security === 'encrypted' ? 'encrypted' : ''}`;
+            link.innerHTML = `
+                ${network.ssid}
+                <span class="signal">${network.signal_strength}%</span>
+            `;
+            networkList.appendChild(link);
+        });
+    }
+    
+    // Load networks on page load
+    CommonUtils.onReady(() => {
+        loadNetworks();
+        
+        // Reload networks every 10 seconds
+        setInterval(loadNetworks, 10000);
+    });
+    </script>
   </body>
 </html>

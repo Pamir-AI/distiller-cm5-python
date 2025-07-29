@@ -312,8 +312,18 @@ class DistillerWiFiService:
                     web_port=self.web_port,
                 )
             elif self.current_state == ServiceState.CONNECTED:
-                # Show connected status
-                return redirect(url_for("status"))
+                # Show WiFi setup page even when connected to allow changing networks
+                # Get current connection info to display
+                current_status = self._get_current_status()
+                return render_template(
+                    "index.html",
+                    networks=[],  # Empty initially, will be loaded by JavaScript
+                    device_name=self.device_name,
+                    current_state=self.current_state.value,
+                    current_ssid=current_status.get("ssid"),
+                    current_ip=current_status.get("ip_address"),
+                    web_port=self.web_port,
+                )
             elif self.current_state == ServiceState.INITIALIZING:
                 # Service is transitioning (e.g., changing networks)
                 # Redirect to status page to show progress
