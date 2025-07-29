@@ -3,13 +3,10 @@ Description=Distiller CM5 Python GUI Assistant
 Documentation=https://github.com/pamir-ai/distiller-cm5-python
 After=network-online.target
 Wants=network-online.target
-After=sound.target
-Wants=sound.target
-
 [Service]
 Type=simple
-User=distiller
-Group=distiller
+User=root
+Group=root
 Environment=PYTHONPATH=/opt/distiller-cm5-sdk/src:/opt/distiller-cm5-python
 Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
 Environment=PYTHONUNBUFFERED=1
@@ -23,7 +20,6 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=distiller-cm5-python-gui
-
 # Security settings (relaxed for hardware access)
 NoNewPrivileges=false
 PrivateTmp=true
@@ -31,22 +27,14 @@ ProtectSystem=false
 ProtectHome=false
 PrivateDevices=false
 DevicePolicy=open
-SupplementaryGroups=gpio spi i2c
-ReadWritePaths=/opt/distiller-cm5-python
-ReadWritePaths=/var/log/distiller-cm5-python
-ReadWritePaths=/etc/distiller
-ReadWritePaths=/sys/class/
-ReadWritePaths=/sys/devices/platform
-
-# Resource limits
-LimitNOFILE=65536
-LimitNPROC=4096
-
+SupplementaryGroups=netdev gpio spi dialout audio i2c
+# Grant hostname management capabilities
+AmbientCapabilities=CAP_SYS_ADMIN
+ReadWritePaths=/opt/distiller-cm5-python /var/log/distiller-cm5-python /etc/distiller /sys/class/ /sys/devices/platform /etc/NetworkManager/system-connections /etc/hostname /etc/hosts /etc/avahi
 # Automatic restart on failure
 RestartKillSignal=SIGTERM
 KillMode=mixed
 TimeoutStartSec=30
 TimeoutStopSec=10
-
 [Install]
 WantedBy=multi-user.target
