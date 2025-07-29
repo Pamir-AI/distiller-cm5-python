@@ -57,9 +57,7 @@ class HeadlessRenderer(QObject):
         self._min_interval = 500
         self._max_interval = 3000
 
-        logger.info(
-            f"HeadlessRenderer initialized for {self._width}x{self._height} display"
-        )
+        logger.info(f"HeadlessRenderer initialized for {self._width}x{self._height} display")
 
     def set_target_window(self, window):
         """Set the QML window to render from."""
@@ -102,9 +100,7 @@ class HeadlessRenderer(QObject):
     def start(self):
         """Start the screen capture process."""
         if not self._rendering_active:
-            logger.info(
-                f"Starting headless renderer with interval {self._capture_interval}ms"
-            )
+            logger.info(f"Starting headless renderer with interval {self._capture_interval}ms")
             self._rendering_active = True
             self._last_update_time = time.time()
             # Start timer even if offscreen surface creation failed - fallback methods will handle
@@ -188,10 +184,7 @@ class HeadlessRenderer(QObject):
                     self._consecutive_unchanged_frames += 1
 
                     # Adaptive interval increase
-                    if (
-                        self._adaptive_capture
-                        and self._consecutive_unchanged_frames > 5
-                    ):
+                    if self._adaptive_capture and self._consecutive_unchanged_frames > 5:
                         current_interval = self._capture_timer.interval()
                         new_interval = min(
                             self._max_interval,
@@ -213,9 +206,7 @@ class HeadlessRenderer(QObject):
         try:
             # Check if QQuickRenderTarget.fromImage is available (Qt 6.2+)
             if not hasattr(QQuickRenderTarget, "fromImage"):
-                logger.debug(
-                    "QQuickRenderTarget.fromImage not available (requires Qt 6.2+)"
-                )
+                logger.debug("QQuickRenderTarget.fromImage not available (requires Qt 6.2+)")
                 return None
 
             # Check if target window exists and has required methods
@@ -230,9 +221,7 @@ class HeadlessRenderer(QObject):
                 return None
 
             # Create target image
-            target_image = QImage(
-                self._width, self._height, QImage.Format.Format_ARGB32
-            )
+            target_image = QImage(self._width, self._height, QImage.Format.Format_ARGB32)
             target_image.fill(0xFFFFFFFF)  # White background
 
             # Create render target - use getattr to safely access Qt 6.2+ API
@@ -284,7 +273,7 @@ class HeadlessRenderer(QObject):
                     if content_item:
                         # Force process any pending events
                         QApplication.processEvents()
-                        
+
                         # Try direct QQuickItem grab
                         if hasattr(content_item, "grabToImage"):
                             grab_result = content_item.grabToImage()
@@ -293,7 +282,9 @@ class HeadlessRenderer(QObject):
                                 QApplication.processEvents()  # Process the grab
                                 image = grab_result.image()
                                 if image and not image.isNull():
-                                    logger.debug("Successfully rendered using contentItem.grabToImage")
+                                    logger.debug(
+                                        "Successfully rendered using contentItem.grabToImage"
+                                    )
                                     return image
                 except Exception as e:
                     logger.debug(f"contentItem.grabToImage failed: {e}")
@@ -306,18 +297,20 @@ class HeadlessRenderer(QObject):
                         # Create image directly
                         image = QImage(self._width, self._height, QImage.Format.Format_ARGB32)
                         image.fill(0xFFFFFFFF)  # White background
-                        
+
                         # Basic rendering attempt
                         from PyQt6.QtGui import QPainter
+
                         painter = QPainter(image)
                         # This likely won't work in offscreen mode, but worth trying
                         if hasattr(content_item, "render"):
-                            content_item.render(painter)
+                            # Type checking workaround: we verified the attribute exists
+                            getattr(content_item, "render")(painter)
                             painter.end()
                             logger.debug("Successfully rendered using manual QPainter method")
                             return image
                         painter.end()
-                        
+
             except Exception as e:
                 logger.debug(f"Manual rendering failed: {e}")
 
@@ -367,9 +360,7 @@ class HeadlessRenderer(QObject):
         # Extract grayscale data
         ptr = image.bits()
         ptr.setsize(height * image.bytesPerLine())
-        pixels = np.frombuffer(ptr, dtype=np.uint8).reshape(
-            height, image.bytesPerLine()
-        )[:, :width]
+        pixels = np.frombuffer(ptr, dtype=np.uint8).reshape(height, image.bytesPerLine())[:, :width]
 
         # Horizontal flip
         pixels = np.fliplr(pixels)

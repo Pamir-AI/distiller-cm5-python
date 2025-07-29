@@ -158,7 +158,9 @@ def send_power_status(status: int) -> bool:
     """
     power_state = POWER_STATE_RUNNING if status else POWER_STATE_OFF
     packet = create_packet(
-        TYPE_POWER | POWER_CMD_SET, power_state, 0x00  # Flags (reserved)
+        TYPE_POWER | POWER_CMD_SET,
+        power_state,
+        0x00,  # Flags (reserved)
     )
 
     success = send_packet(packet)
@@ -178,7 +180,9 @@ def send_btn_power_packet() -> bool:
         True if successful, False otherwise
     """
     packet = create_packet(
-        TYPE_BUTTON | BUTTON_POWER, 0x00, 0x00  # Reserved  # Reserved
+        TYPE_BUTTON | BUTTON_POWER,
+        0x00,
+        0x00,  # Reserved  # Reserved
     )
 
     success = send_packet(packet)
@@ -251,21 +255,3 @@ def send_display_release() -> bool:
 def signal_app_start() -> bool:
     """Signal that the application is starting."""
     return send_power_status(1)
-
-
-def signal_app_shutdown() -> bool:
-    # """Signal that the application is shutting down."""
-    # success = send_power_status(0)
-    # if not success:
-    #     logger.error("Failed to send power status during shutdown")
-    #     return False
-
-    # # Also send shutdown notification
-    # send_shutdown_notification()
-
-    # success = send_btn_power_packet()
-    # if not success:
-    #     logger.error("Failed to send BTN_POWER packet during shutdown")
-    #     return False
-    # return success
-    return 0

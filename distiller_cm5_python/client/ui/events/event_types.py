@@ -64,9 +64,7 @@ class MessageSchema(BaseModel):
     @staticmethod
     def tool_call(tool_call_dict: dict) -> "ActionEvent":
         """Create an action event for a tool call."""
-        tool_name = tool_call_dict.get("function", {}).get(
-            "name", tool_call_dict.get("name", "")
-        )
+        tool_name = tool_call_dict.get("function", {}).get("name", tool_call_dict.get("name", ""))
         tool_args = tool_call_dict.get("function", {}).get(
             "arguments", tool_call_dict.get("arguments", {})
         )
@@ -128,9 +126,6 @@ class MessageEvent(MessageSchema):
     type: EventType = EventType.MESSAGE
     role: Optional[str] = "assistant"  # 'user' or 'assistant'
 
-    class Config:
-        use_enum_values = True
-
 
 class ActionEvent(MessageSchema):
     """Action being performed"""
@@ -139,18 +134,12 @@ class ActionEvent(MessageSchema):
     tool_name: Optional[str] = None
     tool_args: Optional[Dict[str, Any]] = None
 
-    class Config:
-        use_enum_values = True
-
 
 class ObservationEvent(MessageSchema):
     """Observation about environment or system state"""
 
     type: EventType = EventType.OBSERVATION
     source: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
 
 class PlanEvent(MessageSchema):
@@ -159,18 +148,12 @@ class PlanEvent(MessageSchema):
     type: EventType = EventType.PLAN
     steps: Optional[List[str]] = None
 
-    class Config:
-        use_enum_values = True
-
 
 class StatusEvent(MessageSchema):
     """System status information"""
 
     type: EventType = EventType.STATUS
     component: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
 
 class CacheEvent(MessageSchema):
@@ -179,9 +162,6 @@ class CacheEvent(MessageSchema):
     type: EventType = EventType.CACHE
     operation: str = "restoration"  # Default operation is restoration
     model_name: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
     @staticmethod
     def restoration_started(model_name: Optional[str] = None) -> "CacheEvent":
@@ -206,9 +186,7 @@ class CacheEvent(MessageSchema):
         )
 
     @staticmethod
-    def restoration_failed(
-        error_message: str, model_name: Optional[str] = None
-    ) -> "CacheEvent":
+    def restoration_failed(error_message: str, model_name: Optional[str] = None) -> "CacheEvent":
         """Create an event for when cache restoration fails"""
         return CacheEvent(
             type=EventType.CACHE,

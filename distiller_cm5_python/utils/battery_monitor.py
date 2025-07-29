@@ -5,7 +5,7 @@ This module provides battery status monitoring via /sys/class/power_supply/pamir
 """
 
 import logging
-from typing import Dict, Optional, NamedTuple
+from typing import Dict, Optional, NamedTuple, Any
 from pathlib import Path
 from .battery_config_manager import BatteryConfig
 
@@ -19,9 +19,7 @@ class BatteryStatus(NamedTuple):
     status: str  # Charging status: "Charging", "Discharging", "Full", "Unknown"
     present: bool  # Battery present
     voltage_now: float  # Current voltage in volts
-    current_now: (
-        float  # Current draw in amps (negative = discharging, positive = charging)
-    )
+    current_now: float  # Current draw in amps (negative = discharging, positive = charging)
     technology: str  # Battery technology (e.g., "Li-ion")
     temperature: float  # Battery temperature in Celsius
 
@@ -203,7 +201,7 @@ def get_battery_monitor() -> BatteryMonitor:
     return _battery_monitor
 
 
-def get_battery_info() -> Dict[str, any]:
+def get_battery_info() -> Dict[str, Any]:
     """Get battery information as a dictionary (for QML binding)."""
     monitor = get_battery_monitor()
     status = monitor.get_battery_status()
@@ -263,9 +261,7 @@ if __name__ == "__main__":
         print(f"  Capacity: {status.capacity}%")
         print(f"  Status: {status.status}")
         print(f"  Voltage: {status.voltage_now:.2f}V")
-        print(
-            f"  Current: {status.current_now:.2f}A ({monitor.get_current_ma():.1f}mA)"
-        )
+        print(f"  Current: {status.current_now:.2f}A ({monitor.get_current_ma():.1f}mA)")
         print(f"  Temperature: {status.temperature:.1f}°C")
         print(f"  Technology: {status.technology}")
         print(f"  Icon: {monitor.get_battery_icon_name()}")

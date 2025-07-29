@@ -77,7 +77,7 @@ class MCPClient:
 
         # Initialize available tools, resources, and prompts
         self.available_tools = []
-        
+
         # Track original model configuration for restoration
         self.original_model_config = None
         self.llm_preferences = None
@@ -122,13 +122,11 @@ class MCPClient:
 
         try:
             logger.debug(f"Setting up stdio transport")
-            
-            self.message_processor.cleanup() # reset message processor
+
+            self.message_processor.cleanup()  # reset message processor
 
             start_time = time.time()
-            stdio_transport = await self.exit_stack.enter_async_context(
-                stdio_client(server_params)
-            )
+            stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
             self.stdio, self.write = stdio_transport
             self.session = await self.exit_stack.enter_async_context(
                 ClientSession(self.stdio, self.write)
@@ -138,21 +136,26 @@ class MCPClient:
 
             init_result = await self.session.initialize()
             self.server_name = init_result.serverInfo.name
-            
+
             # Check for LLM preferences in experimental capabilities
             self.llm_preferences = None
-            if hasattr(init_result, 'capabilities') and hasattr(init_result.capabilities, 'experimental'):
+            if hasattr(init_result, "capabilities") and hasattr(
+                init_result.capabilities, "experimental"
+            ):
                 experimental = init_result.capabilities.experimental
-                if isinstance(experimental, dict) and 'llm_preferences' in experimental:
-                    self.llm_preferences = experimental['llm_preferences']
+                if isinstance(experimental, dict) and "llm_preferences" in experimental:
+                    self.llm_preferences = experimental["llm_preferences"]
                     logger.info(f"Found LLM preferences from MCP server: {self.llm_preferences}")
-            
+
             # Try alternative location for experimental capabilities
-            if not self.llm_preferences and hasattr(init_result, 'experimental_capabilities'):
-                if isinstance(init_result.experimental_capabilities, dict) and 'llm_preferences' in init_result.experimental_capabilities:
-                    self.llm_preferences = init_result.experimental_capabilities['llm_preferences']
+            if not self.llm_preferences and hasattr(init_result, "experimental_capabilities"):
+                if (
+                    isinstance(init_result.experimental_capabilities, dict)
+                    and "llm_preferences" in init_result.experimental_capabilities
+                ):
+                    self.llm_preferences = init_result.experimental_capabilities["llm_preferences"]
                     logger.info(f"Found LLM preferences (alt location): {self.llm_preferences}")
-            
+
             # Apply LLM preferences if found
             if self.llm_preferences:
                 await self._apply_llm_preferences()
@@ -183,9 +186,7 @@ class MCPClient:
             for prompt in self.available_prompts:
                 for message in prompt["messages"]:
                     if message["role"] in ["user", "assistant"]:
-                        self.message_processor.add_message(
-                            message["role"], message["content"]
-                        )
+                        self.message_processor.add_message(message["role"], message["content"])
                     else:
                         logger.debug(f" **injecting {message} **")
                         logger.warning(
@@ -221,9 +222,7 @@ class MCPClient:
 
                     # Dispatch a proper cache completion event
                     self.dispatcher.dispatch(
-                        CacheEvent.restoration_completed(
-                            model_name=self.llm_provider.model
-                        )
+                        CacheEvent.restoration_completed(model_name=self.llm_provider.model)
                     )
 
                     return True
@@ -260,9 +259,7 @@ class MCPClient:
     async def refresh_capabilities(self):
         """Refresh the client's knowledge of server capabilities"""
         if not self.session:
-            raise UserVisibleError(
-                "Not connected to Mcp Server, so can't refresh capabilities"
-            )
+            raise UserVisibleError("Not connected to Mcp Server, so can't refresh capabilities")
 
         # First refresh tools through the tool processor
         await self.tool_processor.refresh_capabilities()
@@ -280,9 +277,7 @@ class MCPClient:
 
         # Set available prompts
         try:
-            self.available_prompts = await self.prompt_processor.format_prompts(
-                self.session
-            )
+            self.available_prompts = await self.prompt_processor.format_prompts(self.session)
 
         except Exception as e:
             logger.warning(f"Failed to get prompts: {e}")
@@ -304,28 +299,36 @@ class MCPClient:
 
             # --- Handle pre-identified LLM tool parse errors first ---
             if tool_name == "__llm_tool_parse_error__":
-                logger.warning(f"Handling pre-identified LLM tool parse error: {tool_call.get('id')}")
+                logger.warning(
+                    f"Handling pre-identified LLM tool parse error: {tool_call.get('id')}"
+                )
                 raw_error_args_str = tool_call.get("function", {}).get("arguments", "{}")
                 error_details_dict = {}
                 try:
                     error_details_dict = json.loads(raw_error_args_str)
-                    parsed_error_message = error_details_dict.get('error_message', 'Unknown parsing error')
-                    original_snippet = error_details_dict.get('original_content_snippet', 'N/A')
-                    error_type = error_details_dict.get('error_type', 'LLMToolParseError')
+                    parsed_error_message = error_details_dict.get(
+                        "error_message", "Unknown parsing error"
+                    )
+                    original_snippet = error_details_dict.get("original_content_snippet", "N/A")
+                    error_type = error_details_dict.get("error_type", "LLMToolParseError")
                     tool_result_content = f"Error: LLM tool call parsing failed ({error_type}). Message: {parsed_error_message}.'"
                 except json.JSONDecodeError as e:
-                    logger.error(f"Could not parse details for __llm_tool_parse_error__ (JSONDecodeError): {e}. Args: {raw_error_args_str}")
+                    logger.error(
+                        f"Could not parse details for __llm_tool_parse_error__ (JSONDecodeError): {e}. Args: {raw_error_args_str}"
+                    )
                     tool_result_content = f"Error: LLM tool call parsing failed. Could not parse internal error details (JSONDecodeError): {raw_error_args_str}"
                 except Exception as e:
-                    logger.error(f"Could not parse details for __llm_tool_parse_error__ (General Exception): {e}. Args: {raw_error_args_str}")
+                    logger.error(
+                        f"Could not parse details for __llm_tool_parse_error__ (General Exception): {e}. Args: {raw_error_args_str}"
+                    )
                     tool_result_content = f"Error: LLM tool call parsing failed. Could not parse internal error details (General Exception): {raw_error_args_str}"
 
                 # Dispatch an error event for the parsing failure
                 action_event = ActionEvent(
                     type=EventType.ACTION,
-                    content=tool_result_content, 
+                    content=tool_result_content,
                     status=StatusType.FAILED,
-                    tool_name=tool_name, # This will be "__llm_tool_parse_error__"
+                    tool_name=tool_name,  # This will be "__llm_tool_parse_error__"
                     tool_args=error_details_dict,
                     data={"tool_call": tool_call, "error": "LLMToolParseError"},
                 )
@@ -334,10 +337,10 @@ class MCPClient:
                 # Add the parsing failure result to message history
                 self.message_processor.add_failed_tool_gen(
                     original_snippet,
-                    tool_call, # Original error tool_call object from parsing_utils
-                    tool_result_content
+                    tool_call,  # Original error tool_call object from parsing_utils
+                    tool_result_content,
                 )
-                continue # Move to the next tool_call in the loop
+                continue  # Move to the next tool_call in the loop
             # --- End of handling for __llm_tool_parse_error__ ---
 
             parsed_tool_args = tool_call.get("function", {}).get("arguments", {})
@@ -355,9 +358,7 @@ class MCPClient:
 
             try:
                 self.message_processor.add_tool_call(tool_call)
-                tool_result_content = (
-                    await self.tool_processor.execute_tool_call_async(tool_call)
-                )
+                tool_result_content = await self.tool_processor.execute_tool_call_async(tool_call)
                 logger.info(f"Executed tool name: {tool_call.get('id', 'N/A')}")
                 logger.info(f"Executed tool result: {tool_result_content}")
 
@@ -375,17 +376,17 @@ class MCPClient:
                 )
                 self.dispatcher.dispatch(result_event)
                 # Add the successful tool result to message history
-                self.message_processor.add_tool_result(
-                    tool_call, tool_result_content
-                )
+                self.message_processor.add_tool_result(tool_call, tool_result_content)
 
             except Exception as ex:
                 exception_type = type(ex).__name__
                 exception_message = str(ex)
-                traceback_info = ''.join(traceback.format_tb(ex.__traceback__))
-                error_message = f'An error occurred when calling tool `{tool_name}`:\n' \
-                                f'{exception_type}: {exception_message}\n' \
-                                f'Traceback:\n{traceback_info}'
+                traceback_info = "".join(traceback.format_tb(ex.__traceback__))
+                error_message = (
+                    f"An error occurred when calling tool `{tool_name}`:\n"
+                    f"{exception_type}: {exception_message}\n"
+                    f"Traceback:\n{traceback_info}"
+                )
                 logger.warning(error_message)
                 tool_result_content = error_message  # Store error as result
 
@@ -401,10 +402,10 @@ class MCPClient:
                 self.dispatcher.dispatch(error_event)
                 # Add the execution failure result to message history
                 self.message_processor.add_failed_tool_execute(
-                    tool_call, # The tool_call that failed execution
-                    tool_result_content # Contains the detailed error message from execution
+                    tool_call,  # The tool_call that failed execution
+                    tool_result_content,  # Contains the detailed error message from execution
                 )
-            
+
     async def process_query(self, query: str) -> Dict[str, Any]:
         """Process a query through the LLM client.
 
@@ -491,7 +492,7 @@ class MCPClient:
                     # Re-raise the error to be caught by the higher-level handler
                     raise
 
-                # Add message to processor if any 
+                # Add message to processor if any
                 if response.get("message", {}).get("content", "") != "":
                     self.message_processor.add_message(
                         "assistant", response.get("message", {}).get("content", "")
@@ -570,36 +571,42 @@ class MCPClient:
         """Apply LLM preferences from the MCP server."""
         if not self.llm_preferences:
             return
-            
+
         try:
             # Save current model configuration before switching
             if self.llm_provider.provider_type == "llama-cpp":
                 # Get current model config via HTTP
                 import aiohttp
+
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(f"{self.llm_provider.server_url}/getCurrentModel") as response:
+                    async with session.get(
+                        f"{self.llm_provider.server_url}/getCurrentModel"
+                    ) as response:
                         if response.status == 200:
                             self.original_model_config = await response.json()
-                            logger.info(f"Saved original model config: {self.original_model_config}")
-            
+                            logger.info(
+                                f"Saved original model config: {self.original_model_config}"
+                            )
+
             # Apply new model preferences
-            model_name = self.llm_preferences.get('model')
-            provider = self.llm_preferences.get('provider', 'llama-cpp')
-            inference_configs = self.llm_preferences.get('inference_configs', {})
-            
-            if provider == 'llama-cpp' and model_name:
+            model_name = self.llm_preferences.get("model")
+            provider = self.llm_preferences.get("provider", "llama-cpp")
+            inference_configs = self.llm_preferences.get("inference_configs", {})
+
+            if provider == "llama-cpp" and model_name:
                 # Switch model via HTTP API
                 import aiohttp
+
                 async with aiohttp.ClientSession() as session:
                     set_model_data = {
                         "model_name": model_name,
                         "load_model_configs": {"n_ctx": 4096},  # Default context
-                        "inference_configs": inference_configs
+                        "inference_configs": inference_configs,
                     }
                     async with session.post(
                         f"{self.llm_provider.server_url}/setModel",
                         json=set_model_data,
-                        timeout=aiohttp.ClientTimeout(total=30)
+                        timeout=aiohttp.ClientTimeout(total=30),
                     ) as response:
                         if response.status == 200:
                             logger.info(f"Successfully switched to model: {model_name}")
@@ -608,29 +615,30 @@ class MCPClient:
                         else:
                             error_text = await response.text()
                             logger.error(f"Failed to switch model: {error_text}")
-                        
+
         except Exception as e:
             logger.error(f"Failed to apply LLM preferences: {e}")
             # Continue with default model if switching fails
-    
+
     async def _restore_original_model(self):
         """Restore the original model configuration."""
-        if not self.original_model_config or self.original_model_config.get('status') == 'no_model':
+        if not self.original_model_config or self.original_model_config.get("status") == "no_model":
             return
-            
+
         try:
-            original_model = self.original_model_config.get('model')
+            original_model = self.original_model_config.get("model")
             if original_model and self.llm_provider.provider_type == "llama-cpp":
                 import aiohttp
+
                 async with aiohttp.ClientSession() as session:
                     set_model_data = {
                         "model_name": original_model,
-                        "load_model_configs": {"n_ctx": 4096}
+                        "load_model_configs": {"n_ctx": 4096},
                     }
                     async with session.post(
                         f"{self.llm_provider.server_url}/setModel",
                         json=set_model_data,
-                        timeout=aiohttp.ClientTimeout(total=30)
+                        timeout=aiohttp.ClientTimeout(total=30),
                     ) as response:
                         if response.status == 200:
                             logger.info(f"Restored original model: {original_model}")
@@ -644,14 +652,13 @@ class MCPClient:
     async def cleanup(self):
         """Clean up resources used by the client."""
         logger.info("Starting MCP client cleanup")
-        
+
         # Restore original model if we switched
         if self.original_model_config:
             await self._restore_original_model()
 
         # Cancel all running tasks first
         await self._cancel_all_running_tasks()
-
 
         # If we have a process, terminate it
         if hasattr(self, "_proc") and self._proc:
@@ -670,9 +677,7 @@ class MCPClient:
                 # Process is already gone
                 logger.info("MCP server process already terminated")
             except Exception as e:
-                logger.error(
-                    f"Error terminating MCP server process: {e}", exc_info=True
-                )
+                logger.error(f"Error terminating MCP server process: {e}", exc_info=True)
             finally:
                 self._proc = None
         else:
@@ -702,7 +707,9 @@ class MCPClient:
             # Only cancel tasks that seem to belong to our client based on naming convention
             if "mcp_client" in task_name.lower():
                 if not task.done():
-                    logger.info(f"Scheduling cancellation for MCP client task: {task_name or 'Unnamed task'}")
+                    logger.info(
+                        f"Scheduling cancellation for MCP client task: {task_name or 'Unnamed task'}"
+                    )
                     task.cancel()
                     tasks_to_cancel_and_wait.append(task)
             # Consider if there are other criteria for identifying client-related tasks
@@ -711,12 +718,14 @@ class MCPClient:
             logger.info("No running MCP client tasks found to cancel and wait for.")
             return
 
-        logger.info(f"Waiting for {len(tasks_to_cancel_and_wait)} tasks to acknowledge cancellation (timeout per task: 2s)...")
+        logger.info(
+            f"Waiting for {len(tasks_to_cancel_and_wait)} tasks to acknowledge cancellation (timeout per task: 2s)..."
+        )
 
         # Wait for tasks to complete or timeout
         results = await asyncio.gather(
             *[asyncio.wait_for(task, timeout=2.0) for task in tasks_to_cancel_and_wait],
-            return_exceptions=True
+            return_exceptions=True,
         )
 
         for task, result in zip(tasks_to_cancel_and_wait, results):
@@ -727,10 +736,15 @@ class MCPClient:
                 logger.warning(f"Task '{task_name}' timed out during cancellation grace period.")
             elif isinstance(result, Exception):
                 # Log the exception type and message. exc_info=result could be used for full trace.
-                logger.error(f"Task '{task_name}' raised an exception during/after cancellation: {type(result).__name__}: {result}", exc_info=False)
+                logger.error(
+                    f"Task '{task_name}' raised an exception during/after cancellation: {type(result).__name__}: {result}",
+                    exc_info=False,
+                )
             else:
                 # Task finished, possibly before timeout or wasn't cancellable in a way that raises CancelledError
-                logger.info(f"Task '{task_name}' completed after cancellation request (result type: {type(result).__name__}).")
+                logger.info(
+                    f"Task '{task_name}' completed after cancellation request (result type: {type(result).__name__})."
+                )
 
         logger.info("Finished processing cancellation for MCP client tasks.")
 
@@ -760,8 +774,6 @@ class MCPClient:
                 except Exception as e:
                     logger.error(f"Error closing exit stack: {e}", exc_info=True)
         except Exception as e:
-            logger.error(
-                f"Critical error during exit stack closure: {e}", exc_info=True
-            )
+            logger.error(f"Critical error during exit stack closure: {e}", exc_info=True)
             # Log the full traceback for debugging
             logger.error(traceback.format_exc())

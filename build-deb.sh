@@ -64,6 +64,12 @@ if [ "$CLEAN_BUILD" = true ]; then
 	exit 0
 fi
 
+# Temporarily move model files to avoid including them in the package
+echo "[INFO] Temporarily moving model files to avoid packaging..."
+MODEL_BACKUP_DIR=$(mktemp -d)
+find distiller_cm5_python/llm_server/models -name "*.gguf" -exec mv {} "$MODEL_BACKUP_DIR/" \; 2>/dev/null || true
+echo "[INFO] Model files moved to: $MODEL_BACKUP_DIR"
+
 # Generate uv.lock file for the package (if uv is available)
 if command -v uv >/dev/null 2>&1; then
 	echo "[INFO] Generating uv.lock file..."
@@ -126,6 +132,12 @@ for file in ../${PACKAGE_NAME}_*.deb; do
 		rm -f "$file"
 	fi
 done
+
+# Restore model files after packaging
+echo "[INFO] Restoring model files..."
+find "$MODEL_BACKUP_DIR" -name "*.gguf" -exec mv {} distiller_cm5_python/llm_server/models/ \; 2>/dev/null || true
+rm -rf "$MODEL_BACKUP_DIR"
+echo "[INFO] Model files restored"
 
 print_success "Build process completed successfully!"
 

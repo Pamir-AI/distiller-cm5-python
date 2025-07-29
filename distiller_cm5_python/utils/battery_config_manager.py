@@ -90,9 +90,7 @@ class BatteryConfig:
     thresholds: BatteryThresholds = field(default_factory=BatteryThresholds)
     monitoring: BatteryMonitoringConfig = field(default_factory=BatteryMonitoringConfig)
     hardware: BatteryHardwareConfig = field(default_factory=BatteryHardwareConfig)
-    status_patterns: BatteryStatusPatterns = field(
-        default_factory=BatteryStatusPatterns
-    )
+    status_patterns: BatteryStatusPatterns = field(default_factory=BatteryStatusPatterns)
     status_text: BatteryStatusText = field(default_factory=BatteryStatusText)
     icons: BatteryIcons = field(default_factory=BatteryIcons)
 
@@ -116,9 +114,7 @@ class BatteryConfig:
             if "thresholds" in battery_data:
                 thresholds_data = battery_data["thresholds"]
                 config.thresholds = BatteryThresholds(
-                    critical=thresholds_data.get(
-                        "critical", config.thresholds.critical
-                    ),
+                    critical=thresholds_data.get("critical", config.thresholds.critical),
                     low=thresholds_data.get("low", config.thresholds.low),
                     warning=thresholds_data.get("warning", config.thresholds.warning),
                     temperature_warning=thresholds_data.get(
@@ -145,26 +141,18 @@ class BatteryConfig:
             if "hardware" in battery_data:
                 hardware_data = battery_data["hardware"]
                 config.hardware = BatteryHardwareConfig(
-                    sysfs_path=hardware_data.get(
-                        "sysfs_path", config.hardware.sysfs_path
-                    )
+                    sysfs_path=hardware_data.get("sysfs_path", config.hardware.sysfs_path)
                 )
 
             # Load status patterns
             if "status_patterns" in battery_data:
                 patterns_data = battery_data["status_patterns"]
                 config.status_patterns = BatteryStatusPatterns(
-                    critical=patterns_data.get(
-                        "critical", config.status_patterns.critical
-                    ),
+                    critical=patterns_data.get("critical", config.status_patterns.critical),
                     low=patterns_data.get("low", config.status_patterns.low),
-                    warning=patterns_data.get(
-                        "warning", config.status_patterns.warning
-                    ),
+                    warning=patterns_data.get("warning", config.status_patterns.warning),
                     good=patterns_data.get("good", config.status_patterns.good),
-                    unknown=patterns_data.get(
-                        "unknown", config.status_patterns.unknown
-                    ),
+                    unknown=patterns_data.get("unknown", config.status_patterns.unknown),
                 )
 
             # Load status text
@@ -189,8 +177,6 @@ class BatteryConfig:
                 if "discharging" in icons_data:
                     discharging_icons.update(icons_data["discharging"])
 
-                config.icons = BatteryIcons(
-                    charging=charging_icons, discharging=discharging_icons
-                )
+                config.icons = BatteryIcons(charging=charging_icons, discharging=discharging_icons)
 
         return config

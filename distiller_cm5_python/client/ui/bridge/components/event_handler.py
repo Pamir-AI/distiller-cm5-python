@@ -73,7 +73,7 @@ class BridgeEventHandler:
         self.conversation_turn_active = False
         self.pending_events = set()  # Track pending event IDs
         self.last_event_time = 0
-        
+
         # Get conversation manager reference from bridge if possible
         if hasattr(signal_source, "conversation_manager"):
             self.signals.conversation_manager = signal_source.conversation_manager
@@ -106,20 +106,22 @@ class BridgeEventHandler:
             # However, if too much time has passed (30 seconds), force reset to prevent permanent stuck state
             time_since_last_event = time.time() - self.last_event_time
             if time_since_last_event > 30.0:
-                logger.warning(f"Forcing reset to idle after 30s timeout. Pending events: {self.pending_events}")
+                logger.warning(
+                    f"Forcing reset to idle after 30s timeout. Pending events: {self.pending_events}"
+                )
                 self.pending_events.clear()  # Clear stuck events
                 return True
             return False
-            
+
         # Don't reset if we're not in a conversation turn
         if not self.conversation_turn_active:
             return False
-            
+
         # Give a small grace period (2 seconds) for potential follow-up events
         time_since_last_event = time.time() - self.last_event_time
         if time_since_last_event < 2.0:
             return False
-            
+
         return True
 
     def _reset_to_idle_if_safe(self) -> None:
@@ -170,13 +172,9 @@ class BridgeEventHandler:
         conversation_manager = getattr(self.signals, "conversation_manager", None)
 
         # Handle different event types
-        if (
-            event.type == EventType.MESSAGE
-        ):  # process message events from assistant text stream
+        if event.type == EventType.MESSAGE:  # process message events from assistant text stream
             # Get status value, handling both enum and string cases
-            status_value = (
-                event.status.value if hasattr(event.status, "value") else event.status
-            )
+            status_value = event.status.value if hasattr(event.status, "value") else event.status
 
             # Handle streaming messages with bubble management
             if status_value == StatusType.IN_PROGRESS:
@@ -221,13 +219,9 @@ class BridgeEventHandler:
                 self._complete_event(str(event.id))
                 self._reset_to_idle_if_safe()
 
-        elif (
-            event.type == EventType.ACTION
-        ):  # process action events from tool call stream
+        elif event.type == EventType.ACTION:  # process action events from tool call stream
             # Handle action events with status tracking
-            status_value = (
-                event.status.value if hasattr(event.status, "value") else event.status
-            )
+            status_value = event.status.value if hasattr(event.status, "value") else event.status
             if status_value == StatusType.IN_PROGRESS:
                 self.status_manager.update_status(StatusManager.STATUS_EXECUTING_TOOL)
                 # Check if this is a new action stream
@@ -253,9 +247,7 @@ class BridgeEventHandler:
                 if self.message_chunks:
                     # Use accumulated chunks for complete action
                     complete_content = "".join(self.message_chunks)
-                    self.signals.actionReceived.emit(
-                        complete_content, str(event.id), timestamp_str
-                    )
+                    self.signals.actionReceived.emit(complete_content, str(event.id), timestamp_str)
 
                     # Add to conversation history
                     if conversation_manager:
@@ -275,25 +267,21 @@ class BridgeEventHandler:
                 self._reset_to_idle_if_safe()
 
         elif event.type == EventType.INFO:
-            logger.debug(
-                f"Handling INFO event: content='{event.content}', id={event.id}"
-            )
+            logger.debug(f"Handling INFO event: content='{event.content}', id={event.id}")
             # if event.content:
-                # self.signals.infoReceived.emit(
-                #     event.content, str(event.id), timestamp_str
-                # )
-                # Add to conversation history
-                # if conversation_manager:
-                #     message = {
-                #         "timestamp": self._get_formatted_timestamp(),
-                #         "content": f"{event.content}",
-                #         "type": "Info",
-                #     }
-                #     conversation_manager.add_message(message)
+            # self.signals.infoReceived.emit(
+            #     event.content, str(event.id), timestamp_str
+            # )
+            # Add to conversation history
+            # if conversation_manager:
+            #     message = {
+            #         "timestamp": self._get_formatted_timestamp(),
+            #         "content": f"{event.content}",
+            #         "type": "Info",
+            #     }
+            #     conversation_manager.add_message(message)
 
-            status_value = (
-                event.status.value if hasattr(event.status, "value") else event.status
-            )
+            status_value = event.status.value if hasattr(event.status, "value") else event.status
             if status_value == StatusType.IN_PROGRESS:
                 self.status_manager.update_status(StatusManager.STATUS_THINKING)
                 # Start tracking this conversation turn if not already active
@@ -308,9 +296,7 @@ class BridgeEventHandler:
                 self._reset_to_idle_if_safe()
 
         elif event.type == EventType.WARNING:
-            self.signals.warningReceived.emit(
-                event.content, str(event.id), timestamp_str
-            )
+            self.signals.warningReceived.emit(event.content, str(event.id), timestamp_str)
 
             # Add to conversation history
             if conversation_manager:
@@ -337,19 +323,13 @@ class BridgeEventHandler:
             # Handle cache events
             if hasattr(self.signals, "cacheEventReceived"):
                 # If we have a dedicated handler, use it
-                self.signals.cacheEventReceived.emit(
-                    event.content, str(event.id), timestamp_str
-                )
+                self.signals.cacheEventReceived.emit(event.content, str(event.id), timestamp_str)
             else:
                 # Fall back to info message if no dedicated handler
-                self.signals.infoReceived.emit(
-                    event.content, str(event.id), timestamp_str
-                )
+                self.signals.infoReceived.emit(event.content, str(event.id), timestamp_str)
 
             # Update status based on cache operation status
-            status_value = (
-                event.status.value if hasattr(event.status, "value") else event.status
-            )
+            status_value = event.status.value if hasattr(event.status, "value") else event.status
             operation = getattr(event, "operation", "restoration")
 
             if operation == "restoration":
@@ -372,14 +352,10 @@ class BridgeEventHandler:
         elif event.type == EventType.OBSERVATION:
             # Handle observation events
             if hasattr(self.signals, "observationReceived"):
-                self.signals.observationReceived.emit(
-                    event.content, str(event.id), timestamp_str
-                )
+                self.signals.observationReceived.emit(event.content, str(event.id), timestamp_str)
             else:
                 # Fall back to info message if no dedicated handler
-                self.signals.infoReceived.emit(
-                    event.content, str(event.id), timestamp_str
-                )
+                self.signals.infoReceived.emit(event.content, str(event.id), timestamp_str)
 
             # Add to conversation history
             if conversation_manager:
@@ -393,14 +369,10 @@ class BridgeEventHandler:
         elif event.type == EventType.PLAN:
             # Handle plan events
             if hasattr(self.signals, "planReceived"):
-                self.signals.planReceived.emit(
-                    event.content, str(event.id), timestamp_str
-                )
+                self.signals.planReceived.emit(event.content, str(event.id), timestamp_str)
             else:
                 # Fall back to info message if no dedicated handler
-                self.signals.infoReceived.emit(
-                    event.content, str(event.id), timestamp_str
-                )
+                self.signals.infoReceived.emit(event.content, str(event.id), timestamp_str)
 
             # Add to conversation history
             if conversation_manager:
@@ -414,9 +386,7 @@ class BridgeEventHandler:
         elif event.type == EventType.STATUS:
             # Check for specific component status events
             component = getattr(event, "component", None)
-            status_value = (
-                event.status.value if hasattr(event.status, "value") else event.status
-            )
+            status_value = event.status.value if hasattr(event.status, "value") else event.status
 
             if component == "connection":
                 if status_value == StatusType.FAILED:

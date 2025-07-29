@@ -14,7 +14,9 @@ from typing import Optional, List, Dict, Any
 logger = logging.getLogger(__name__)
 
 
-def transform_tool_arguments(arguments_input: Any, tool_name: Optional[str] = "UnknownTool") -> Dict[str, Any]:
+def transform_tool_arguments(
+    arguments_input: Any, tool_name: Optional[str] = "UnknownTool"
+) -> Dict[str, Any]:
     """
     Parses the 'arguments' field of a tool call.
     Expects arguments_input to be a dictionary or a JSON string that parses to a dictionary.
@@ -28,13 +30,21 @@ def transform_tool_arguments(arguments_input: Any, tool_name: Optional[str] = "U
         try:
             parsed_args = json.loads(arguments_input)
             if not isinstance(parsed_args, dict):
-                raise ValueError(f"Tool arguments string for '{tool_name}' did not parse to a dictionary. Parsed to type: {type(parsed_args).__name__}.")
+                raise ValueError(
+                    f"Tool arguments string for '{tool_name}' did not parse to a dictionary. Parsed to type: {type(parsed_args).__name__}."
+                )
             return parsed_args
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse arguments string as JSON dictionary for tool '{tool_name}': {e}. Arguments string snippet: '{str(arguments_input)[:200]}...'")
-            raise ValueError(f"Tool arguments for '{tool_name}' is a string but not valid JSON for a dictionary: {e}")
+            logger.warning(
+                f"Failed to parse arguments string as JSON dictionary for tool '{tool_name}': {e}. Arguments string snippet: '{str(arguments_input)[:200]}...'"
+            )
+            raise ValueError(
+                f"Tool arguments for '{tool_name}' is a string but not valid JSON for a dictionary: {e}"
+            )
         except Exception as e:
-            logger.warning(f"Unexpected error parsing arguments string for tool '{tool_name}': {e}. Arguments string snippet: '{str(arguments_input)[:200]}...'")
+            logger.warning(
+                f"Unexpected error parsing arguments string for tool '{tool_name}': {e}. Arguments string snippet: '{str(arguments_input)[:200]}...'"
+            )
             raise ValueError(f"Tool arguments for '{tool_name}' could not be processed: {e}")
     else:
         raise ValueError(
@@ -66,9 +76,8 @@ def normalize_tool_call_json(tool_call_str: str) -> str:
         tool_call_str += "}" * (open_braces - close_braces)
     elif close_braces > open_braces:
         tool_call_str = tool_call_str[:-1]
-        
+
     logger.debug(f"After fixing unbalanced braces: '{tool_call_str}'")
-    
 
     # Handle double curly braces {{...}} -> {...}
     if tool_call_str.startswith("{{") and tool_call_str.endswith("}}"):
@@ -83,22 +92,18 @@ def normalize_tool_call_json(tool_call_str: str) -> str:
             json.loads(inner_content)
             # If inner parse succeeds, assume the outer braces were extra
             tool_call_str = inner_content
-            logger.debug(
-                f"Successfully normalized double curly braces: '{tool_call_str}'"
-            )
+            logger.debug(f"Successfully normalized double curly braces: '{tool_call_str}'")
         except json.JSONDecodeError as e:
-            logger.warning(f"JSONDecodeError for inner_content: {e}. Inner content was (repr): {repr(inner_content)}")
+            logger.warning(
+                f"JSONDecodeError for inner_content: {e}. Inner content was (repr): {repr(inner_content)}"
+            )
             # If inner parse fails, try removing both sets of braces
             if tool_call_str.count("{") == 2 and tool_call_str.count("}") == 2:
-                inner_content = tool_call_str[
-                    2:-2
-                ].strip()  # Remove both sets of braces
+                inner_content = tool_call_str[2:-2].strip()  # Remove both sets of braces
                 try:
                     json.loads(inner_content)
                     tool_call_str = inner_content
-                    logger.debug(
-                        f"Successfully removed both sets of braces: '{tool_call_str}'"
-                    )
+                    logger.debug(f"Successfully removed both sets of braces: '{tool_call_str}'")
                 except json.JSONDecodeError:
                     logger.debug(
                         f"Failed to parse after removing both sets of braces, leaving as is: '{tool_call_str}'"
@@ -134,7 +139,6 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
     for i, tool_call_content in enumerate(matches):
         original_content_for_log = tool_call_content
         try:
-            
             # Normalize the extracted content (remove ```json, fix common issues)
             normalized_content = normalize_tool_call_json(tool_call_content)
 
@@ -145,22 +149,20 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
 
             # Validate the basic structure (needs 'name')
             if (
-                not isinstance(tool_call_data, dict)
-                or "name" not in tool_call_data
+                not isinstance(tool_call_data, dict) or "name" not in tool_call_data
                 # "arguments" check will be handled by transform_tool_arguments
             ):
                 raise ValueError(
                     "Parsed JSON missing required 'name' field or is not a dictionary."
                 )
-            
-            tool_name = tool_call_data['name']
+
+            tool_name = tool_call_data["name"]
             arguments_field = tool_call_data.get("arguments")
-            
+
             # Use the new helper function to parse/validate arguments
             parsed_args_dict = transform_tool_arguments(arguments_field, tool_name)
 
             logger.info(f"Successfully parsed arguments for tool '{tool_name}'.")
-
 
             # Format into OpenAI-compatible structure
             # Generate a unique-ish ID based on index or content hash? For now, use name + index.
@@ -171,7 +173,7 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
                 "type": "function",  # Assuming all are function calls
                 "function": {
                     "name": tool_name,
-                    "arguments": parsed_args_dict, # Use the parsed dictionary
+                    "arguments": parsed_args_dict,  # Use the parsed dictionary
                 },
             }
             tool_calls.append(formatted_tool_call)
@@ -188,48 +190,54 @@ def parse_tool_calls(text: str) -> List[Dict[str, Any]]:
                 log_prefix = "parse_tool_calls: Invalid structure for tool call"
             elif "Tool arguments field" in error_message or "Tool arguments for" in error_message:
                 log_prefix = "parse_tool_calls: Invalid arguments for tool call"
-            
+
             logger.error(
                 f"{log_prefix} {i}. Error: {e}. Content snippet: '{original_content_for_log}...'",
                 exc_info=True,
             )
             # Return a structured error tool call
-            tool_calls.append({
-                "id": f"llm_parse_err_{i}",
-                "type": "function",
-                "function": {
-                    "name": "__llm_tool_parse_error__",
-                    "arguments": json.dumps({
-                        "error_type": "ValueError",
-                        "error_message": error_message,
-                        "original_content_snippet": original_content_for_log
-                    })
+            tool_calls.append(
+                {
+                    "id": f"llm_parse_err_{i}",
+                    "type": "function",
+                    "function": {
+                        "name": "__llm_tool_parse_error__",
+                        "arguments": json.dumps(
+                            {
+                                "error_type": "ValueError",
+                                "error_message": error_message,
+                                "original_content_snippet": original_content_for_log,
+                            }
+                        ),
+                    },
                 }
-            })
-            
+            )
+
         except Exception as e:
             logger.error(
                 f"parse_tool_calls: Unexpected error processing tool call {i}: {e}. Content snippet: '{original_content_for_log}...'",
                 exc_info=True,
             )
             # Return a structured error tool call for general exceptions too
-            tool_calls.append({
-                "id": f"llm_parse_err_{i}", # Consistent ID format
-                "type": "function",
-                "function": {
-                    "name": "__llm_tool_parse_error__",
-                    "arguments": json.dumps({
-                        "error_type": type(e).__name__,
-                        "error_message": str(e),
-                        "original_content_snippet": original_content_for_log
-                    })
+            tool_calls.append(
+                {
+                    "id": f"llm_parse_err_{i}",  # Consistent ID format
+                    "type": "function",
+                    "function": {
+                        "name": "__llm_tool_parse_error__",
+                        "arguments": json.dumps(
+                            {
+                                "error_type": type(e).__name__,
+                                "error_message": str(e),
+                                "original_content_snippet": original_content_for_log,
+                            }
+                        ),
+                    },
                 }
-            })
+            )
 
     if tool_calls:
-        logger.info(
-            f"Successfully parsed {len(tool_calls)} tool calls from response text."
-        )
+        logger.info(f"Successfully parsed {len(tool_calls)} tool calls from response text.")
     return tool_calls
 
 

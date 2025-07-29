@@ -54,9 +54,7 @@ class StatusManager(QObject):
             details = f"Connected to {kwargs['server_name']}"
 
         # Only update and emit signal if status actually changed
-        status_changed = (
-            self._current_status != status or self._status_details != details
-        )
+        status_changed = self._current_status != status or self._status_details != details
 
         if status_changed:
             # Add detailed logging of status transition

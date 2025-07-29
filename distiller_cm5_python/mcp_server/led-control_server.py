@@ -9,6 +9,7 @@ Available tools:
 
 Follow llms.txt guidelines for MCP server implementations.
 """
+
 import asyncio
 import logging
 import nest_asyncio
@@ -25,8 +26,7 @@ nest_asyncio.apply()
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("LEDControlServer")
 
@@ -41,6 +41,7 @@ except Exception as e:
 
 # Instantiate MCP server
 server = Server("LEDControlServer-01")
+
 
 @server.list_tools()
 async def list_tools() -> list[types.Tool]:
@@ -57,17 +58,18 @@ async def list_tools() -> list[types.Tool]:
                     "r": {"type": "integer", "description": "Red value (0-255)"},
                     "g": {"type": "integer", "description": "Green value (0-255)"},
                     "b": {"type": "integer", "description": "Blue value (0-255)"},
-                    "brightness": {"type": "number", "description": "Brightness scale (0.0-1.0)"}
+                    "brightness": {"type": "number", "description": "Brightness scale (0.0-1.0)"},
                 },
-                "required": ["r", "g", "b"]
-            }
+                "required": ["r", "g", "b"],
+            },
         ),
         types.Tool(
             name="clear_led",
             description="Turn off all LEDs on the device.",
-            inputSchema={"type": "object", "properties": {}, "required": []}
-        )
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
     ]
+
 
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent]:
@@ -88,50 +90,50 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
             g = args.get("g") or 0
             b = args.get("b") or 0
             brightness = args.get("brightness") or 1.0
-            
+
             try:
                 available_leds = [0, 1, 2, 3]
                 failed_leds = []
-                
+
                 for led_id in available_leds:
                     success = led.set_led_color(r, g, b, brightness, led_id=led_id)
                     if not success:
                         failed_leds.append(led_id)
-                
+
                 if not failed_leds:
                     text = f"All {len(available_leds)} LEDs set to color (R:{r}, G:{g}, B:{b}) at brightness {brightness}"
                 else:
                     text = f"Failed to set LEDs: {failed_leds}. Successfully set: {len(available_leds) - len(failed_leds)}/{len(available_leds)} LEDs to (R:{r}, G:{g}, B:{b}) at brightness {brightness}"
                     logger.warning(text)
-                    
+
             except Exception as e:
                 error_msg = f"Exception while setting LED colors: {str(e)}"
                 logger.error(error_msg, exc_info=True)
                 text = error_msg
-            
+
             return [types.TextContent(type="text", text=text)]
 
         elif name == "clear_led":
             try:
                 available_leds = [0, 1, 2, 3]
                 failed_leds = []
-                
+
                 for led_id in available_leds:
                     success = led.set_led_color(0, 0, 0, brightness=0.0, led_id=led_id)
                     if not success:
                         failed_leds.append(led_id)
-                
+
                 if not failed_leds:
                     text = f"All {len(available_leds)} LEDs turned off successfully."
                 else:
                     text = f"Failed to clear LEDs: {failed_leds}. Successfully cleared: {len(available_leds) - len(failed_leds)}/{len(available_leds)}"
                     logger.warning(text)
-                    
+
             except Exception as e:
                 error_msg = f"Exception while clearing LEDs: {str(e)}"
                 logger.error(error_msg, exc_info=True)
                 text = error_msg
-                
+
             return [types.TextContent(type="text", text=text)]
 
         else:
@@ -141,6 +143,7 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
         error = f"Error in {name}: {e}"
         logger.error(error, exc_info=True)
         return [types.TextContent(type="text", text=error)]
+
 
 async def run():
     """
@@ -160,15 +163,13 @@ async def run():
                         "llm_preferences": {
                             "provider": "llama-cpp",
                             "model": "qwen2.5-3b-instruct-q4_k_m.gguf",
-                            "inference_configs": {
-                                "temperature": 0.7,
-                                "max_tokens": 2048
-                            }
+                            "inference_configs": {"temperature": 0.7, "max_tokens": 2048},
                         }
                     },
-                )
-            )
+                ),
+            ),
         )
+
 
 if __name__ == "__main__":
     try:

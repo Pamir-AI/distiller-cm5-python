@@ -110,6 +110,11 @@ setup_python_environment() {
     
     cd "$INSTALL_DIR"
     
+    # Set CMAKE arguments for ARM64 compilation without problematic optimizations
+    export CMAKE_ARGS="-DGGML_NATIVE=OFF -DCMAKE_CXX_FLAGS=-mcpu=cortex-a76 -DCMAKE_C_FLAGS=-mcpu=cortex-a76"
+    export CC=gcc
+    export CXX=g++
+    
     # Create virtual environment and install dependencies using uv sync
     echo_status "Installing Python dependencies..."
     /usr/local/bin/uv sync --python python3.11

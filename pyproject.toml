@@ -24,7 +24,7 @@ dependencies = [
   "fastmcp>=2.10.6",
   "jinja2>=3.0.0",
   "lgpio==0.2.2",
-  "llama-cpp-python>=0.3.2",
+  "llama-cpp-python>=0.3.14",
   "mcp<=1.12",
   "nest-asyncio>=1.6",
   "numba>=0.61.2",
@@ -37,6 +37,7 @@ dependencies = [
   "pyqt6<6.8",
   "pyserial>=3.5",
   "qasync>=0.27.1",
+  "qrcode>=7.4.2",
   "requests>=2.32.4",
   "sherpa-onnx>=1.12.6",
   "sounddevice>=0.5.2",
@@ -57,5 +58,4 @@ target-version = "py311"
 line-length = 100
 
 [tool.uv]
-required-environments = [ "platform_machine == 'aarch64'" ]
 index-url = "https://pypi.org/simple"

@@ -106,9 +106,7 @@ class ConversationManager:
             if content.startswith("You: "):
                 formatted_messages.append(f"[{timestamp}] {content}::{msg_type}")
             else:
-                formatted_messages.append(
-                    f"[{timestamp}] Assistant: {content}::{msg_type}"
-                )
+                formatted_messages.append(f"[{timestamp}] Assistant: {content}::{msg_type}")
         return formatted_messages
 
     def get_timestamp(self):

@@ -24,15 +24,15 @@ class NetworkUtils:
     def _should_use_sudo(self) -> bool:
         """Determine if we should use sudo for privileged commands"""
         # Use sudo if we're running as the 'distiller' user
-        current_user = os.getenv('USER') or os.getenv('USERNAME') or 'unknown'
-        return current_user == 'distiller'
+        current_user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
+        return current_user == "distiller"
 
     def _build_command(self, base_cmd: list[str]) -> list[str]:
         """Build command with sudo prefix if needed for privileged operations"""
-        privileged_commands = {'nmcli', 'ip', 'hostname', 'systemctl', 'iwconfig', 'iwgetid'}
-        
+        privileged_commands = {"nmcli", "ip", "hostname", "systemctl", "iwconfig", "iwgetid"}
+
         if self._use_sudo and base_cmd and base_cmd[0] in privileged_commands:
-            return ['sudo'] + base_cmd
+            return ["sudo"] + base_cmd
         return base_cmd
 
     def _run_async(self, coro):
@@ -141,17 +141,19 @@ class NetworkUtils:
             # Try to get signal strength using nmcli
             try:
                 result = subprocess.run(
-                    self._build_command([
-                        "nmcli",
-                        "-t",
-                        "-f",
-                        "SIGNAL",
-                        "device",
-                        "wifi",
-                        "list",
-                        "--rescan",
-                        "no",
-                    ]),
+                    self._build_command(
+                        [
+                            "nmcli",
+                            "-t",
+                            "-f",
+                            "SIGNAL",
+                            "device",
+                            "wifi",
+                            "list",
+                            "--rescan",
+                            "no",
+                        ]
+                    ),
                     capture_output=True,
                     text=True,
                     timeout=10,
@@ -211,12 +213,8 @@ class NetworkUtils:
             details = {
                 "connected": status.connected if status else False,
                 "ssid": status.ssid if status and status.ssid else "Not Connected",
-                "ip_address": (
-                    status.ip_address if status and status.ip_address else "No IP"
-                ),
-                "interface": (
-                    status.interface if status and status.interface else "Unknown"
-                ),
+                "ip_address": (status.ip_address if status and status.ip_address else "No IP"),
+                "interface": (status.interface if status and status.interface else "Unknown"),
                 "hostname": self._get_hostname(),
                 "interfaces": self._get_all_interfaces(),
             }
@@ -245,7 +243,10 @@ class NetworkUtils:
         interfaces = []
         try:
             result = subprocess.run(
-                self._build_command(["ip", "addr", "show"]), capture_output=True, text=True, timeout=10
+                self._build_command(["ip", "addr", "show"]),
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0:
                 current_interface = None
@@ -262,11 +263,7 @@ class NetworkUtils:
                                     "type": (
                                         "ethernet"
                                         if name.startswith("eth")
-                                        else (
-                                            "wireless"
-                                            if name.startswith("wl")
-                                            else "other"
-                                        )
+                                        else ("wireless" if name.startswith("wl") else "other")
                                     ),
                                     "ip_address": "no IP",
                                 }

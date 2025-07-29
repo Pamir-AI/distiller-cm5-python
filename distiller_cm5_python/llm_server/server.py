@@ -2,6 +2,7 @@
 """
 LLM Server - Provides LLM services over HTTP
 """
+
 import argparse
 import logging
 import json
@@ -31,15 +32,14 @@ from distiller_cm5_python.utils.logger import setup_logging
 logger = logging.getLogger(__name__)
 
 # Create FastAPI app
-app = FastAPI(
-    title="LLM Server", description="A simple LLM server that provides LLM services"
-)
+app = FastAPI(title="LLM Server", description="A simple LLM server that provides LLM services")
 
 # At the top, add cache management
 MODEL_NAME = None
 MODEL = None
 CURRENT_CACHE = None  # Track current cache to invalidate when model changes
 CURRENT_INFERENCE_CONFIGS = None  # Track current inference configurations
+
 
 # Define request and response models
 class Message(BaseModel):
@@ -116,7 +116,7 @@ class Cache:
         cache_data = {
             "prompt_tokens": self.model.tokenize(prompt.encode("utf-8")),
             "seed": seed,
-            "temperature": temperature
+            "temperature": temperature,
         }
         # Create a hashable key from the cache data
         key_str = json.dumps(cache_data, sort_keys=True)
@@ -133,18 +133,18 @@ class Cache:
         seed: Optional[int] = None,
     ):
         cache = Cache(model)
-        
+
         # Always set seed for consistency, use default if not provided
         effective_seed = seed if seed is not None else 12345  # Default consistent seed
         model.set_seed(effective_seed)
-        
+
         # Create a model-specific cache directory
         model_specific_cache_dir = os.path.join(cache_dir, model_name)
-        os.makedirs(model_specific_cache_dir, exist_ok=True) # Ensure the directory exists
+        os.makedirs(model_specific_cache_dir, exist_ok=True)  # Ensure the directory exists
 
         cache_context = LlamaDiskCache(cache_dir=model_specific_cache_dir)
         model.set_cache(cache_context)
-        
+
         # Use improved cache key that includes seed and temperature
         cache_key = cache.get_cache_key(prompts, effective_seed, temperature)
 
@@ -157,7 +157,7 @@ class Cache:
         except Exception as e:
             logger.warning(f"Cache error (not just missing): {e}")
             # Fall through to rebuild cache
-            
+
         # Build new cache
         model.reset()
         _ = model(
@@ -175,27 +175,27 @@ class Cache:
 def is_cache_valid_for_request(messages, tools, inference_configs):
     """Check if current cache is still valid for the request"""
     global CURRENT_CACHE, MODEL_NAME
-    
+
     if CURRENT_CACHE is None:
         return False
-        
+
     try:
         # Check if the same prompt would be generated
         formatted_messages = format_messages(messages)
         formatted_tools = format_tools(tools) if tools else []
         current_prompt = format_prompt(formatted_messages, formatted_tools)
-        
+
         # Check if cache key would match
         cache = Cache(MODEL)
         seed = inference_configs.get("seed", 12345)
         temperature = inference_configs.get("temperature", 0.0)
         current_cache_key = cache.get_cache_key(current_prompt, seed, temperature)
-        
-        # This is a simplified check - in a full implementation you might want to 
+
+        # This is a simplified check - in a full implementation you might want to
         # store the cache key that was used when CURRENT_CACHE was set
         logger.debug(f"Cache validation - current key: {current_cache_key}")
         return True  # For now, assume valid if cache exists
-        
+
     except Exception as e:
         logger.warning(f"Cache validation failed: {e}")
         return False
@@ -245,17 +245,13 @@ async def list_models():
 async def get_current_model():
     """Get the currently loaded model and its configuration."""
     if MODEL_NAME is None:
-        return {
-            "status": "no_model",
-            "model": None,
-            "message": "No model currently loaded"
-        }
+        return {"status": "no_model", "model": None, "message": "No model currently loaded"}
     return {
         "status": "ok",
         "model": MODEL_NAME,
         "provider": "llama-cpp",
         "context_length": MODEL.n_ctx() if MODEL else None,
-        "inference_configs": CURRENT_INFERENCE_CONFIGS
+        "inference_configs": CURRENT_INFERENCE_CONFIGS,
     }
 
 
@@ -278,7 +274,7 @@ def load_model(model_name, load_model_configs: dict[str, Any]):
     global MODEL
     global MODEL_NAME
     global CURRENT_CACHE
-    
+
     model_path = os.path.join(os.path.dirname(__file__), "models", model_name)
     if not os.path.exists(model_path):
         raise ValueError(f"Model '{model_name}' not found in models directory")
@@ -303,11 +299,11 @@ def load_model(model_name, load_model_configs: dict[str, Any]):
 def _chat_completion(messages, tools, inference_configs):
     """Non-streaming version"""
     logger.debug("Generating non-streaming chat completion...")
-    
+
     # Set consistent seed for reproducible results
     seed = inference_configs.get("seed", 12345)  # Use consistent default seed
     MODEL.set_seed(seed)
-    
+
     response = MODEL.create_chat_completion(
         messages=messages,
         tools=tools,
@@ -326,11 +322,11 @@ def _chat_completion(messages, tools, inference_configs):
 def _stream_chat_completion(messages, tools, inference_configs):
     """Streaming version"""
     logger.debug("Generating streaming chat completion...")
-    
+
     # Set consistent seed for reproducible results
     seed = inference_configs.get("seed", 12345)  # Use consistent default seed
     MODEL.set_seed(seed)
-    
+
     try:
         response_stream = MODEL.create_chat_completion(
             messages=messages,
@@ -351,19 +347,14 @@ def _stream_chat_completion(messages, tools, inference_configs):
             # Convert dictionary to JSON string before yielding
             yield f"data: {json.dumps(chunk)}\n\n"
         logger.debug(f"Streaming finished after {chunk_count} chunks.")
-        
+
         # Send proper SSE termination
         yield "data: [DONE]\n\n"
-        
+
     except Exception as e:
         logger.error(f"Error during streaming: {e}")
         # Send error chunk before closing
-        error_chunk = {
-            "error": {
-                "type": "server_error",
-                "message": str(e)
-            }
-        }
+        error_chunk = {"error": {"type": "server_error", "message": str(e)}}
         yield f"data: {json.dumps(error_chunk)}\n\n"
         yield "data: [DONE]\n\n"
 
@@ -371,14 +362,14 @@ def _stream_chat_completion(messages, tools, inference_configs):
 async def _async_stream_wrapper(messages, tools, inference_configs):
     """Async wrapper for streaming to ensure proper connection handling"""
     loop = asyncio.get_event_loop()
-    
+
     # Run the sync generator in a thread to avoid blocking
     async def generate():
         for chunk in _stream_chat_completion(messages, tools, inference_configs):
             yield chunk
             # Small delay to allow proper flushing
             await asyncio.sleep(0)
-    
+
     async for chunk in generate():
         yield chunk
 
@@ -406,7 +397,9 @@ def format_messages(messages):
     formatted_messages = []
     for msg in messages:
         if msg.tool_calls is not None:
-            formatted_messages.append({"role": msg.role, "content": msg.content, "tool_calls": msg.tool_calls})
+            formatted_messages.append(
+                {"role": msg.role, "content": msg.content, "tool_calls": msg.tool_calls}
+            )
         else:
             formatted_messages.append({"role": msg.role, "content": msg.content})
     return formatted_messages
@@ -433,16 +426,16 @@ async def restore_cache(request: RestoreCacheRequest):
     global MODEL
     global MODEL_NAME
     global CURRENT_CACHE
-    
+
     try:
         # extract messages and tools
         messages = format_messages(request.messages)
         tools = format_tools(request.tools)
-        
+
         # Get consistent seed and temperature
         seed = request.inference_configs.get("seed", 12345)  # Use consistent default
         temperature = request.inference_configs.get("temperature", 0.0)
-        
+
         # handle cache
         prompt = format_prompt(messages, tools)
         cache_context = Cache.build_cache(
@@ -455,7 +448,7 @@ async def restore_cache(request: RestoreCacheRequest):
         )
         MODEL.load_state(cache_context)
         CURRENT_CACHE = cache_context  # Track current cache
-        
+
         logger.info(f"Cache restored successfully for model {MODEL_NAME} with seed {seed}")
         return {"status": "ok", "message": "cache is restored"}
     except Exception as e:
@@ -468,7 +461,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
     global MODEL
     global MODEL_NAME
     global CURRENT_CACHE
-    
+
     if request.model is None or request.model == "":
         raise HTTPException(status_code=400, detail="Model name must be provided")
     elif request.model != MODEL_NAME:
@@ -479,12 +472,8 @@ async def create_chat_completion(request: ChatCompletionRequest):
             logger.error(f"Failed to load requested model '{request.model}': {e}")
             raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
-            logger.error(
-                f"Unexpected error loading model '{request.model}': {e}", exc_info=True
-            )
-            raise HTTPException(
-                status_code=500, detail=f"Error loading model: {str(e)}"
-            )
+            logger.error(f"Unexpected error loading model '{request.model}': {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Error loading model: {str(e)}")
 
     try:
         # Log request details at DEBUG level (excluding potentially sensitive message content)
@@ -501,7 +490,9 @@ async def create_chat_completion(request: ChatCompletionRequest):
         logger.debug(f"Chat completion request details: {debug_request_summary}")
 
         # Validate cache consistency
-        if not is_cache_valid_for_request(request.messages, request.tools, request.inference_configs):
+        if not is_cache_valid_for_request(
+            request.messages, request.tools, request.inference_configs
+        ):
             logger.info("Current cache is not valid for this request, clearing cache")
             CURRENT_CACHE = None
 
@@ -528,19 +519,13 @@ async def create_chat_completion(request: ChatCompletionRequest):
 
     except Exception as e:
         logger.error(f"Error creating chat completion: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Error creating chat completion: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error creating chat completion: {str(e)}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="LLM Server")
-    parser.add_argument(
-        "--host", type=str, default="127.0.0.1", help="Host to bind the server to"
-    )
-    parser.add_argument(
-        "--port", type=int, default=8000, help="Port to bind the server to"
-    )
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind the server to")
+    parser.add_argument("--port", type=int, default=8000, help="Port to bind the server to")
     parser.add_argument(
         "--model_name",
         type=str,
@@ -574,9 +559,7 @@ def main():
             load_model(MODEL_NAME, load_model_configs)
             # Logger is already configured, level is set
         except ValueError as e:
-            logger.error(
-                f"Failed to load default model '{args.model_name}' from command line: {e}"
-            )
+            logger.error(f"Failed to load default model '{args.model_name}' from command line: {e}")
             # Decide if server should exit or continue without a default model
             sys.exit(f"Error: {e}")
         except Exception as e:

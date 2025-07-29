@@ -3,7 +3,7 @@ Lifecycle manager component for the MCPClientBridge.
 Handles application lifecycle events such as startup, shutdown, and restart.
 """
 
-from typing import Optional
+from typing import Optional, Callable
 import logging
 import asyncio
 import threading
@@ -56,13 +56,13 @@ class LifecycleManager:
 
         try:
             # Clean up bridge first (includes WiFi setup, e-ink, etc.)
-            if self.bridge and hasattr(self.bridge, 'cleanup'):
+            if self.bridge and hasattr(self.bridge, "cleanup"):
                 try:
                     await self.bridge.cleanup()
                     logger.info("Completed bridge cleanup (includes WiFi setup and e-ink)")
                 except Exception as e:
                     logger.error(f"Error during bridge cleanup: {e}", exc_info=True)
-            
+
             # Clean up client if exists
             if mcp_client:
                 try:
@@ -75,10 +75,11 @@ class LifecycleManager:
             self._terminate_dangling_processes()
 
             logger.info("Force quitting application from bridge")
-            
+
             # Try to quit Qt application gracefully first
             try:
                 from PyQt6.QtWidgets import QApplication
+
                 app_instance = QApplication.instance()
                 if app_instance:
                     logger.info("Requesting Qt application quit")
@@ -87,7 +88,7 @@ class LifecycleManager:
                     await asyncio.sleep(0.2)
             except Exception as e:
                 logger.error(f"Error requesting Qt quit: {e}")
-            
+
             # Also stop the asyncio event loop
             try:
                 loop = asyncio.get_running_loop()
@@ -96,11 +97,11 @@ class LifecycleManager:
                     loop.stop()
             except Exception as e:
                 logger.error(f"Error stopping asyncio loop: {e}")
-            
+
             # Use threading for final exit as backup
             threading.Thread(target=self._force_exit, daemon=True).start()
             await asyncio.sleep(0.1)  # Short sleep to let logs flush
-            
+
             # Force exit if Qt quit didn't work
             logger.info("Executing force exit")
             os._exit(0)  # Force immediate exit
@@ -136,9 +137,7 @@ class LifecycleManager:
                         mcp_name in " ".join(child.cmdline()).lower()
                         for mcp_name in ["mcp", "model-control"]
                     ):
-                        logger.info(
-                            f"Terminating process {child.pid}: {' '.join(child.cmdline())}"
-                        )
+                        logger.info(f"Terminating process {child.pid}: {' '.join(child.cmdline())}")
                         if force:
                             # Force kill
                             child.kill()
@@ -149,9 +148,7 @@ class LifecycleManager:
                                 child.wait(timeout=1)
                             except psutil.TimeoutExpired:
                                 # Force kill if it doesn't terminate
-                                logger.info(
-                                    f"Process {child.pid} didn't terminate, force killing"
-                                )
+                                logger.info(f"Process {child.pid} didn't terminate, force killing")
                                 child.kill()
                 except (
                     psutil.NoSuchProcess,
@@ -163,16 +160,14 @@ class LifecycleManager:
                 except Exception as e:
                     logger.error(f"Error terminating process {child.pid}: {e}")
         except Exception as e:
-            logger.error(
-                f"Error finding/terminating dangling processes: {e}", exc_info=True
-            )
+            logger.error(f"Error finding/terminating dangling processes: {e}", exc_info=True)
 
     async def restart_application(
         self,
         is_connected: "property",
         mcp_client: Optional[MCPClient],
-        disconnect_func: callable,
-        connect_server_func: callable,
+        disconnect_func: Callable,
+        connect_server_func: Callable,
     ) -> None:
         """
         Restart the application without completely shutting down.
@@ -259,7 +254,7 @@ class LifecycleManager:
             logger.error(f"Error during application restart: {e}", exc_info=True)
             self.status_manager.update_status(StatusManager.STATUS_ERROR)
 
-    async def initialize_bridge(self, server_discovery_func: callable) -> bool:
+    async def initialize_bridge(self, server_discovery_func: Callable) -> bool:
         """
         Initialize the bridge components.
 

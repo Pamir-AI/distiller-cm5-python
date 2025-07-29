@@ -80,9 +80,7 @@ class ErrorHandler:
             log_with_traceback = False
         elif isinstance(error, LogOnlyError):
             # LogOnlyError should be logged with details but shown with generic message
-            error_msg = (
-                user_friendly_msg or f"{error_context} failed. See logs for details."
-            )
+            error_msg = user_friendly_msg or f"{error_context} failed. See logs for details."
             log_with_traceback = True
         elif isinstance(error, TimeoutError) or isinstance(error, asyncio.TimeoutError):
             error_msg = (

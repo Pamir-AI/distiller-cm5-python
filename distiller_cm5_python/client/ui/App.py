@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 # quick display check
-if not sys.platform.startswith('linux'):
+if not sys.platform.startswith("linux"):
     config["display"]["eink_enabled"] = False
 
 
@@ -33,12 +33,10 @@ if config["display"]["eink_enabled"]:
 
 class App(QObject):  # Inherit from QObject to support signals/slots
     # --- Signals ---
-    transcriptionUpdate = pyqtSignal(str, arguments=["transcription"])
-    transcriptionComplete = pyqtSignal(str, arguments=["full_text"])
-    recordingStateChanged = pyqtSignal(bool, arguments=["is_recording"])
-    recordingError = pyqtSignal(
-        str, arguments=["error_message"]
-    )  # New signal for errors
+    transcriptionUpdate = pyqtSignal(str)
+    transcriptionComplete = pyqtSignal(str)
+    recordingStateChanged = pyqtSignal(bool)
+    recordingError = pyqtSignal(str)  # New signal for errors
     # --- End Signals ---
 
     def __init__(self):
@@ -171,7 +169,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             self.main_window = root_objects[0]  # Assign main_window HERE
             logger.info(f"QML loaded successfully. Main window: {self.main_window}")
 
-        if config["display"]["eink_enabled"] and sys.platform.startswith('linux'):
+        if config["display"]["eink_enabled"] and sys.platform.startswith("linux"):
             # Apply fixed size constraints to the root window after loading
             self._apply_window_constraints()
             # E-Ink Initialization Call
@@ -244,7 +242,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
                 self.eink_renderer.cleanup()
                 logger.info("E-Ink renderer cleaned up.")
                 self.eink_renderer = None
-            
+
             self._eink_initialized = False
         except Exception as e:
             logger.error(f"Error during E-Ink cleanup: {e}", exc_info=True)
@@ -265,13 +263,12 @@ class App(QObject):  # Inherit from QObject to support signals/slots
                 self.bridge.shutdown()
 
             # E-Ink Cleanup
-            if config.get("display").get("eink_enabled"):
+            display_config = config.get("display")
+            if display_config and display_config.get("eink_enabled"):
                 self._cleanup_eink()
 
         except Exception as e:
-            logger.error(
-                f"Error during bridge shutdown notification: {e}", exc_info=True
-            )
+            logger.error(f"Error during bridge shutdown notification: {e}", exc_info=True)
 
         # Start the full cleanup
         await self._cleanup()
@@ -288,14 +285,6 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         logger.info("Performing application cleanup")
 
         try:
-            # Signal application shutdown via UART
-            try:
-                from distiller_cm5_python.utils.uart_utils import signal_app_shutdown
-                signal_app_shutdown()
-                logger.info("Sent shutdown signal to UART device from App cleanup")
-            except Exception as e:
-                logger.error(f"Failed to send shutdown signal to UART: {e}")
-            
             self.input_monitor.stop()
 
             # Clean up the bridge
@@ -315,11 +304,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             self.executor.shutdown(wait=False)
 
             # Cancel all running tasks
-            tasks = [
-                t
-                for t in asyncio.all_tasks(self.loop)
-                if t is not asyncio.current_task()
-            ]
+            tasks = [t for t in asyncio.all_tasks(self.loop) if t is not asyncio.current_task()]
             if tasks:
                 logger.info(f"Cancelling {len(tasks)} pending tasks")
                 for task in tasks:
@@ -381,7 +366,8 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             self.loop.stop()
 
         # Clean up the E-Ink renderer if it exists
-        if config.get("display").get("eink_enabled"):
+        display_config = config.get("display")
+        if display_config and display_config.get("eink_enabled"):
             self._cleanup_eink()
 
         # Disconnect SAM
@@ -398,21 +384,24 @@ class App(QObject):  # Inherit from QObject to support signals/slots
     def _set_display_dimensions(self):
         """Set display dimensions from the config file as context properties for QML."""
         # Get width and height from config or use defaults
-        width = int(config.get("display").get("width") or 240)
-        height = int(config.get("display").get("height") or 416)
+        display_config = config.get("display")
+        width = int((display_config.get("width") if display_config else None) or 240)
+        height = int((display_config.get("height") if display_config else None) or 416)
 
         # Set as context properties for QML
         rc = self.engine.rootContext()
-        rc.setContextProperty("configWidth", width)
-        rc.setContextProperty("configHeight", height)
+        if rc:
+            rc.setContextProperty("configWidth", width)
+            rc.setContextProperty("configHeight", height)
 
         logger.info(f"Set display dimensions from config: {width}x{height}")
 
     def _apply_window_constraints(self):
         """Apply fixed size constraints to the main window after QML is loaded."""
         # Get display dimensions from config
-        width = int(config.get("display").get("width") or 240)
-        height = int(config.get("display").get("height") or 416)
+        display_config = config.get("display")
+        width = int((display_config.get("width") if display_config else None) or 240)
+        height = int((display_config.get("height") if display_config else None) or 416)
 
         # Find the root window object - use self.main_window if already assigned
         main_window = self.main_window
@@ -451,53 +440,57 @@ class App(QObject):  # Inherit from QObject to support signals/slots
     # E-Ink Methods
     def _init_eink_renderer(self):
         """Initialize the simplified E-Ink renderer."""
-        if not config.get("display").get("eink_enabled"):
+        display_config = config.get("display")
+        if not (display_config and display_config.get("eink_enabled")):
             logger.warning("E-Ink display mode disabled in configuration")
             return False
 
         logger.info("E-Ink display mode enabled")
-        
+
         try:
+            # Import EInkRenderer dynamically to avoid unbound variable issues
+            from distiller_cm5_python.client.ui.bridge.EInkRenderer import EInkRenderer
+            
             # Create the E-Ink renderer
             self.eink_renderer = EInkRenderer(parent=self.app)
-            
+
             # Initialize the hardware
             if not self.eink_renderer.initialize():
                 logger.error("Failed to initialize E-Ink renderer")
                 self.eink_renderer = None
                 return False
-            
+
             # Set the target window for rendering
             if self.main_window:
                 self.eink_renderer.set_target_window(self.main_window)
             else:
                 logger.warning("Main window not available for E-Ink rendering")
-            
+
             # Start rendering
             if not self.eink_renderer.start():
                 logger.error("Failed to start E-Ink renderer")
                 self.eink_renderer.cleanup()
                 self.eink_renderer = None
                 return False
-            
+
             # Register the renderer with the bridge for text streaming notifications
-            if hasattr(self.bridge, 'set_eink_renderer'):
+            if hasattr(self.bridge, "set_eink_renderer"):
                 self.bridge.set_eink_renderer(self.eink_renderer)
-            
+
             # Get config for logging
             capture_interval = config["display"]["eink_refresh_interval"]
             adaptive_capture = config["display"]["eink_adaptive_capture"]
             threshold = config["display"]["eink_threshold"]
             gamma_value = config["display"]["eink_bw_conversion"]["gamma_value"]
-            
+
             logger.info(
                 f"EInkRenderer initialized with {capture_interval}ms interval, "
                 f"adaptive_capture={'enabled' if adaptive_capture else 'disabled'}, "
                 f"threshold={threshold}, gamma={gamma_value}"
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Error initializing E-Ink renderer: {e}", exc_info=True)
             if self.eink_renderer:
@@ -514,14 +507,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         """Emergency exit handler registered with atexit.
         This ensures we exit even if all other mechanisms fail."""
         logger.warning("Emergency exit handler called - forcing process exit")
-        try:
-            # Signal application shutdown via UART
-            from distiller_cm5_python.utils.uart_utils import signal_app_shutdown
-            signal_app_shutdown()
-            logger.info("Sent emergency shutdown signal to UART device")
-        except Exception as e:
-            logger.error(f"Failed to send emergency shutdown signal to UART: {e}")
-            
+
         try:
             # Disconnect SAM if possible
             if self.sam:
@@ -586,14 +572,10 @@ class App(QObject):  # Inherit from QObject to support signals/slots
         logger.info("Scheduling transcription...")
         # Run transcription in a separate thread to avoid blocking UI
         if self._transcription_task and not self._transcription_task.done():
-            logger.warning(
-                "Previous transcription task still running. Skipping new one."
-            )
+            logger.warning("Previous transcription task still running. Skipping new one.")
             return
 
-        self._transcription_task = asyncio.create_task(
-            self._transcribe_audio_async(audio_data)
-        )
+        self._transcription_task = asyncio.create_task(self._transcribe_audio_async(audio_data))
 
     async def _transcribe_audio_async(self, audio_data):
         """Run transcription in a separate thread and emit signals."""
@@ -622,14 +604,10 @@ class App(QObject):  # Inherit from QObject to support signals/slots
 
         except Exception as e:
             logger.error(f"Error during transcription: {e}", exc_info=True)
-            self.recordingError.emit(
-                "[Transcription Error]"
-            )  # Use the new error signal
+            self.recordingError.emit("[Transcription Error]")  # Use the new error signal
             # Also forward to the bridge if it exists
             if hasattr(self, "bridge") and self.bridge:
-                self.bridge.recordingError.emit(
-                    "[Transcription Error]"
-                )  # Forward error signal
+                self.bridge.recordingError.emit("[Transcription Error]")  # Forward error signal
         finally:
             self._transcription_task = None  # Clear task handle
 
@@ -641,9 +619,7 @@ class App(QObject):  # Inherit from QObject to support signals/slots
             logger.debug("QML triggered E-Ink update")
             self.eink_renderer.force_update()
         else:
-            logger.warning(
-                "Attempted to trigger E-Ink update, but renderer is not ready."
-            )
+            logger.warning("Attempted to trigger E-Ink update, but renderer is not ready.")
 
 
 if __name__ == "__main__":

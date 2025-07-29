@@ -18,13 +18,13 @@ from mcp.types import Resource, Prompt, PromptArgument, TextContent, PromptMessa
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 # Create MCP server instance
 server = Server("MedicalAssistant")
+
 
 # Medical assistant prompts
 @server.list_prompts()
@@ -32,16 +32,15 @@ async def list_prompts() -> list[Prompt]:
     """List available medical assistant prompts."""
     return [
         Prompt(
-            name="patient_education",
-            description="Patient education assistant prompt",
-            arguments=[]
+            name="patient_education", description="Patient education assistant prompt", arguments=[]
         )
     ]
+
 
 @server.get_prompt()
 async def get_prompt(name: str, arguments: dict = {}) -> PromptMessage:
     """Get a specific medical assistant prompt."""
-    
+
     if name == "patient_education":
         return PromptMessage(
             role="system",
@@ -54,12 +53,13 @@ async def get_prompt(name: str, arguments: dict = {}) -> PromptMessage:
 - Offer practical health management tips
 - Create easy-to-follow care instructions
 
-Always encourage patients to discuss questions with their healthcare providers. /no_think"""
-            )
+Always encourage patients to discuss questions with their healthcare providers. /no_think""",
+            ),
         )
-    
+
     else:
         raise ValueError(f"Unknown prompt: {name}")
+
 
 async def run():
     """Run the MCP server."""
@@ -81,16 +81,17 @@ async def run():
                                 "temperature": 0.3,
                                 "max_tokens": 4096,
                                 "top_p": 0.9,
-                                "repetition_penalty": 1.1
-                            }
+                                "repetition_penalty": 1.1,
+                            },
                         }
                     },
-                )
-            )
+                ),
+            ),
         )
+
 
 if __name__ == "__main__":
     try:
         asyncio.run(run())
     except KeyboardInterrupt:
-        logger.info("Medical Assistant Server stopped by user.") 
+        logger.info("Medical Assistant Server stopped by user.")

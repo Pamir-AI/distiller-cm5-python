@@ -34,9 +34,7 @@ def extract_server_name(server_script_path: str) -> str:
             if match:
                 extracted_name = match.group(1).strip()
                 if extracted_name:
-                    logger.debug(
-                        f"Extracted server name from script constant: {extracted_name}"
-                    )
+                    logger.debug(f"Extracted server name from script constant: {extracted_name}")
                     return extracted_name
     except Exception as e:
         logger.warning(f"Failed to read server script for name extraction: {e}")

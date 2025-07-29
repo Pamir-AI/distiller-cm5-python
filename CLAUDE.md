@@ -23,6 +23,7 @@ The Distiller CM5 Python project is a comprehensive AI assistant application for
 **Utilities (`distiller_cm5_python/utils/`):**
 - Configuration management, logging, hardware interfaces (UART, server utilities)
 - Default configuration in `default_config.json`
+- Battery and specialized hardware config in TOML format
 
 **Hardware Integration:**
 - Audio processing using faster_whisper and pyaudio
@@ -55,6 +56,9 @@ The Distiller CM5 Python project is a comprehensive AI assistant application for
 
 # Alternative: Quick setup with uv
 uv sync
+
+# Note: For full hardware functionality, also install distiller-cm5-sdk
+# See: https://github.com/Pamir-AI/distiller-cm5-sdk/tree/debian
 ```
 
 ### Running the Application
@@ -91,16 +95,24 @@ python distiller_cm5_python/utils/uart_utils.py
 ./build-deb.sh clean
 
 # Lint code (ruff configured in pyproject.toml)
+uv run ruff check distiller_cm5_python/
+# Alternative if not using uv
 ruff check distiller_cm5_python/
+
+# Type checking (if pyright is available)
+uv run pyright distiller_cm5_python/
+
+# Build distribution package
+uv build
 ```
 
 ## Configuration
 
 ### Configuration Format
-The application now uses **TOML configuration files** for better readability and maintainability. All configuration files have been migrated from JSON/Python to TOML format.
+The application uses **JSON configuration files** for primary configuration, with some specialized components using TOML format. The main configuration is managed through JSON for compatibility.
 
 ### Primary Configuration
-Configuration is managed through `distiller_cm5_python/utils/default_config.toml`:
+Configuration is managed through `distiller_cm5_python/utils/default_config.json`:
 
 **LLM Providers:**
 - `llama-cpp`: Local server configuration with model path and parameters
@@ -115,20 +127,24 @@ Configuration is managed through `distiller_cm5_python/utils/default_config.toml
 
 ### Configuration Files
 
-**Main Application Config:** `distiller_cm5_python/utils/default_config.toml`
-```toml
-[llm_providers.llama-cpp]
-server_url = "http://127.0.0.1:8000"
-model_name = "qwen2.5-3b-instruct-q4_k_m.gguf"
-temperature = 0.7
-# ... other settings
-
-[application]
-active_llm_provider = "llama-cpp"
-
-[logging]
-level = "INFO"
-file_enabled = false
+**Main Application Config:** `distiller_cm5_python/utils/default_config.json`
+```json
+{
+  "llm_providers": {
+    "llama-cpp": {
+      "server_url": "http://127.0.0.1:8000",
+      "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "temperature": 0.7,
+      "n_ctx": 32768,
+      "max_tokens": 4096
+    }
+  },
+  "active_llm_provider": "llama-cpp",
+  "logging": {
+    "level": "INFO",
+    "file_enabled": false
+  }
+}
 ```
 
 **Battery Configuration:** `distiller_cm5_python/utils/battery_config.toml`
@@ -147,26 +163,11 @@ warning = "#FFAA00"       # Yellow - warning
 good = "#00AA00"          # Green - good
 ```
 
-**Display Configuration:** `distiller_cm5_python/client/ui/display_config.toml`
-```toml
-[display]
-eink_enabled = false
-width = 240
-height = 416
-eink_refresh_interval = 1000
-
-[display.ui]
-dark_mode = false
-show_system_stats = true
-
-[display.ui.font]
-primary_font = "fonts/MartianMonoNerdFont-CondensedBold.ttf"
-size_normal = 14
-```
+**Display Configuration:** Battery and display settings are managed through TOML configuration files for specialized hardware components.
 
 ### Model Configuration
 To switch models:
-1. Update `model_name` in the `[llm_providers.llama-cpp]` section of `default_config.toml`
+1. Update `model_name` in the `llm_providers.llama-cpp` section of `default_config.json`
 2. Ensure model file exists in `distiller_cm5_python/llm_server/models/`
 3. Model must be in GGUF format
 
@@ -187,9 +188,9 @@ Hardware components are configured through TOML files:
 
 ### Configuration Loading
 The application uses a centralized configuration loading system:
-- **Automatic fallbacks**: If TOML files are missing, defaults are used
+- **Automatic fallbacks**: If config files are missing, defaults are used
 - **Environment overrides**: Environment variables can override config values
-- **Legacy support**: Existing JSON config files are still supported for user overrides
+- **Mixed format support**: JSON for primary config, TOML for specialized hardware components
 
 ## Common Development Tasks
 
@@ -236,7 +237,7 @@ The application uses a centralized configuration loading system:
 - **Development**: Compatible with x86_64 Linux
 - **Python**: 3.11+ required (supports 3.11, 3.12, 3.13)
 - **Hardware**: Optional hardware gracefully handled when unavailable
-- **Package Manager**: uv preferred for dependency management
+- **Package Manager**: uv preferred for dependency management, configured for aarch64 platform preference
 
 ## Error Handling Patterns
 

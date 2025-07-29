@@ -119,9 +119,7 @@ class ConnectionManager:
         logger.info(f"Setting server path: {server_path}")
         self._selected_server_path = server_path
 
-    async def connect_to_selected_server(
-        self, server_name: Optional[str] = None
-    ) -> bool:
+    async def connect_to_selected_server(self, server_name: Optional[str] = None) -> bool:
         """
         Connect to the selected server asynchronously.
 
@@ -151,9 +149,7 @@ class ConnectionManager:
 
             # Use existing client or wait for it to be set
             if not self._mcp_client:
-                error = RuntimeError(
-                    "MCPClient not initialized. This is likely a setup issue."
-                )
+                error = RuntimeError("MCPClient not initialized. This is likely a setup issue.")
                 self.error_handler.handle_error(
                     error,
                     error_context="Server connection",
@@ -163,9 +159,7 @@ class ConnectionManager:
 
             # Connect to server with explicit timeout
             try:
-                connect_task = self._mcp_client.connect_to_server(
-                    self._selected_server_path
-                )
+                connect_task = self._mcp_client.connect_to_server(self._selected_server_path)
                 connected = await asyncio.wait_for(connect_task, timeout=TIMEOUT)
             except asyncio.TimeoutError as e:
                 error_msg = f"Connection to {server_name} timed out after {TIMEOUT} seconds. Server may be busy or unavailable."
@@ -181,18 +175,14 @@ class ConnectionManager:
                 error = ConnectionError(
                     f"Failed to establish connection with {server_name} server. Check server status and configuration."
                 )
-                self.error_handler.handle_error(
-                    error, error_context="Server connection"
-                )
+                self.error_handler.handle_error(error, error_context="Server connection")
 
                 # Clean up after connection failure
                 await self._cleanup_after_connection_failure()
                 return False
 
             self._update_connection_state(True)
-            server_display_name = (
-                getattr(self._mcp_client, "server_name", None) or server_name
-            )
+            server_display_name = getattr(self._mcp_client, "server_name", None) or server_name
             self.status_manager.update_status(
                 StatusManager.STATUS_CONNECTED, server_name=server_display_name
             )
@@ -221,9 +211,7 @@ class ConnectionManager:
             try:
                 await self._mcp_client.cleanup()
             except Exception as cleanup_e:
-                logger.error(
-                    f"Error cleaning up client after connection failure: {cleanup_e}"
-                )
+                logger.error(f"Error cleaning up client after connection failure: {cleanup_e}")
             finally:
                 # Reset the client reference and connection state
                 self._mcp_client = None
@@ -276,10 +264,7 @@ class ConnectionManager:
             List of server info dictionaries
         """
         current_time = time.time()
-        if (
-            current_time - self._last_server_discovery_time
-            < self._server_discovery_cache_timeout
-        ):
+        if current_time - self._last_server_discovery_time < self._server_discovery_cache_timeout:
             logger.info("Using cached server discovery results")
             return self.server_discovery.available_servers
 

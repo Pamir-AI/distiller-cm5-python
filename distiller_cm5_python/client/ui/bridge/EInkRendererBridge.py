@@ -23,7 +23,7 @@ class EInkRendererBridge(QObject):
     Bridge between EInkRenderer and the e-ink display driver.
     Handles format conversion, dithering, and proper e-ink initialization sequence.
     """
-    
+
     # Signal emitted when the e-ink display completes a refresh
     displayComplete = pyqtSignal()
 
@@ -40,9 +40,7 @@ class EInkRendererBridge(QObject):
 
         # Threshold configuration
         self._threshold = config["display"].get("eink_threshold", 128)
-        self._threshold = max(
-            0, min(255, self._threshold)
-        )  # Ensure it's in valid range
+        self._threshold = max(0, min(255, self._threshold))  # Ensure it's in valid range
 
         # Initialization
         self._init_timer = QTimer()
@@ -58,12 +56,12 @@ class EInkRendererBridge(QObject):
         logger.info(
             f"E-Ink display will do full refresh every {self._full_refresh_interval} frames"
         )
-    
+
     def _on_driver_complete(self):
         """Called by the driver when display refresh completes."""
         # Emit the Qt signal - this will be thread-safe as Qt handles cross-thread signals
         self.displayComplete.emit()
-    
+
     def _on_display_complete(self):
         """Handler for display completion signal from renderer."""
         # This method will be implemented in EInkRenderer to trigger next capture
@@ -81,7 +79,7 @@ class EInkRendererBridge(QObject):
                 # Initialize the driver
                 flip_screen = config["display"].get("flip_screen", False)
                 self.eink_driver = EinkDriver(flip_screen=flip_screen)
-                
+
                 # Hook up the completion callback to emit our Qt signal
                 self.eink_driver.set_completion_callback(self._on_driver_complete)
 
@@ -92,9 +90,7 @@ class EInkRendererBridge(QObject):
                     logger.warning(f"E-Ink hardware initialization issue: {hw_err}")
 
                 # Start a timer to complete initialization after hardware is ready
-                self._init_timer.start(
-                    100
-                )  # 100ms delay before completing initialization
+                self._init_timer.start(100)  # 100ms delay before completing initialization
 
             return True
         except Exception as e:
@@ -122,9 +118,7 @@ class EInkRendererBridge(QObject):
         except Exception as e:
             logger.error(f"Error in delayed e-ink initialization: {e}")
 
-    def set_dithering(
-        self, enabled: bool, method: int = DitheringMethod.FLOYD_STEINBERG.value
-    ):
+    def set_dithering(self, enabled: bool, method: int = DitheringMethod.FLOYD_STEINBERG.value):
         """
         Enable or disable dithering
 
@@ -136,16 +130,12 @@ class EInkRendererBridge(QObject):
         try:
             self._dithering_method = DitheringMethod(method)
         except ValueError:
-            logger.warning(
-                f"Invalid dithering method {method}, defaulting to Floyd-Steinberg"
-            )
+            logger.warning(f"Invalid dithering method {method}, defaulting to Floyd-Steinberg")
             self._dithering_method = DitheringMethod.FLOYD_STEINBERG
 
         # Get threshold value from config
         self._threshold = config["display"].get("eink_threshold", 128)
-        self._threshold = max(
-            0, min(255, self._threshold)
-        )  # Ensure it's in valid range
+        self._threshold = max(0, min(255, self._threshold))  # Ensure it's in valid range
 
         logger.info(
             f"Dithering {'enabled' if enabled else 'disabled'}, method: {self._dithering_method.name}, threshold: {self._threshold}"
@@ -175,8 +165,9 @@ class EInkRendererBridge(QObject):
 
                 # Send the data to the display
                 try:
-                    self.eink_driver.pic_display(display_data)
-                    # if config["display"]["Full_Refresh_LUT_MODE"]: 
+                    if self.eink_driver:
+                        self.eink_driver.pic_display(display_data)
+                    # if config["display"]["Full_Refresh_LUT_MODE"]:
                     #     time.sleep(1.3)
                 except Exception as e:
                     logger.error(f"Error displaying frame: {e}")
@@ -187,6 +178,10 @@ class EInkRendererBridge(QObject):
 
     def _apply_refresh_strategy(self):
         """Apply the appropriate refresh strategy based on frame count"""
+        if not self.eink_driver:
+            logger.debug("E-ink driver not available, skipping refresh strategy")
+            return
+            
         if self._first_frame:
             # First frame after initialization - already in fast mode
             self._first_frame = False
@@ -218,9 +213,7 @@ class EInkRendererBridge(QObject):
             except Exception as e:
                 logger.error(f"Failed to recover driver: {e}")
 
-    def frame_to_eink_data(
-        self, frame_data: bytearray, width: int, height: int
-    ) -> bytes:
+    def frame_to_eink_data(self, frame_data: bytearray, width: int, height: int) -> list[int]:
         """
         Convert frame data directly to e-ink display format.
 
@@ -234,14 +227,14 @@ class EInkRendererBridge(QObject):
         """
         # Calculate expected size: SDK expects (width * height) // 8 bytes
         expected_size = (width * height) // 8
-        
-        logger.debug(f"Converting frame data: got {len(frame_data)} bytes, expected {expected_size}")
+
+        logger.debug(
+            f"Converting frame data: got {len(frame_data)} bytes, expected {expected_size}"
+        )
 
         # Ensure we have the expected amount of data
         if len(frame_data) != expected_size:
-            logger.warning(
-                f"Data size mismatch. Got {len(frame_data)}, expected {expected_size}"
-            )
+            logger.warning(f"Data size mismatch. Got {len(frame_data)}, expected {expected_size}")
             if len(frame_data) < expected_size:
                 frame_data = frame_data + bytearray(expected_size - len(frame_data))
             else:
@@ -257,9 +250,9 @@ class EInkRendererBridge(QObject):
             try:
                 with self.driver_lock:
                     # Clear the display before shutting down
-                    
+
                     self.eink_driver.pic_display_clear(poweroff=True)
-                    # if config["display"]["Full_Refresh_LUT_MODE"]: 
+                    # if config["display"]["Full_Refresh_LUT_MODE"]:
                     #     time.sleep(1.3)
                     self.eink_driver.cleanup()
                     logger.info("E-ink display cleaned up")
@@ -333,9 +326,7 @@ try:
         return pixels
 
     @jit(nopython=True, cache=True)
-    def _numba_ordered_dithering(
-        pixels: np.ndarray, threshold_base: int = 128
-    ) -> np.ndarray:
+    def _numba_ordered_dithering(pixels: np.ndarray, threshold_base: int = 128) -> np.ndarray:
         """Apply ordered dithering to an image."""
         # Define 8x8 Bayer matrix for ordered dithering - scaled by threshold_base/128
         # This adjusts the dithering pattern based on the threshold value
@@ -432,9 +423,7 @@ except ImportError:
 
         return pixels
 
-    def _numba_ordered_dithering(
-        pixels: np.ndarray, threshold_base: int = 128
-    ) -> np.ndarray:
+    def _numba_ordered_dithering(pixels: np.ndarray, threshold_base: int = 128) -> np.ndarray:
         """Standard Python implementation of ordered dithering"""
         # Define 8x8 Bayer matrix for ordered dithering - scaled by threshold_base/128
         # This adjusts the dithering pattern based on the threshold value

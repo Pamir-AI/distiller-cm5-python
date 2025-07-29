@@ -1,13 +1,6 @@
 version = 1
 revision = 2
 requires-python = ">=3.11"
-resolution-markers = [
-    "platform_machine != 'aarch64'",
-    "platform_machine == 'aarch64'",
-]
-required-markers = [
-    "platform_machine == 'aarch64'",
-]
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -429,8 +422,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "lgpio" },
     { name = "llama-cpp-python" },
-    { name = "mcp", version = "1.10.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'aarch64'" },
-    { name = "mcp", version = "1.11.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'aarch64'" },
+    { name = "mcp" },
     { name = "nest-asyncio" },
     { name = "numba" },
     { name = "numpy" },
@@ -442,6 +434,7 @@ dependencies = [
     { name = "pyqt6" },
     { name = "pyserial" },
     { name = "qasync" },
+    { name = "qrcode" },
     { name = "requests" },
     { name = "sherpa-onnx" },
     { name = "sounddevice" },
@@ -464,7 +457,7 @@ requires-dist = [
     { name = "flask", specifier = ">=3.0.0" },
     { name = "jinja2", specifier = ">=3.0.0" },
     { name = "lgpio", specifier = "==0.2.2" },
-    { name = "llama-cpp-python", specifier = ">=0.3.2" },
+    { name = "llama-cpp-python", specifier = ">=0.3.14" },
     { name = "mcp", specifier = "<=1.12" },
     { name = "nest-asyncio", specifier = ">=1.6" },
     { name = "numba", specifier = ">=0.61.2" },
@@ -477,6 +470,7 @@ requires-dist = [
     { name = "pyqt6", specifier = "<6.8" },
     { name = "pyserial", specifier = ">=3.5" },
     { name = "qasync", specifier = ">=0.27.1" },
+    { name = "qrcode", specifier = ">=7.4.2" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "sherpa-onnx", specifier = ">=1.12.6" },
     { name = "sounddevice", specifier = ">=0.5.2" },
@@ -586,8 +580,7 @@ dependencies = [
     { name = "cyclopts" },
     { name = "exceptiongroup" },
     { name = "httpx" },
-    { name = "mcp", version = "1.10.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'aarch64'" },
-    { name = "mcp", version = "1.11.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'aarch64'" },
+    { name = "mcp" },
     { name = "openapi-pydantic" },
     { name = "pydantic", extra = ["email"] },
     { name = "pyperclip" },
@@ -894,7 +887,7 @@ wheels = [
 
 [[package]]
 name = "llama-cpp-python"
-version = "0.3.2"
+version = "0.3.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "diskcache" },
@@ -902,7 +895,7 @@ dependencies = [
     { name = "numpy" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/0e/ff129005a33b955088fc7e4ecb57e5500b604fb97eca55ce8688dbe59680/llama_cpp_python-0.3.2.tar.gz", hash = "sha256:8fbf246a55a999f45015ed0d48f91b4ae04ae959827fac1cd6ac6ec65aed2e2f", size = 64964148, upload-time = "2024-11-16T00:57:27.543Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/ac/9d0c433b850ec32860c677d09a077e7e9a332c1dbe1443db5acc9d47d162/llama_cpp_python-0.3.14.tar.gz", hash = "sha256:c7ffd71685923a911206a40e972c1ec739aa21032100fdc8618316571b173507", size = 50972897, upload-time = "2025-07-18T16:48:52.329Z" }
 
 [[package]]
 name = "llvmlite"
@@ -989,47 +982,20 @@ wheels = [
 
 [[package]]
 name = "mcp"
-version = "1.10.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "platform_machine == 'aarch64'",
-]
-dependencies = [
-    { name = "anyio", marker = "platform_machine == 'aarch64'" },
-    { name = "httpx", marker = "platform_machine == 'aarch64'" },
-    { name = "httpx-sse", marker = "platform_machine == 'aarch64'" },
-    { name = "jsonschema", marker = "platform_machine == 'aarch64'" },
-    { name = "pydantic", marker = "platform_machine == 'aarch64'" },
-    { name = "pydantic-settings", marker = "platform_machine == 'aarch64'" },
-    { name = "python-multipart", marker = "platform_machine == 'aarch64'" },
-    { name = "sse-starlette", marker = "platform_machine == 'aarch64'" },
-    { name = "starlette", marker = "platform_machine == 'aarch64'" },
-    { name = "uvicorn", marker = "platform_machine == 'aarch64' and sys_platform != 'emscripten'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7c/68/63045305f29ff680a9cd5be360c755270109e6b76f696ea6824547ddbc30/mcp-1.10.1.tar.gz", hash = "sha256:aaa0957d8307feeff180da2d9d359f2b801f35c0c67f1882136239055ef034c2", size = 392969, upload-time = "2025-06-27T12:03:08.982Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/3f/435a5b3d10ae242a9d6c2b33175551173c3c61fe637dc893be05c4ed0aaf/mcp-1.10.1-py3-none-any.whl", hash = "sha256:4d08301aefe906dce0fa482289db55ce1db831e3e67212e65b5e23ad8454b3c5", size = 150878, upload-time = "2025-06-27T12:03:07.328Z" },
-]
-
-[[package]]
-name = "mcp"
 version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "platform_machine != 'aarch64'",
-]
 dependencies = [
-    { name = "anyio", marker = "platform_machine != 'aarch64'" },
-    { name = "httpx", marker = "platform_machine != 'aarch64'" },
-    { name = "httpx-sse", marker = "platform_machine != 'aarch64'" },
-    { name = "jsonschema", marker = "platform_machine != 'aarch64'" },
-    { name = "pydantic", marker = "platform_machine != 'aarch64'" },
-    { name = "pydantic-settings", marker = "platform_machine != 'aarch64'" },
-    { name = "python-multipart", marker = "platform_machine != 'aarch64'" },
-    { name = "pywin32", marker = "platform_machine != 'aarch64' and sys_platform == 'win32'" },
-    { name = "sse-starlette", marker = "platform_machine != 'aarch64'" },
-    { name = "starlette", marker = "platform_machine != 'aarch64'" },
-    { name = "uvicorn", marker = "platform_machine != 'aarch64' and sys_platform != 'emscripten'" },
+    { name = "anyio" },
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "jsonschema" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-multipart" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
+    { name = "sse-starlette" },
+    { name = "starlette" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3a/f5/9506eb5578d5bbe9819ee8ba3198d0ad0e2fbe3bab8b257e4131ceb7dfb6/mcp-1.11.0.tar.gz", hash = "sha256:49a213df56bb9472ff83b3132a4825f5c8f5b120a90246f08b0dac6bedac44c8", size = 406907, upload-time = "2025-07-10T16:41:09.388Z" }
 wheels = [
@@ -1756,6 +1722,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/1c/e0/7c7c973f52e1765d6ddfc41e9272294f65d5d52b8f5f5eae92adf411ad46/qasync-0.27.1.tar.gz", hash = "sha256:8dc768fd1ee5de1044c7c305eccf2d39d24d87803ea71189d4024fb475f4985f", size = 14287, upload-time = "2023-11-19T14:19:55.535Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/51/06/bc628aa2981bcfd452a08ee435b812fd3eee4ada8acb8a76c4a09d1a5a77/qasync-0.27.1-py3-none-any.whl", hash = "sha256:5d57335723bc7d9b328dadd8cb2ed7978640e4bf2da184889ce50ee3ad2602c7", size = 14866, upload-time = "2023-11-19T14:19:54.345Z" },
+]
+
+[[package]]
+name = "qrcode"
+version = "8.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/b2/7fc2931bfae0af02d5f53b174e9cf701adbb35f39d69c2af63d4a39f81a9/qrcode-8.2.tar.gz", hash = "sha256:35c3f2a4172b33136ab9f6b3ef1c00260dd2f66f858f24d88418a015f446506c", size = 43317, upload-time = "2025-05-01T15:44:24.726Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dd/b8/d2d6d731733f51684bbf76bf34dab3b70a9148e8f2cef2bb544fccec681a/qrcode-8.2-py3-none-any.whl", hash = "sha256:16e64e0716c14960108e85d853062c9e8bba5ca8252c0b4d0231b9df4060ff4f", size = 45986, upload-time = "2025-05-01T15:44:22.781Z" },
 ]
 
 [[package]]

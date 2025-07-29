@@ -4,6 +4,7 @@
 # UART device for power management and system communication
 # Owned by distiller user with read/write permissions
 KERNEL=="pamir-sam", OWNER="distiller", GROUP="distiller", MODE="0660"
+KERNEL=="serial[0-9]*", OWNER="distiller", GROUP="dialout", MODE="0660"
 
 # GPIO character devices for LED and hardware control
 SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"

@@ -14,7 +14,7 @@ import subprocess
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
-from zeroconf import ServiceInfo, Zeroconf, IPVersion
+from zeroconf import ServiceInfo, Zeroconf, IPVersion, ServiceListener
 from zeroconf.asyncio import AsyncZeroconf
 import threading
 import time
@@ -26,9 +26,7 @@ logger = logging.getLogger(__name__)
 class DeviceConfigManager:
     """Manages device configuration and identity"""
 
-    def __init__(
-        self, config_dir: str = "/etc/distiller", service_name: str = "distiller-wifi"
-    ):
+    def __init__(self, config_dir: str = "/etc/distiller", service_name: str = "distiller-wifi"):
         self.config_dir = Path(config_dir)
         self.config_file = self.config_dir / "device-config.json"
         self.service_name = service_name
@@ -48,40 +46,46 @@ class DeviceConfigManager:
     def _should_use_sudo(self) -> bool:
         """Determine if we should use sudo for privileged commands"""
         # Use sudo if we're running as the 'distiller' user
-        current_user = os.getenv('USER') or os.getenv('USERNAME') or 'unknown'
-        return current_user == 'distiller'
+        current_user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
+        return current_user == "distiller"
 
     def _build_command(self, base_cmd: list[str]) -> list[str]:
         """Build command with sudo prefix if needed for privileged operations"""
-        privileged_commands = {'hostname', 'systemctl', 'ip', 'nmcli'}
-        
+        privileged_commands = {"hostname", "systemctl", "ip", "nmcli"}
+
         if self._use_sudo and base_cmd and base_cmd[0] in privileged_commands:
-            return ['sudo'] + base_cmd
+            return ["sudo"] + base_cmd
         return base_cmd
 
     def _generate_random_suffix(self, length: int = 4) -> str:
         """Generate random alphanumeric suffix"""
         return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
-    
+
+    def _generate_random_password(self, length: int = 8) -> str:
+        """Generate random 8-digit numeric password"""
+        return "".join(random.choices(string.digits, k=length))
+
     def _is_distiller_hostname(self, hostname: str) -> bool:
         """Check if hostname is in distiller-XXXX format"""
         import re
+
         # Check for distiller- followed by exactly 4 alphanumeric characters
-        pattern = r'^distiller-[a-zA-Z0-9]{4}$'
+        pattern = r"^distiller-[a-zA-Z0-9]{4}$"
         return bool(re.match(pattern, hostname))
 
     def _get_current_hostname(self) -> str:
         """Get current system hostname"""
         try:
-            result = subprocess.run(['hostname'], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(["hostname"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 return result.stdout.strip()
         except Exception as e:
             logger.error(f"Failed to get current hostname: {e}")
-        
+
         # Fallback to socket method
         try:
             import socket
+
             return socket.gethostname()
         except Exception as e:
             logger.error(f"Failed to get hostname via socket: {e}")
@@ -91,7 +95,7 @@ class DeviceConfigManager:
         """Load existing config or create new one with random identifiers"""
         try:
             current_hostname = self._get_current_hostname()
-            
+
             if self.config_file.exists():
                 with open(self.config_file, "r") as f:
                     config = json.load(f)
@@ -100,10 +104,15 @@ class DeviceConfigManager:
                     if all(field in config for field in required_fields):
                         self._config_cache = config
                         logger.info(f"Loaded device config: {config['device_id']}")
-                        
+
                         # Check if system hostname is already in distiller-XXXX format
-                        if self._is_distiller_hostname(current_hostname) and current_hostname != config["hostname"]:
-                            logger.info(f"System already has valid distiller hostname '{current_hostname}', preserving it")
+                        if (
+                            self._is_distiller_hostname(current_hostname)
+                            and current_hostname != config["hostname"]
+                        ):
+                            logger.info(
+                                f"System already has valid distiller hostname '{current_hostname}', preserving it"
+                            )
                             # Update config to match system hostname
                             config["hostname"] = current_hostname
                             config["device_id"] = current_hostname
@@ -112,24 +121,30 @@ class DeviceConfigManager:
                             config["hotspot_suffix"] = suffix
                             config["hotspot_ssid"] = f"DistillerSetup-{suffix}"
                             config["friendly_name"] = f"Distiller {suffix}"
-                            
+
                             # Save updated config
                             with open(self.config_file, "w") as f:
                                 json.dump(config, f, indent=2)
                             os.chmod(self.config_file, 0o644)
-                            
-                            logger.info(f"Updated config to match system hostname: {current_hostname}")
+
+                            logger.info(
+                                f"Updated config to match system hostname: {current_hostname}"
+                            )
                         elif current_hostname != config["hostname"]:
-                            logger.info(f"Hostname mismatch: system='{current_hostname}', config='{config['hostname']}' - updating system")
+                            logger.info(
+                                f"Hostname mismatch: system='{current_hostname}', config='{config['hostname']}' - updating system"
+                            )
                             self._update_system_hostname(config["hostname"])
-                        
+
                         return config
                     else:
                         logger.warning("Invalid config file, regenerating...")
 
             # Check if system already has a valid distiller hostname
             if self._is_distiller_hostname(current_hostname):
-                logger.info(f"System already has valid distiller hostname '{current_hostname}', using it for new config")
+                logger.info(
+                    f"System already has valid distiller hostname '{current_hostname}', using it for new config"
+                )
                 # Extract suffix from existing hostname
                 suffix = current_hostname.replace("distiller-", "").upper()
                 config = {
@@ -138,7 +153,7 @@ class DeviceConfigManager:
                     "hostname": current_hostname,
                     "friendly_name": f"Distiller {suffix}",
                     "hotspot_ssid": f"DistillerSetup-{suffix}",
-                    "hotspot_password": "setup123",
+                    "hotspot_password": self._generate_random_password(),
                     "web_port": 8080,
                     "created_at": int(time.time()),
                     "version": "1.0",
@@ -152,7 +167,7 @@ class DeviceConfigManager:
                     "hostname": f"distiller-{random_suffix.lower()}",
                     "friendly_name": f"Distiller {random_suffix}",
                     "hotspot_ssid": f"DistillerSetup-{random_suffix}",
-                    "hotspot_password": "setup123",
+                    "hotspot_password": self._generate_random_password(),
                     "web_port": 8080,
                     "created_at": int(time.time()),
                     "version": "1.0",
@@ -183,7 +198,7 @@ class DeviceConfigManager:
                 "hostname": "distiller-temp",
                 "friendly_name": "Distiller Device",
                 "hotspot_ssid": "DistillerSetup-TEMP",
-                "hotspot_password": "setup123",
+                "hotspot_password": self._generate_random_password(),
                 "web_port": 8080,
             }
 
@@ -217,14 +232,35 @@ class DeviceConfigManager:
         """Get web server port"""
         return self.get_config().get("web_port", 8080)
 
+    def regenerate_hotspot_password(self) -> str:
+        """Generate a new random password for hotspot and update config"""
+        new_password = self._generate_random_password()
+
+        # Update cached config
+        if self._config_cache:
+            self._config_cache["hotspot_password"] = new_password
+
+            # Save updated config to file
+            try:
+                with open(self.config_file, "w") as f:
+                    json.dump(self._config_cache, f, indent=2)
+                os.chmod(self.config_file, 0o644)
+                logger.info(f"Generated new hotspot password: {new_password}")
+            except Exception as e:
+                logger.error(f"Failed to save new password to config: {e}")
+
+        return new_password
+
     def _update_system_hostname(self, hostname: str) -> bool:
         """Update system hostname with graceful fallback"""
         try:
             current_hostname = self._get_current_hostname()
-            logger.info(f"Attempting to update system hostname from '{current_hostname}' to '{hostname}'")
-            
+            logger.info(
+                f"Attempting to update system hostname from '{current_hostname}' to '{hostname}'"
+            )
+
             success = False
-            
+
             # Method 1: Try hostnamectl (preferred for systemd)
             try:
                 cmd = self._build_command(["hostnamectl", "set-hostname", hostname])
@@ -233,7 +269,9 @@ class DeviceConfigManager:
                     logger.info(f"Successfully updated hostname using hostnamectl")
                     success = True
                 else:
-                    logger.warning(f"hostnamectl failed (exit {result.returncode}): {result.stderr.strip()}")
+                    logger.warning(
+                        f"hostnamectl failed (exit {result.returncode}): {result.stderr.strip()}"
+                    )
             except Exception as e:
                 logger.warning(f"hostnamectl method failed: {e}")
 
@@ -241,13 +279,19 @@ class DeviceConfigManager:
             if not success:
                 try:
                     hostname_cmd = self._build_command(["tee", "/etc/hostname"])
-                    result = subprocess.run(hostname_cmd, input=f"{hostname}\n", 
-                                          capture_output=True, text=True, timeout=5)
+                    result = subprocess.run(
+                        hostname_cmd,
+                        input=f"{hostname}\n",
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
                     if result.returncode == 0:
                         logger.info("Updated /etc/hostname successfully")
                         # Set runtime hostname
-                        subprocess.run(self._build_command(["hostname", hostname]), 
-                                     check=False, timeout=5)
+                        subprocess.run(
+                            self._build_command(["hostname", hostname]), check=False, timeout=5
+                        )
                         success = True
                     else:
                         logger.warning(f"Failed to write /etc/hostname: {result.stderr.strip()}")
@@ -263,7 +307,7 @@ class DeviceConfigManager:
                 logger.warning(f"  mDNS will advertise: {current_hostname}.local")
                 logger.warning(f"  Service will claim: {hostname}.local")
                 return False
-            
+
             # Update /etc/hosts (optional, continue if fails)
             try:
                 self._update_hosts_file(hostname)
@@ -273,10 +317,13 @@ class DeviceConfigManager:
             # Update Avahi configuration (optional, continue if fails)
             try:
                 self._update_avahi_config(hostname)
-                
+
                 # Restart avahi-daemon to pick up new hostname
-                subprocess.run(self._build_command(["systemctl", "restart", "avahi-daemon"]), 
-                             check=False, timeout=10)
+                subprocess.run(
+                    self._build_command(["systemctl", "restart", "avahi-daemon"]),
+                    check=False,
+                    timeout=10,
+                )
                 logger.info("Restarted avahi-daemon")
             except Exception as e:
                 logger.warning(f"Failed to update avahi config: {e}")
@@ -287,7 +334,9 @@ class DeviceConfigManager:
                 logger.info(f"Hostname successfully updated to: {hostname}")
                 return True
             else:
-                logger.warning(f"Hostname verification: expected '{hostname}', got '{new_hostname}'")
+                logger.warning(
+                    f"Hostname verification: expected '{hostname}', got '{new_hostname}'"
+                )
                 return False
 
         except Exception as e:
@@ -398,7 +447,9 @@ rlimit-nproc=3
             os.chmod(avahi_config_path, 0o644)
 
             # Restart Avahi daemon
-            subprocess.run(self._build_command(["systemctl", "restart", "avahi-daemon"]), check=False)
+            subprocess.run(
+                self._build_command(["systemctl", "restart", "avahi-daemon"]), check=False
+            )
 
             logger.info(f"Updated Avahi configuration with hostname: {hostname}")
 
@@ -428,6 +479,7 @@ rlimit-nproc=3
             # Use AsyncZeroconf in a background thread to avoid EventLoopBlocked
             def run_async_mdns():
                 """Run AsyncZeroconf in background thread"""
+                loop = None
                 try:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
@@ -461,9 +513,7 @@ rlimit-nproc=3
                         await self.zeroconf.async_register_service(service_info)
                         self.registered_services.append(service_info)
 
-                        logger.info(
-                            f"Started mDNS service: {service_name} on {ip_address}:{port}"
-                        )
+                        logger.info(f"Started mDNS service: {service_name} on {ip_address}:{port}")
                         return True
 
                     return loop.run_until_complete(start_service())
@@ -504,6 +554,7 @@ rlimit-nproc=3
                 # Use async methods in a background thread
                 def run_async_stop():
                     """Run async stop in background thread"""
+                    loop = None
                     try:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
@@ -513,9 +564,7 @@ rlimit-nproc=3
                             for service_info in self.registered_services:
                                 try:
                                     if self.zeroconf is not None:
-                                        await self.zeroconf.async_unregister_service(
-                                            service_info
-                                        )
+                                        await self.zeroconf.async_unregister_service(service_info)
                                 except Exception as e:
                                     logger.warning(
                                         f"Failed to unregister service {service_info.name}: {e}"
@@ -591,28 +640,25 @@ rlimit-nproc=3
         try:
             from zeroconf import ServiceBrowser
 
-            class DistillerServiceListener:
+            class DistillerServiceListener(ServiceListener):
                 def __init__(self):
                     self.devices = []
 
-                def add_service(self, zeroconf, service_type, name):
+                def add_service(self, zc, type_, name):
                     try:
-                        info = zeroconf.get_service_info(service_type, name)
+                        info = zc.get_service_info(type_, name)
                         if info:
                             properties = {}
                             if info.properties:
                                 for key, value in info.properties.items():
-                                    properties[key.decode("utf-8")] = value.decode(
-                                        "utf-8"
-                                    )
+                                    properties[key.decode("utf-8")] = value.decode("utf-8")
 
                             # Check if this is a Distiller device
                             if properties.get("service") == "distiller-wifi":
                                 device = {
                                     "name": name,
                                     "addresses": [
-                                        socket.inet_ntoa(addr)
-                                        for addr in info.addresses
+                                        socket.inet_ntoa(addr) for addr in info.addresses
                                     ],
                                     "port": info.port,
                                     "properties": properties,
@@ -626,10 +672,10 @@ rlimit-nproc=3
                     except Exception as e:
                         logger.error(f"Error processing discovered service: {e}")
 
-                def remove_service(self, zeroconf, service_type, name):
+                def remove_service(self, zc, type_, name):
                     pass
 
-                def update_service(self, zeroconf, service_type, name):
+                def update_service(self, zc, type_, name):
                     pass
 
             # Create listener and browser
