@@ -109,15 +109,38 @@
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
     
     <script>
+    let isLoading = false;
+    
+    // Show loading state
+    function showLoading() {
+        const networkList = document.querySelector('.network-list');
+        if (!networkList || isLoading) return;
+        
+        isLoading = true;
+        networkList.innerHTML = `
+            <div class="status-info">
+                <strong>Scanning for WiFi networks...</strong>
+                <br><small>This may take a few seconds</small>
+            </div>
+        `;
+    }
+    
     // Load networks when page loads
     async function loadNetworks() {
         try {
+            showLoading();
             const response = await CommonUtils.apiRequest('/api/networks');
+            isLoading = false;
+            
             if (response.success && response.networks) {
                 displayNetworks(response.networks);
+            } else {
+                displayNetworks([]);
             }
         } catch (error) {
             console.error('Failed to load networks:', error);
+            isLoading = false;
+            displayNetworks([]);
         }
     }
     
@@ -132,8 +155,8 @@
             networkList.innerHTML = `
                 <div class="status-info">
                     No networks found.
-                    <a href="javascript:location.reload()" style="color: #000; text-decoration: underline">Refresh</a>
-                    to try again.
+                    <a href="javascript:loadNetworks()" style="color: #000; text-decoration: underline">Scan again</a>
+                    or check if WiFi is enabled.
                 </div>
             `;
             return;
@@ -150,14 +173,23 @@
             `;
             networkList.appendChild(link);
         });
+        
+        // Add refresh button at the bottom
+        const refreshDiv = document.createElement('div');
+        refreshDiv.style.marginTop = '20px';
+        refreshDiv.style.textAlign = 'center';
+        refreshDiv.innerHTML = `
+            <a href="javascript:loadNetworks()" style="color: #666; text-decoration: underline; font-size: 14px">Refresh network list</a>
+        `;
+        networkList.appendChild(refreshDiv);
     }
     
     // Load networks on page load
     CommonUtils.onReady(() => {
         loadNetworks();
         
-        // Reload networks every 10 seconds
-        setInterval(loadNetworks, 10000);
+        // Reload networks every 30 seconds (less frequent to avoid interrupting user)
+        setInterval(loadNetworks, 30000);
     });
     </script>
   </body>
