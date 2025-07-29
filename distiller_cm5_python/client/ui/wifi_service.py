@@ -13,6 +13,9 @@ import signal
 import sys
 import time
 import threading
+import socket
+import subprocess
+import psutil
 from pathlib import Path
 from typing import Optional
 from enum import Enum
@@ -78,6 +81,8 @@ class DistillerWiFiService:
         # Flask app for web interface
         self.app = self._create_flask_app()
         self.web_server_thread: Optional[threading.Thread] = None
+        self._web_server_shutdown = None  # For Flask shutdown
+        self._connection_lock = threading.Lock()  # Prevent concurrent connections
 
         # Add custom template filters
         if self.app:
@@ -729,8 +734,37 @@ class DistillerWiFiService:
         thread.start()
         self.logger.info("Connection background thread launched")
 
+    async def _cleanup_existing_connections(self):
+        """Clean up any existing NetworkManager connections to prevent race conditions"""
+        try:
+            self.logger.info("Cleaning up existing connections to prevent race conditions")
+            
+            # Cancel any pending NetworkManager operations
+            try:
+                result = subprocess.run(
+                    ["nmcli", "device", "disconnect", "wlan0"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    self.logger.info("Disconnected wlan0 interface")
+                    await asyncio.sleep(1)  # Allow NetworkManager state to settle
+            except subprocess.TimeoutExpired:
+                self.logger.warning("Timeout during interface disconnect")
+            except Exception as e:
+                self.logger.debug(f"Interface disconnect: {e}")
+
+        except Exception as e:
+            self.logger.error(f"Error cleaning up connections: {e}")
+
     async def _perform_connection(self):
         """Perform WiFi connection with proper state management"""
+        # Use thread lock to prevent concurrent connections
+        if not self._connection_lock.acquire(blocking=False):
+            self.logger.warning("Connection already in progress, skipping")
+            return
+            
         try:
             if not self.target_ssid:
                 return
@@ -744,6 +778,9 @@ class DistillerWiFiService:
                 await self.wifi_manager.stop_hotspot()
                 # Wait for interface to be ready (reduced from 3s to 2s)
                 await asyncio.sleep(2)
+
+            # Clean up any existing connections to prevent race conditions
+            await self._cleanup_existing_connections()
 
             # Perform the connection (hotspot is now stopped)
             # Handle None password properly
@@ -823,6 +860,12 @@ class DistillerWiFiService:
             # Restore hotspot mode on error
             await self._start_hotspot_mode()
         finally:
+            # Release the connection lock
+            try:
+                self._connection_lock.release()
+            except Exception:
+                pass  # Lock might not be held if we got here via exception
+            
             self.target_ssid = None
             self.target_password = None
             self.connection_start_time = None
@@ -873,26 +916,113 @@ class DistillerWiFiService:
             return ServiceState.HOTSPOT_MODE
 
     async def _start_hotspot_mode(self):
-        """Start hotspot mode"""
+        """Start hotspot mode with improved reliability and fallback strategies"""
         try:
             self.logger.info("Starting hotspot mode")
             self.current_state = ServiceState.HOTSPOT_MODE
 
-            success, hotspot_ip = await self.wifi_manager.start_hotspot(
-                self.hotspot_ssid, self.hotspot_password
-            )
+            # Clean up NetworkManager state before starting hotspot
+            await self._cleanup_networkmanager_state()
+
+            # Try to start hotspot with multiple attempts
+            success, hotspot_ip = await self._start_hotspot_with_retry()
 
             if success:
                 self.hotspot_ip = hotspot_ip
                 self.logger.info(f"Hotspot started: {self.hotspot_ssid}")
                 self.logger.info(f"Web interface: http://{hotspot_ip}:{self.web_port}")
             else:
-                self.logger.error("Failed to start hotspot")
-                self.current_state = ServiceState.ERROR
+                self.logger.error("Failed to start hotspot after all attempts")
+                # Try fallback approach
+                if await self._try_fallback_hotspot():
+                    self.logger.info("Fallback hotspot method succeeded")
+                else:
+                    self.current_state = ServiceState.ERROR
 
         except Exception as e:
             self.logger.error(f"Error starting hotspot: {e}")
             self.current_state = ServiceState.ERROR
+
+    async def _cleanup_networkmanager_state(self):
+        """Clean up NetworkManager state before starting hotspot"""
+        try:
+            self.logger.info("Cleaning up NetworkManager state")
+            
+            # Stop any active connections
+            try:
+                subprocess.run(
+                    ["nmcli", "connection", "down", "id", self.hotspot_ssid],
+                    capture_output=True,
+                    timeout=10
+                )
+            except Exception:
+                pass  # Connection might not exist
+            
+            # Delete any existing hotspot connection profiles
+            try:
+                subprocess.run(
+                    ["nmcli", "connection", "delete", "id", self.hotspot_ssid],
+                    capture_output=True,
+                    timeout=10
+                )
+            except Exception:
+                pass  # Profile might not exist
+            
+            # Wait for NetworkManager to settle
+            await asyncio.sleep(1)
+            
+        except Exception as e:
+            self.logger.warning(f"Error cleaning NetworkManager state: {e}")
+
+    async def _start_hotspot_with_retry(self):
+        """Start hotspot with retry logic"""
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                self.logger.info(f"Hotspot start attempt {attempt + 1}/{max_attempts}")
+                
+                success, hotspot_ip = await self.wifi_manager.start_hotspot(
+                    self.hotspot_ssid, self.hotspot_password
+                )
+                
+                if success:
+                    return success, hotspot_ip
+                
+                if attempt < max_attempts - 1:
+                    self.logger.warning(f"Hotspot attempt {attempt + 1} failed, retrying...")
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    
+            except Exception as e:
+                self.logger.error(f"Hotspot attempt {attempt + 1} error: {e}")
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    
+        return False, None
+
+    async def _try_fallback_hotspot(self):
+        """Try fallback hotspot configuration"""
+        try:
+            self.logger.info("Attempting fallback hotspot configuration")
+            
+            # Use a simpler hotspot configuration
+            fallback_ssid = f"Setup-{self.device_config.get_device_id()[-4:]}"
+            fallback_password = "password123"
+            
+            success, hotspot_ip = await self.wifi_manager.start_hotspot(
+                fallback_ssid, fallback_password
+            )
+            
+            if success:
+                self.hotspot_ssid = fallback_ssid
+                self.hotspot_password = fallback_password
+                self.hotspot_ip = hotspot_ip
+                self.logger.info(f"Fallback hotspot started: {fallback_ssid}")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Fallback hotspot failed: {e}")
+            
+        return False
 
     async def _transition_to_hotspot(self):
         """Transition from connected state back to hotspot mode"""
@@ -953,23 +1083,92 @@ class DistillerWiFiService:
                 self.logger.error(f"Fallback restart failed: {fallback_error}")
                 self.current_state = ServiceState.ERROR
 
+    def _kill_processes_on_port(self, port: int) -> bool:
+        """Kill any processes using the specified port"""
+        try:
+            killed_any = False
+            for proc in psutil.process_iter(['pid', 'name', 'connections']):
+                try:
+                    connections = proc.info.get('connections', [])
+                    if connections:
+                        for conn in connections:
+                            if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == port:
+                                self.logger.warning(f"Killing process {proc.info['pid']} ({proc.info['name']}) using port {port}")
+                                proc.terminate()
+                                killed_any = True
+                                # Wait a bit for graceful termination
+                                try:
+                                    proc.wait(timeout=3)
+                                except psutil.TimeoutExpired:
+                                    proc.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            return killed_any
+        except Exception as e:
+            self.logger.error(f"Error killing processes on port {port}: {e}")
+            return False
+
+    def _stop_web_server(self):
+        """Stop the web server gracefully"""
+        try:
+            # Stop the web server thread if it exists
+            if self.web_server_thread and self.web_server_thread.is_alive():
+                self.logger.info("Stopping web server...")
+                
+                # Kill processes on the port
+                self._kill_processes_on_port(self.web_port)
+                
+                # Wait for thread to finish
+                self.web_server_thread.join(timeout=5)
+                
+                if self.web_server_thread.is_alive():
+                    self.logger.warning("Web server thread did not stop gracefully")
+                
+                self.web_server_thread = None
+                self.logger.info("Web server stopped")
+                
+        except Exception as e:
+            self.logger.error(f"Error stopping web server: {e}")
+
     def _start_web_server(self):
         """Start web server in background thread"""
         if not self.app:
             self.logger.error("Cannot start web server...")
             return
 
+        # Stop any existing server first
+        self._stop_web_server()
+
+        # Kill any processes that might be using our port
+        self._kill_processes_on_port(self.web_port)
+
         def run_server():
             accessible_ip = self.hotspot_ip or "0.0.0.0"
             self.logger.info(f"Starting web server on {accessible_ip}:{self.web_port}")
-            if self.app:  # Additional None check for type safety
-                self.app.run(
-                    host="0.0.0.0",
-                    port=self.web_port,
-                    debug=False,
-                    use_reloader=False,
-                    threaded=True,
-                )
+            try:
+                if self.app:  # Additional None check for type safety
+                    self.app.run(
+                        host="0.0.0.0",
+                        port=self.web_port,
+                        debug=False,
+                        use_reloader=False,
+                        threaded=True,
+                    )
+            except Exception as e:
+                if "Address already in use" in str(e):
+                    self.logger.error(f"Port {self.web_port} still in use, attempting cleanup...")
+                    self._kill_processes_on_port(self.web_port)
+                    time.sleep(2)  # Wait for cleanup
+                    if self.app:
+                        self.app.run(
+                            host="0.0.0.0",
+                            port=self.web_port,
+                            debug=False,
+                            use_reloader=False,
+                            threaded=True,
+                        )
+                else:
+                    self.logger.error(f"Error starting web server: {e}")
 
         self.web_server_thread = threading.Thread(target=run_server, daemon=True)
         self.web_server_thread.start()
@@ -1174,6 +1373,9 @@ class DistillerWiFiService:
         self.logger.info("Cleaning up WiFi service")
 
         try:
+            # Stop web server first
+            self._stop_web_server()
+
             # Stop hotspot if running
             if self.wifi_manager.is_hotspot_active():
                 await self.wifi_manager.stop_hotspot()
