@@ -23,10 +23,6 @@ export PYTHONPATH="/opt/distiller-cm5-sdk/src:/opt/distiller-cm5-python:$PYTHONP
 export LD_LIBRARY_PATH="/opt/distiller-cm5-sdk/lib:$LD_LIBRARY_PATH"
 export PYTHONUNBUFFERED=1
 
-# GUI-specific environment variables
-export QT_QPA_PLATFORM=xcb
-export DISPLAY=${DISPLAY:-:0}
-
 # Change to the application directory
 cd "$INSTALL_DIR"
 
