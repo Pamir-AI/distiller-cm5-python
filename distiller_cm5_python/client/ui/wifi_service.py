@@ -947,21 +947,10 @@ class DistillerWiFiService:
         try:
             self.logger.info("Checking initial WiFi state...")
 
-            status = await self.wifi_manager.get_connection_status()
-
-            if status.connected:
-                if status.ssid and status.ssid.startswith(self.hotspot_ssid):
-                    # Connected to our hotspot - stay in hotspot mode
-                    self.logger.info(f"Connected to setup hotspot: {status.ssid}")
-                    return ServiceState.HOTSPOT_MODE
-                else:
-                    # Connected to real network - connected mode
-                    self.logger.info(f"Already connected to: {status.ssid}")
-                    return ServiceState.CONNECTED
-            else:
-                # No connection - start hotspot mode
-                self.logger.info("No WiFi connection detected")
-                return ServiceState.HOTSPOT_MODE
+            # Always start in hotspot mode for consistent WiFi setup experience
+            # This ensures users always see the QR code setup flow
+            self.logger.info("Starting in hotspot mode for WiFi setup")
+            return ServiceState.HOTSPOT_MODE
 
         except Exception as e:
             self.logger.error(f"Error checking initial state: {e}")
@@ -1203,52 +1192,11 @@ class DistillerWiFiService:
         self.running = True
 
         try:
-            # Check initial state
+            # Check initial state - will always be HOTSPOT_MODE now
             initial_state = await self.check_initial_state()
             self.current_state = initial_state
 
-            # If already connected, start web server for network management
-            if initial_state == ServiceState.CONNECTED:
-                self.logger.info(
-                    "Already connected to WiFi network - starting web interface"
-                )
-
-                # Get current connection details
-                try:
-                    current_status = await self.wifi_manager.get_connection_status()
-                    if current_status.connected:
-                        self._successful_connection_ssid = current_status.ssid
-                        self._successful_connection_ip = current_status.ip_address
-                        self.logger.info(
-                            f"Current connection: {current_status.ssid} at {current_status.ip_address}"
-                        )
-
-                    else:
-                        self.logger.warning(
-                            "Connection status inconsistent, falling back to hotspot mode"
-                        )
-                        initial_state = ServiceState.HOTSPOT_MODE
-                        self.current_state = initial_state
-
-                except Exception as e:
-                    self.logger.error(f"Error getting current connection status: {e}")
-                    initial_state = ServiceState.HOTSPOT_MODE
-                    self.current_state = initial_state
-
-                # If still connected, start web server and monitor
-                if initial_state == ServiceState.CONNECTED:
-                    # Start web server for network management interface
-                    self._start_web_server()
-
-                    self.logger.info(
-                        "Already connected - web interface available for network management"
-                    )
-
-                    # Continue monitoring connection with web server running
-                    await self._monitor_connection()
-                    return
-
-            # If disconnected, start hotspot mode and wait for configuration
+            # Start hotspot mode for WiFi setup
             if initial_state == ServiceState.HOTSPOT_MODE:
                 await self._start_hotspot_mode()
 

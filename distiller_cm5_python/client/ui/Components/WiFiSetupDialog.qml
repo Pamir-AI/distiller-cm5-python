@@ -18,7 +18,6 @@ Rectangle {
 
     // Timing properties for smooth UX
     property bool showHotspotInstructions: false
-    property bool showSuccessMessage: false
 
     signal dialogClosed
 
@@ -33,16 +32,6 @@ Rectangle {
         }
     }
 
-    // Timer for success message delay
-    Timer {
-        id: successDelayTimer
-        interval: 2000 // 2 seconds delay
-        running: false
-        repeat: false
-        onTriggered: {
-            showSuccessMessage = true;
-        }
-    }
 
     function collectFocusItems() {
         focusableItems = [];
@@ -70,9 +59,9 @@ Rectangle {
         isVisible = true;
         visible = true;
 
-        // Only reset success message flag to ensure proper state transitions
-        // Don't reset showHotspotInstructions as it's managed by the hotspot timer
-        showSuccessMessage = false;
+        // Reset state to ensure consistent behavior
+        showHotspotInstructions = false;
+        currentState = "idle";
 
         // Start WiFi setup process
         if (bridge && bridge.wifiSetupBridge) {
@@ -147,15 +136,10 @@ Rectangle {
                 if (state === "hotspot_active") {
                     showHotspotInstructions = false;
                     hotspotSetupTimer.start();
-                } else if (state === "success") {
-                    showSuccessMessage = false;
-                    successDelayTimer.start();
                 } else {
-                    // Reset timers for other states
+                    // Reset timer for other states
                     hotspotSetupTimer.stop();
-                    successDelayTimer.stop();
                     showHotspotInstructions = false;
-                    showSuccessMessage = false;
                 }
 
                 collectFocusItems(); // Update focus items when state changes
@@ -297,7 +281,7 @@ Rectangle {
                     case "connecting":
                         return connectingComponent;
                     case "success":
-                        return showSuccessMessage ? successComponent : connectingProgressComponent;
+                        return successComponent;
                     case "error":
                         return errorComponent;
                     default:
@@ -557,7 +541,7 @@ Rectangle {
 
                     Text {
                         width: parent.width
-                        text: statusMessage.includes("Connected") ? `Connected to: ${connectedNetwork}` : `Successfully connected to: ${connectedNetwork}`
+                        text: `Successfully connected to: ${connectedNetwork}`
                         font: FontManager.smallBold
                         color: ThemeManager.textColor
                         wrapMode: Text.WordWrap
@@ -585,7 +569,7 @@ Rectangle {
 
                     Text {
                         width: parent.width
-                        text: statusMessage.includes("Connected") ? "Web interface is available for network management. You can access it from any device on the network." : "WiFi setup is complete. Web interface is now available for network management."
+                        text: "WiFi setup is complete. Web interface is now available for network management."
                         font: FontManager.small
                         color: ThemeManager.textColor
                         wrapMode: Text.WordWrap
@@ -694,42 +678,4 @@ Rectangle {
         }
     }
 
-    Component {
-        id: connectingProgressComponent
-
-        Rectangle {
-            width: parent.width
-            height: connectionProgress.height + ThemeManager.spacingSmall * 2
-            color: ThemeManager.backgroundColor
-            border.width: ThemeManager.borderWidth
-            border.color: ThemeManager.black
-            radius: ThemeManager.borderRadius
-
-            Column {
-                id: connectionProgress
-
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: ThemeManager.spacingSmall
-                spacing: ThemeManager.spacingTiny
-
-                Text {
-                    text: "FINALIZING CONNECTION"
-                    font: FontManager.smallBold
-                    color: ThemeManager.textColor
-                    renderType: Text.NativeRendering
-                }
-
-                Text {
-                    width: parent.width
-                    text: "Connection successful. Starting services and verifying network stability..."
-                    font: FontManager.small
-                    color: ThemeManager.textColor
-                    wrapMode: Text.WordWrap
-                    renderType: Text.NativeRendering
-                }
-            }
-        }
-    }
 }
