@@ -33,16 +33,11 @@ Each server script can be run using **uv** which handles all dependencies automa
 cd distiller-cm5-python
 
 # Example for LED control server
-uv run python distiller_cm5_python/mcp_server/led-control_server.py
+uv run python distiller_cm5_python/mcp_server/Badge_AI_server.py
 
 # Example for medical assistant server
 uv run python distiller_cm5_python/mcp_server/medical_assistant_server.py
 
-# Example for talk server
-uv run python distiller_cm5_python/mcp_server/talk_server.py
-
-# Example for wifi server
-uv run python distiller_cm5_python/mcp_server/wifi_server.py
 ```
 
 An MCP client (like the one started via `main.py --server-script /path/to/server.py`) can then connect to the launched server process using the stdio transport mechanism provided by the `mcp` library.

@@ -46,14 +46,8 @@ async def get_prompt(name: str, arguments: dict = {}) -> PromptMessage:
             role="system",
             content=TextContent(
                 type="text",
-                text="""You are a patient education specialist designed to explain medical conditions and treatments in simple, understandable language. Your role is to:
-
-- Break down complex medical concepts
-- Provide clear explanations of diagnoses and procedures
-- Offer practical health management tips
-- Create easy-to-follow care instructions
-
-Always encourage patients to discuss questions with their healthcare providers. /no_think""",
+                text="""You are a patient education specialist designed to explain medical conditions, concepts and treatments in simple, understandable language. Your role is to:
+                        When starting a conversation, encourage patients to discuss questions with their healthcare providers. /no_think""",
             ),
         )
 
@@ -76,7 +70,7 @@ async def run():
                     experimental_capabilities={
                         "llm_preferences": {
                             "provider": "llama-cpp",
-                            "model": "Qwen3-0.6B-Medical-Expert.i1-Q6_K.gguf",
+                            "model": "qwen3-0.6b-medical-expert-q6_k.gguf",
                             "inference_configs": {
                                 "temperature": 0.3,
                                 "max_tokens": 4096,

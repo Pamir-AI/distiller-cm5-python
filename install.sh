@@ -49,3 +49,20 @@ if [ ! -f "$QWEN3_MEDICAL_MODEL_PATH" ]; then
 else
 	echo "Qwen3 Medical Expert model file already exists at $QWEN3_MEDICAL_MODEL_PATH."
 fi
+
+# Check if the MedGemma Medical Expert model file exists
+GEMMA_MEDICAL_MODEL_PATH="${WORKING_DIR}/distiller_cm5_python/llm_server/models/medgemma-4b-it-Q4_K_M.gguf"
+if [ ! -f "$GEMMA_MEDICAL_MODEL_PATH" ]; then
+	echo "MedGemma Medical Expert model file not found at $GEMMA_MEDICAL_MODEL_PATH. Downloading..."
+	# Create the directory if it doesn't exist
+	mkdir -p "$(dirname "$GEMMA_MEDICAL_MODEL_PATH")"
+	# Download the MedGemma Medical Expert model file
+	wget -O "$GEMMA_MEDICAL_MODEL_PATH" https://huggingface.co/unsloth/medgemma-4b-it-GGUF/resolve/main/medgemma-4b-it-Q4_K_S.gguf
+	if [ $? -ne 0 ]; then
+		echo "Failed to download the MedGemma Medical Expert model file."
+		exit 1
+	fi
+	echo "MedGemma Medical Expert model file downloaded successfully."
+else
+	echo "MedGemma Medical Expert model file already exists at $GEMMA_MEDICAL_MODEL_PATH."
+fi

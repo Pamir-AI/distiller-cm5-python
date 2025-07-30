@@ -55,10 +55,10 @@ async def list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "r": {"type": "integer", "description": "Red value (0-255)"},
-                    "g": {"type": "integer", "description": "Green value (0-255)"},
-                    "b": {"type": "integer", "description": "Blue value (0-255)"},
-                    "brightness": {"type": "number", "description": "Brightness scale (0.0-1.0)"},
+                    "r": {"type": "integer", "description": "Red value (0 to 255)"},
+                    "g": {"type": "integer", "description": "Green value (0 to 255)"},
+                    "b": {"type": "integer", "description": "Blue value (0 to 255)"},
+                    "brightness": {"type": "number", "description": "Brightness scale (0.0 to 1.0)"},
                 },
                 "required": ["r", "g", "b"],
             },
