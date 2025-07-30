@@ -70,6 +70,10 @@ Rectangle {
         isVisible = true;
         visible = true;
 
+        // Only reset success message flag to ensure proper state transitions
+        // Don't reset showHotspotInstructions as it's managed by the hotspot timer
+        showSuccessMessage = false;
+
         // Start WiFi setup process
         if (bridge && bridge.wifiSetupBridge) {
             bridge.wifiSetupBridge.startWiFiSetup();
