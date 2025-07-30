@@ -15,14 +15,12 @@ Rectangle {
     property string connectedNetwork: ""
     property string connectedIP: ""
     property string errorMessage: ""
-    property bool scrollModeActive: false
 
     // Timing properties for smooth UX
     property bool showHotspotInstructions: false
     property bool showSuccessMessage: false
 
     signal dialogClosed
-    signal scrollModeChanged(bool active)
 
     // Timer for hotspot setup delay
     Timer {
@@ -49,12 +47,6 @@ Rectangle {
     function collectFocusItems() {
         focusableItems = [];
 
-        // Add content list view for navigation if visible
-        if (contentListView && contentListView.visible) {
-            contentListView.objectName = "ContentListView";
-            focusableItems.push(contentListView);
-        }
-
         // Add stop/close button if visible
         if (stopButton && stopButton.visible && stopButton.navigable) {
             stopButton.objectName = "StopButton";
@@ -66,8 +58,8 @@ Rectangle {
             focusableItems.push(closeButton);
         }
 
-        // Initialize focus with our FocusManager, passing contentListView as the scroll view
-        FocusManager.initializeFocusItems(focusableItems, contentListView);
+        // Initialize focus with our FocusManager
+        FocusManager.initializeFocusItems(focusableItems, null);
         // Set focus to first item if available
         if (focusableItems.length > 0)
             FocusManager.setFocusToItem(focusableItems[0]);
@@ -280,238 +272,74 @@ Rectangle {
             }
         }
 
-        // Main content area with ListView
-        ListView {
-            id: contentListView
-
-            property bool navigable: true
-            property bool visualFocus: false
-            property bool scrollModeActive: false
-            
-            // Signal for scroll mode changes
-            signal scrollModeChanged(bool active)
+        // Main content area
+        Column {
+            id: contentArea
 
             anchors.top: dialogHeader.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: ThemeManager.spacingSmall
-            anchors.bottomMargin: 40  // Add 40px bottom space
-
-            focus: visualFocus
-            clip: true
             spacing: ThemeManager.spacingNormal
-            interactive: true
-            boundsBehavior: Flickable.StopAtBounds
 
-            // Update visual focus based on FocusManager
-            Connections {
-                target: FocusManager
-                function onCurrentFocusIndexChanged() {
-                    var currentItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
-                    contentListView.visualFocus = (currentItem === contentListView);
-                }
-            }
-
-            // Function to activate this item (required for NavigableItem pattern)
-            function activate() {
-                if (contentHeight > height) {
-                    FocusManager.enterScrollMode(contentListView);
-                    scrollModeActive = true;
-                    scrollModeChanged(true);
-                }
-            }
-            
-            // Connect to own scroll mode changes
-            onScrollModeActiveChanged: {
-                wifiSetupDialog.scrollModeActive = scrollModeActive;
-                wifiSetupDialog.scrollModeChanged(scrollModeActive);
-                
-                // Lock focus when entering scroll mode
-                if (scrollModeActive) {
-                    FocusManager.lockFocus = true;
-                } else {
-                    FocusManager.lockFocus = false;
-                }
-                
-                console.log("WiFiSetupDialog contentListView scroll mode changed to:", scrollModeActive);
-            }
-
-            // Create a simple model with the content items
-            model: ListModel {
-                id: contentModel
-                ListElement { itemType: "status" }
-                ListElement { itemType: "content" }
-            }
-
-            // Keys are handled by the parent dialog now
-
-            delegate: Item {
-                width: ListView.view.width
-                height: childrenRect.height
-
-                Column {
-                    width: parent.width
-                    spacing: ThemeManager.spacingNormal
-
-                    // Status message
-                    Rectangle {
-                        width: parent.width
-                        height: statusSection.height + ThemeManager.spacingSmall * 2
-                        color: ThemeManager.backgroundColor
-                        border.width: ThemeManager.borderWidth
-                        border.color: ThemeManager.black
-                        radius: ThemeManager.borderRadius
-                        visible: model.itemType === "status"
-
-                        Column {
-                            id: statusSection
-
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.margins: ThemeManager.spacingSmall
-                            spacing: ThemeManager.spacingTiny
-
-                            Text {
-                                text: "STATUS"
-                                font: FontManager.smallBold
-                                color: ThemeManager.textColor
-                                renderType: Text.NativeRendering
-                            }
-
-                            Text {
-                                width: parent.width
-                                text: statusMessage || "Ready to start WiFi setup"
-                                font: FontManager.small
-                                color: ThemeManager.textColor
-                                wrapMode: Text.WordWrap
-                                renderType: Text.NativeRendering
-                            }
-                        }
-                    }
-
-                    // State-specific content
-                    Loader {
-                        width: parent.width
-                        visible: model.itemType === "content"
-                        sourceComponent: {
-                            switch (currentState) {
-                            case "hotspot_active":
-                                return showHotspotInstructions ? hotspotInstructionsComponent : setupProgressComponent;
-                            case "connecting":
-                                return connectingComponent;
-                            case "success":
-                                return showSuccessMessage ? successComponent : connectingProgressComponent;
-                            case "error":
-                                return errorComponent;
-                            default:
-                                return initialComponent;
-                            }
-                        }
+            // State-specific content
+            Loader {
+                width: parent.width
+                sourceComponent: {
+                    switch (currentState) {
+                    case "hotspot_active":
+                        return showHotspotInstructions ? hotspotInstructionsComponent : setupProgressComponent;
+                    case "connecting":
+                        return connectingComponent;
+                    case "success":
+                        return showSuccessMessage ? successComponent : connectingProgressComponent;
+                    case "error":
+                        return errorComponent;
+                    default:
+                        return initialComponent;
                     }
                 }
             }
         }
 
-        // Visual instruction when in focus but not in scroll mode
-        Rectangle {
-            id: scrollModeInstructions
-
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: ThemeManager.spacingNormal
-            height: scrollModeText.height + ThemeManager.spacingSmall * 2
-            width: Math.min(scrollModeText.implicitWidth + ThemeManager.spacingNormal * 2, parent.width - ThemeManager.spacingSmall * 2)
-            color: ThemeManager.textColor
-            border.width: ThemeManager.borderWidth
-            border.color: ThemeManager.textColor
-            radius: ThemeManager.borderRadius
-            visible: contentListView.visualFocus && !contentListView.scrollModeActive && contentListView.contentHeight > contentListView.height && contentListView.visible
-            z: 2
-
-            Text {
-                id: scrollModeText
-
-                anchors.centerIn: parent
-                anchors.margins: ThemeManager.spacingSmall
-                text: "Press Enter to enable scroll mode"
-                color: ThemeManager.backgroundColor
-                font: FontManager.small
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
-            }
-        }
-
-        // Visual instruction when in scroll mode
-        Rectangle {
-            id: activeScrollModeInstructions
-
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: ThemeManager.spacingNormal
-            height: activeScrollModeText.height + ThemeManager.spacingSmall * 2
-            width: Math.min(activeScrollModeText.implicitWidth + ThemeManager.spacingNormal * 2, parent.width - ThemeManager.spacingSmall * 2)
-            color: ThemeManager.textColor
-            border.width: ThemeManager.borderWidth
-            border.color: ThemeManager.textColor
-            radius: ThemeManager.borderRadius
-            visible: contentListView.scrollModeActive
-            z: 2
-
-            Text {
-                id: activeScrollModeText
-
-                anchors.centerIn: parent
-                anchors.margins: ThemeManager.spacingSmall
-                text: "Use ↑/↓ to scroll, Enter to exit"
-                color: ThemeManager.backgroundColor
-                font: FontManager.small
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
-            }
-        }
     }
 
     // State-specific components
     Component {
         id: initialComponent
 
-        Column {
-            spacing: ThemeManager.spacingNormal
+        Rectangle {
+            width: parent.width
+            height: initialProgress.height + ThemeManager.spacingSmall * 2
+            color: ThemeManager.backgroundColor
+            border.width: ThemeManager.borderWidth
+            border.color: ThemeManager.black
+            radius: ThemeManager.borderRadius
 
-            Rectangle {
-                width: parent.width
-                height: initialInstructions.height + ThemeManager.spacingSmall * 2
-                color: ThemeManager.backgroundColor
-                border.width: ThemeManager.borderWidth
-                border.color: ThemeManager.black
-                radius: ThemeManager.borderRadius
+            Column {
+                id: initialProgress
 
-                Column {
-                    id: initialInstructions
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: ThemeManager.spacingSmall
+                spacing: ThemeManager.spacingTiny
 
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: ThemeManager.spacingSmall
-                    spacing: ThemeManager.spacingTiny
+                Text {
+                    text: "STARTING WIFI SETUP"
+                    font: FontManager.smallBold
+                    color: ThemeManager.textColor
+                    renderType: Text.NativeRendering
+                }
 
-                    Text {
-                        text: "INSTRUCTIONS"
-                        font: FontManager.smallBold
-                        color: ThemeManager.textColor
-                        renderType: Text.NativeRendering
-                    }
-
-                    Text {
-                        width: parent.width
-                        text: "WiFi setup will create a temporary hotspot that you can connect to from another device (phone, laptop) to configure the network settings."
-                        font: FontManager.small
-                        color: ThemeManager.textColor
-                        wrapMode: Text.WordWrap
-                        renderType: Text.NativeRendering
-                    }
+                Text {
+                    width: parent.width
+                    text: "Preparing temporary hotspot for configuration..."
+                    font: FontManager.small
+                    color: ThemeManager.textColor
+                    wrapMode: Text.WordWrap
+                    renderType: Text.NativeRendering
                 }
             }
         }
@@ -590,7 +418,7 @@ Rectangle {
                 }
             }
 
-            // QR Code section
+            // QR Code and web access section
             Rectangle {
                 width: parent.width
                 height: qrCodeInfo.height + ThemeManager.spacingSmall * 2
@@ -598,7 +426,6 @@ Rectangle {
                 border.width: ThemeManager.borderWidth
                 border.color: ThemeManager.black
                 radius: ThemeManager.borderRadius
-                visible: bridge && bridge.wifiSetupBridge && bridge.wifiSetupBridge.qrCodeData !== ""
 
                 Column {
                     id: qrCodeInfo
@@ -613,15 +440,6 @@ Rectangle {
                         text: "SCAN QR CODE"
                         font: FontManager.smallBold
                         color: ThemeManager.textColor
-                        renderType: Text.NativeRendering
-                    }
-
-                    Text {
-                        width: parent.width
-                        text: "Scan this QR code with your phone's camera to quickly connect to the WiFi hotspot:"
-                        font: FontManager.small
-                        color: ThemeManager.textColor
-                        wrapMode: Text.WordWrap
                         renderType: Text.NativeRendering
                     }
 
@@ -649,56 +467,14 @@ Rectangle {
                             }
                         }
                     }
-                }
-            }
 
-            // Web interface info
-            Rectangle {
-                width: parent.width
-                height: webInfo.height + ThemeManager.spacingSmall * 2
-                color: ThemeManager.backgroundColor
-                border.width: ThemeManager.borderWidth
-                border.color: ThemeManager.black
-                radius: ThemeManager.borderRadius
-
-                Column {
-                    id: webInfo
-
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: ThemeManager.spacingSmall
-                    spacing: ThemeManager.spacingTiny
-
-                    Text {
-                        text: "OPEN WEB BROWSER"
-                        font: FontManager.smallBold
-                        color: ThemeManager.textColor
-                        renderType: Text.NativeRendering
-                    }
-
+                    // Web access info
                     Text {
                         width: parent.width
-                        text: "After connecting to the hotspot, open a web browser and go to:"
-                        font: FontManager.small
-                        color: ThemeManager.textColor
-                        wrapMode: Text.WordWrap
-                        renderType: Text.NativeRendering
-                    }
-
-                    Text {
-                        text: `http://${hotspotIP}:8080`
+                        text: `visit: http://${hotspotIP}:8080`
                         font: FontManager.smallBold
                         color: ThemeManager.textColor
-                        renderType: Text.NativeRendering
-                    }
-
-                    Text {
-                        width: parent.width
-                        text: "Use the web interface to select your WiFi network and enter the password."
-                        font: FontManager.small
-                        color: ThemeManager.textColor
-                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
                         renderType: Text.NativeRendering
                     }
                 }
