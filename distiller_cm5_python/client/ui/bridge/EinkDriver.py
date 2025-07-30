@@ -484,6 +484,10 @@ class EinkDriver:
         self._write_queue = queue.Queue()
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="eink_spi")
         self._running = True
+        
+        # Track if we have a display operation in progress
+        self._display_operation_in_progress = False
+        self._display_operation_lock = Lock()
 
         # Start the SPI worker thread
         self._spi_worker = Thread(target=self._spi_worker_thread, daemon=True)
@@ -560,6 +564,19 @@ class EinkDriver:
             return
 
         self._write_queue.put(("command", command_func))
+        
+    def clear_queue(self):
+        """Clear all pending operations from the queue."""
+        cleared = 0
+        try:
+            while not self._write_queue.empty():
+                self._write_queue.get_nowait()
+                self._write_queue.task_done()
+                cleared += 1
+        except queue.Empty:
+            pass
+        if cleared > 0:
+            logger.debug(f"Cleared {cleared} pending operations from queue")
 
     def is_busy(self) -> bool:
         """Thread-safe getter for busy status."""
@@ -578,9 +595,11 @@ class EinkDriver:
     def _set_busy(self, busy: bool) -> None:
         """Internal method to set busy flag and invoke callback if needed."""
         with self._busy_lock:
+            logger.debug(f"Setting busy flag: {self._is_busy} -> {busy}")
             self._is_busy = busy
             if not busy and self._completion_callback:
                 # Invoke callback when transitioning from busy to idle
+                logger.info("Invoking completion callback")
                 try:
                     self._completion_callback()
                 except Exception as e:
@@ -818,6 +837,13 @@ class EinkDriver:
         if len(datas) != 24960:
             raise ValueError("datas must be a flat list of 24960 integers")
 
+        # Check if a display operation is already in progress
+        with self._display_operation_lock:
+            if self._display_operation_in_progress:
+                logger.warning("Display operation already in progress, skipping frame")
+                return
+            self._display_operation_in_progress = True
+
         # Set busy flag at the start of display operation
         self._set_busy(True)
 
@@ -885,7 +911,9 @@ class EinkDriver:
             self.epd_w21_write_cmd(0x12)
             self.delay_xms(1)  # Necessary delay for the display refresh
             self.lcd_chkstatus()  # Check the display status
-            # Clear busy flag and invoke callback
+            # Clear busy flag and display operation flag
+            with self._display_operation_lock:
+                self._display_operation_in_progress = False
             self._set_busy(False)
 
         self.queue_command(refresh_sequence)
@@ -898,6 +926,13 @@ class EinkDriver:
         """
         if len(new_data) != 12480:
             raise ValueError("new_data must be a flat list of 12480 integers")
+
+        # Check if a display operation is already in progress
+        with self._display_operation_lock:
+            if self._display_operation_in_progress:
+                logger.warning("Display operation already in progress, skipping frame")
+                return
+            self._display_operation_in_progress = True
 
         # Set busy flag at the start of display operation
         self._set_busy(True)
@@ -952,7 +987,9 @@ class EinkDriver:
             self.epd_w21_write_cmd(0x12)
             self.delay_xms(1)  # Necessary delay for the display refresh
             self.lcd_chkstatus()  # Check if the display is ready
-            # Clear busy flag and invoke callback
+            # Clear busy flag and display operation flag
+            with self._display_operation_lock:
+                self._display_operation_in_progress = False
             self._set_busy(False)
 
         self.queue_command(refresh_sequence)
@@ -1032,6 +1069,13 @@ class EinkDriver:
 
     def pic_display_clear(self, poweroff: bool = False) -> None:
         """Clear the display using async SPI communication."""
+        
+        # Check if a display operation is already in progress
+        with self._display_operation_lock:
+            if self._display_operation_in_progress:
+                logger.warning("Display operation already in progress, skipping clear")
+                return
+            self._display_operation_in_progress = True
 
         # Set busy flag at the start of clear operation
         self._set_busy(True)
@@ -1065,7 +1109,9 @@ class EinkDriver:
             if poweroff:
                 self.power_off()  # Optionally power off the display after clearing
 
-            # Clear busy flag and invoke callback
+            # Clear busy flag and display operation flag
+            with self._display_operation_lock:
+                self._display_operation_in_progress = False
             self._set_busy(False)
 
         self.queue_command(refresh_and_poweroff_sequence)

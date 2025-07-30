@@ -116,8 +116,24 @@ class EInkRenderer(QObject):
 
     def set_text_streaming_mode(self, enabled):
         """Enable/disable text streaming mode for better batching."""
-        # This functionality can be implemented in HeadlessRenderer if needed
         logger.debug(f"Text streaming mode: {'enabled' if enabled else 'disabled'}")
+        
+        # In event-driven mode, we might need to trigger updates during streaming
+        if not self._timer_based_mode and enabled:
+            # Start a timer to periodically check for updates during streaming
+            if not hasattr(self, '_streaming_timer'):
+                from PyQt6.QtCore import QTimer
+                self._streaming_timer = QTimer()
+                self._streaming_timer.timeout.connect(self._streaming_update_check)
+            self._streaming_timer.start(2000)  # Check every 2 seconds
+        elif hasattr(self, '_streaming_timer'):
+            self._streaming_timer.stop()
+            
+    def _streaming_update_check(self):
+        """Periodic check during text streaming to ensure display updates."""
+        if self._rendering_active and not self._timer_based_mode:
+            logger.debug("Streaming update check - requesting frame")
+            self.force_update()
 
     def request_update(self):
         """Request a frame update."""
@@ -143,10 +159,8 @@ class EInkRenderer(QObject):
                         logger.warning("Display is busy, skipping frame")
                         return
 
-                # Use asyncio.to_thread for non-blocking operation
-                asyncio.create_task(
-                    asyncio.to_thread(self._eink_bridge.handle_frame, frame_data, width, height)
-                )
+                # Call handle_frame directly - it has its own synchronization
+                self._eink_bridge.handle_frame(frame_data, width, height)
             except Exception as e:
                 logger.error(f"Error forwarding frame to E-Ink bridge: {e}")
         else:
@@ -185,7 +199,10 @@ class EInkRenderer(QObject):
 
     def _on_display_complete(self):
         """Called when the e-ink display completes a refresh."""
+        logger.info(f"Display complete callback triggered (timer_based={self._timer_based_mode}, active={self._rendering_active})")
         if not self._timer_based_mode and self._rendering_active:
             # In event-driven mode, capture the next frame
-            logger.debug("Display complete, capturing next frame")
+            logger.info("Display complete, capturing next frame")
             self._capture_next_frame()
+        else:
+            logger.debug(f"Not capturing next frame: timer_based={self._timer_based_mode}, active={self._rendering_active}")

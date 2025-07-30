@@ -50,6 +50,11 @@ class EInkRendererBridge(QObject):
         # Frame tracking for refresh strategy
         self._frame_count = 0
         self._first_frame = True
+        
+        # State tracking for synchronization
+        self._is_processing_frame = False
+        self._pending_frame = None
+        self._pending_frame_lock = Lock()
 
         # Get refresh settings from config
         self._full_refresh_interval = config["display"]["eink_full_refresh_interval"]
@@ -59,8 +64,26 @@ class EInkRendererBridge(QObject):
 
     def _on_driver_complete(self):
         """Called by the driver when display refresh completes."""
-        # Emit the Qt signal - this will be thread-safe as Qt handles cross-thread signals
-        self.displayComplete.emit()
+        logger.info("Driver complete callback triggered")
+        with self.driver_lock:
+            self._is_processing_frame = False
+            
+        # Check if there's a pending frame to process
+        pending = None
+        with self._pending_frame_lock:
+            if self._pending_frame is not None:
+                pending = self._pending_frame
+                self._pending_frame = None
+                
+        if pending is not None:
+            # Process the pending frame
+            logger.info("Processing pending frame after display complete")
+            frame_data, width, height = pending
+            self._process_frame_internal(frame_data, width, height)
+        else:
+            # Emit the Qt signal - this will be thread-safe as Qt handles cross-thread signals
+            logger.info("No pending frame, emitting displayComplete signal")
+            self.displayComplete.emit()
 
     def _on_display_complete(self):
         """Handler for display completion signal from renderer."""
@@ -155,6 +178,23 @@ class EInkRendererBridge(QObject):
             logger.debug("Skipping frame, display not initialized")
             return
 
+        # Check if we're currently processing a frame
+        with self.driver_lock:
+            if self._is_processing_frame:
+                # Store this frame as pending (drop any previous pending frame)
+                with self._pending_frame_lock:
+                    self._pending_frame = (frame_data, width, height)
+                    logger.debug("Frame queued as pending, display is busy")
+                return
+            else:
+                # Mark that we're processing
+                self._is_processing_frame = True
+        
+        # Process the frame
+        self._process_frame_internal(frame_data, width, height)
+        
+    def _process_frame_internal(self, frame_data: bytearray, width: int, height: int):
+        """Internal method to process a frame - ensures no concurrent processing."""
         try:
             with self.driver_lock:
                 # Convert directly from frame_data to e-ink display format
@@ -167,20 +207,46 @@ class EInkRendererBridge(QObject):
                 try:
                     if self.eink_driver:
                         self.eink_driver.pic_display(display_data)
-                    # if config["display"]["Full_Refresh_LUT_MODE"]:
-                    #     time.sleep(1.3)
+                        
+                        # Set a timeout to recover if the display doesn't complete
+                        QTimer.singleShot(5000, self._check_display_timeout)
                 except Exception as e:
                     logger.error(f"Error displaying frame: {e}")
+                    # Reset processing flag on error
+                    self._is_processing_frame = False
 
         except Exception as e:
             logger.error(f"Error processing frame for e-ink: {e}")
+            with self.driver_lock:
+                self._is_processing_frame = False
             self._recover_driver()
+            
+    def _check_display_timeout(self):
+        """Check if the display is still processing after timeout."""
+        with self.driver_lock:
+            if self._is_processing_frame:
+                logger.warning("Display operation timed out, forcing completion")
+                self._is_processing_frame = False
+                # Force emit display complete signal
+                self.displayComplete.emit()
 
     def _apply_refresh_strategy(self):
         """Apply the appropriate refresh strategy based on frame count"""
         if not self.eink_driver:
             logger.debug("E-ink driver not available, skipping refresh strategy")
             return
+        
+        # Important: We must wait for any ongoing display operations to complete
+        # before changing the refresh mode, as mode changes affect the display controller
+        # state and can corrupt an in-progress refresh
+        max_wait = 3.0  # 3 seconds max wait
+        start_time = time.time()
+        
+        while self.eink_driver.is_busy():
+            if time.time() - start_time > max_wait:
+                logger.warning("Timeout waiting for display to become idle before mode change")
+                break
+            time.sleep(0.01)  # Small delay to avoid busy-waiting
             
         if self._first_frame:
             # First frame after initialization - already in fast mode
