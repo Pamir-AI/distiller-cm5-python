@@ -47,7 +47,7 @@
     "dark_mode": "false"
   },
   "system": {
-    "pre_shutdown_command": "EINK_DISPLAY_PATH=/opt/vibe-code-eink-ui/ &&cd $EINK_DISPLAY_PATH && python -m eink_composer.cli create --size 240x416 && python -m eink_composer.cli add-image bg $EINK_DISPLAY_PATH/sleep-image.png --rotate 90 --resize-mode crop  && python -m eink_composer.cli display",
+    "pre_shutdown_command": "python -c \"from distiller_cm5_sdk.hardware.eink import display_png_auto, ScalingMethod; display_png_auto('/opt/distiller-eink-stash/sleep-image.png',scaling=ScalingMethod.CROP_CENTER, crop_x=0, crop_y=0)\"",
     "pre_shutdown_timeout": 5
   }
 }
