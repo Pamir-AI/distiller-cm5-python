@@ -12,6 +12,7 @@ temperature_warning = 55.0  # 55°C - show temperature warning
 
 # Current detection thresholds (in amperes)
 charging_current = 0.01     # 0.01A - minimum current to consider charging
+current_threshold = 10.0    # 10A - fallback threshold for charging detection via current magnitude
 
 [battery.monitoring]
 # Battery monitoring intervals (in milliseconds)

@@ -1196,10 +1196,12 @@ PageBase {
                     // Signal critical battery shutdown
                     if (bridge && bridge.ready) {
                         // Send BTN_POWER packet for coordinated shutdown
-                        var success = bridge.sendPowerShutdownSignal();
-                        if (!success) {
-                            console.log("Warning: Failed to send power shutdown signal via UART");
-                        }
+                        // COMMENTED OUT FOR NOW - NO SHUTDOWN
+                        // var success = bridge.sendPowerShutdownSignal();
+                        // if (!success) {
+                        //     console.log("Warning: Failed to send power shutdown signal via UART");
+                        // }
+                        console.log("Shutdown signal disabled - would have sent power shutdown signal");
                     }
                 });
                 
@@ -1239,8 +1241,8 @@ PageBase {
                     temperatureWarningShown = false;
                 }
 
-                // Check for critical battery (≤1%) - enhanced charging check
-                if (batteryInfo.isCritical && !batteryInfo.isCharging && batteryInfo.current_ma <= 0) {
+                // Check for critical battery (exactly 2%) and not charging
+                if (batteryInfo.capacity === 2 && !batteryInfo.isCharging) {
                     if (!criticalBatteryWarningShown) {
                         console.log("Critical battery detected: " + batteryInfo.capacity + "% (current: " + batteryInfo.current_ma + "mA)");
                         var dialog = getBatteryWarningDialog();
@@ -1251,11 +1253,13 @@ PageBase {
                         criticalBatteryWarningShown = true;
 
                         // Auto-shutdown after 30 seconds if not charging
-                        criticalShutdownTimer.start();
+                        // COMMENTED OUT FOR NOW - NO AUTO SHUTDOWN
+                        // criticalShutdownTimer.start();
+                        console.log("Auto-shutdown timer disabled - would have started 30s countdown");
                     }
                 } else
-                // Check for low battery (≤15%) - enhanced charging check
-                if (batteryInfo.isLow && !batteryInfo.isCharging && batteryInfo.current_ma <= 0) {
+                // Check for low battery (≤15%) and not charging
+                if (batteryInfo.isLow && !batteryInfo.isCharging) {
                     if (!lowBatteryWarningShown && !criticalBatteryWarningShown) {
                         console.log("Low battery detected: " + batteryInfo.capacity + "% (current: " + batteryInfo.current_ma + "mA)");
                         var dialog = getBatteryWarningDialog();
@@ -1267,7 +1271,7 @@ PageBase {
                     }
                 } else
                 // Reset warnings if charging or battery level improved
-                if (batteryInfo.isCharging || batteryInfo.current_ma > 0 || batteryInfo.capacity > 20) {
+                if (batteryInfo.isCharging || batteryInfo.capacity > 20) {
                     lowBatteryWarningShown = false;
                     if (batteryInfo.capacity > 5) {
                         criticalBatteryWarningShown = false;
@@ -1291,10 +1295,12 @@ PageBase {
 
             if (bridge && bridge.ready) {
                 // Send BTN_POWER packet for coordinated shutdown
-                var success = bridge.sendPowerShutdownSignal();
-                if (!success) {
-                    console.log("Warning: Failed to send power shutdown signal via UART");
-                }
+                // COMMENTED OUT FOR NOW - NO SHUTDOWN
+                // var success = bridge.sendPowerShutdownSignal();
+                // if (!success) {
+                //     console.log("Warning: Failed to send power shutdown signal via UART");
+                // }
+                console.log("Auto-shutdown timer triggered - shutdown disabled, no action taken");
             }
         }
     }

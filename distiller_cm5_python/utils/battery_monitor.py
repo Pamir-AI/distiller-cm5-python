@@ -97,14 +97,34 @@ class BatteryMonitor:
         return status.capacity if status else 0
 
     def is_charging(self) -> bool:
-        """Check if battery is charging based on current and status."""
+        """Check if battery is charging based on status field and current magnitude."""
         status = self.get_battery_status()
         if not status:
             return False
-        # Check both status and current for more accurate charging detection
-        status_charging = status.status.lower() in ["charging", "full"]
-        current_charging = status.current_now > self.config.thresholds.charging_current
-        return status_charging or current_charging
+        
+        # Primary method: Use the status field from the battery driver
+        status_based_charging = status.status.lower() in ["charging", "full"]
+        
+        # Fallback method: Use current magnitude for hardware that always reports "Discharging"
+        # When external power is connected, current drops significantly (system runs on external power)
+        # When on battery, current is high (system draws from battery)
+        current_threshold = self.config.thresholds.current_threshold
+        current_based_charging = abs(status.current_now) < current_threshold
+        
+        # If status field seems unreliable (always "Discharging"), use current-based detection
+        if status.status.lower() == "discharging":
+            # Use current-based detection as fallback
+            is_charging = current_based_charging
+            logger.debug(f"Status field unreliable ('{status.status}'), using current-based detection: "
+                        f"current={status.current_now:.2f}A, threshold={current_threshold}A, "
+                        f"is_charging={is_charging}")
+        else:
+            # Trust the status field
+            is_charging = status_based_charging
+            logger.debug(f"Using status field: {status.status}, is_charging={is_charging}")
+        
+        logger.debug(f"Battery status: {status.status}, current: {status.current_now:.2f}A, is_charging: {is_charging}")
+        return is_charging
 
     def is_low_battery(self) -> bool:
         """Check if battery is low (below warning threshold)."""
@@ -211,7 +231,7 @@ def get_battery_info() -> Dict[str, Any]:
         return {
             "capacity": 100,
             "status": "Unknown",
-            "isCharging": True,
+            "isCharging": False,
             "isLow": False,
             "isCritical": False,
             "iconName": "battery-unknown",

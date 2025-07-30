@@ -19,6 +19,7 @@ class BatteryThresholds:
     warning: int = 25  # 25% - show low battery notice
     temperature_warning: float = 55.0  # 55°C - show temperature warning
     charging_current: float = 0.01  # 0.01A - minimum current to consider charging
+    current_threshold: float = 10.0  # 10A - fallback threshold for charging detection via current magnitude
 
 
 @dataclass
