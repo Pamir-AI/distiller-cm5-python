@@ -169,7 +169,7 @@ async def run():
                     experimental_capabilities={
                         "llm_preferences": {
                             "provider": "llama-cpp",
-                            "model": "qwen3-0.6b-medical-expert-q6_k.gguf",
+                            "model": "qwen2.5-3b-instruct-q4_k_m.gguf",
                             "inference_configs": {"temperature": 0.7, "max_tokens": 2048},
                         }
                     },

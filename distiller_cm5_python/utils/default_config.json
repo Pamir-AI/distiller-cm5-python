@@ -2,7 +2,7 @@
   "llm_providers": {
     "llama-cpp": {
       "server_url": "http://127.0.0.1:8000",
-      "model_name": "qwen3-0.6b-medical-expert-q6_k.gguf",
+      "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
       "provider_type": "llama-cpp",
       "api_key": "",
       "timeout": 300,
