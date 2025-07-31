@@ -10,6 +10,8 @@ import os
 import sys
 import hashlib
 import asyncio
+import time
+import shutil
 from typing import Dict, List, Any, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -31,6 +33,135 @@ from distiller_cm5_python.utils.logger import setup_logging
 # We get the logger instance here, but configuration (level, stream) happens in main()
 logger = logging.getLogger(__name__)
 
+# Cache management utilities
+def get_directory_size(directory_path: str) -> int:
+    """Calculate total size of directory in bytes"""
+    total_size = 0
+    try:
+        for dirpath, dirnames, filenames in os.walk(directory_path):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                if os.path.exists(filepath):
+                    total_size += os.path.getsize(filepath)
+    except (OSError, IOError) as e:
+        logger.warning(f"Error calculating directory size for {directory_path}: {e}")
+    return total_size
+
+def ensure_cache_permissions(cache_dir: str) -> bool:
+    """Ensure cache directory has proper read/write permissions"""
+    try:
+        # Check if directory exists and is writable
+        if os.path.exists(cache_dir):
+            if not os.access(cache_dir, os.W_OK):
+                logger.warning(f"Cache directory {cache_dir} is not writable, attempting to fix permissions")
+                try:
+                    # Try to make directory writable
+                    os.chmod(cache_dir, 0o755)
+                    logger.info(f"Fixed permissions for cache directory: {cache_dir}")
+                except (OSError, IOError) as e:
+                    logger.error(f"Failed to fix permissions for {cache_dir}: {e}")
+                    return False
+        else:
+            # Create directory with proper permissions
+            os.makedirs(cache_dir, mode=0o755, exist_ok=True)
+            logger.debug(f"Created cache directory with proper permissions: {cache_dir}")
+        
+        # Test write access by creating a temporary file
+        test_file = os.path.join(cache_dir, ".write_test")
+        try:
+            with open(test_file, 'w') as f:
+                f.write("test")
+            os.remove(test_file)
+            logger.debug(f"Cache directory write test successful: {cache_dir}")
+            return True
+        except (OSError, IOError) as e:
+            logger.error(f"Cache directory write test failed for {cache_dir}: {e}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error checking cache permissions for {cache_dir}: {e}")
+        return False
+
+def clear_corrupted_cache(cache_dir: str):
+    """Clear corrupted cache files (e.g., readonly database files)"""
+    try:
+        logger.info(f"Clearing potentially corrupted cache in {cache_dir}")
+        
+        # Remove all files in the cache directory
+        if os.path.exists(cache_dir):
+            for filename in os.listdir(cache_dir):
+                filepath = os.path.join(cache_dir, filename)
+                try:
+                    if os.path.isfile(filepath):
+                        # Change permissions if readonly
+                        os.chmod(filepath, 0o644)
+                        os.remove(filepath)
+                        logger.debug(f"Removed cache file: {filepath}")
+                    elif os.path.isdir(filepath):
+                        # Recursively remove subdirectories
+                        shutil.rmtree(filepath)
+                        logger.debug(f"Removed cache directory: {filepath}")
+                except (OSError, IOError) as e:
+                    logger.warning(f"Error removing cache file {filepath}: {e}")
+        
+        # Recreate directory with proper permissions
+        os.makedirs(cache_dir, mode=0o755, exist_ok=True)
+        logger.info(f"Cache directory cleared and recreated: {cache_dir}")
+        
+    except Exception as e:
+        logger.error(f"Error clearing corrupted cache: {e}")
+
+def cleanup_old_cache_entries(cache_dir: str, max_size_bytes: int = 2 * 1024**3):  # 2GB default
+    """Clean up old cache entries when directory exceeds max_size_bytes"""
+    try:
+        current_size = get_directory_size(cache_dir)
+        
+        if current_size <= max_size_bytes:
+            logger.debug(f"Cache size {current_size / (1024**3):.2f}GB is within limit {max_size_bytes / (1024**3):.2f}GB")
+            return
+        
+        logger.info(f"Cache size {current_size / (1024**3):.2f}GB exceeds limit {max_size_bytes / (1024**3):.2f}GB, cleaning up...")
+        
+        # Get all cache files with their modification times
+        cache_files = []
+        for dirpath, dirnames, filenames in os.walk(cache_dir):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                if os.path.exists(filepath):
+                    try:
+                        mtime = os.path.getmtime(filepath)
+                        size = os.path.getsize(filepath)
+                        cache_files.append((filepath, mtime, size))
+                    except (OSError, IOError) as e:
+                        logger.warning(f"Error getting file info for {filepath}: {e}")
+        
+        # Sort by modification time (oldest first)
+        cache_files.sort(key=lambda x: x[1])
+        
+        # Remove files until we're under the size limit
+        bytes_to_remove = current_size - max_size_bytes
+        removed_size = 0
+        removed_count = 0
+        
+        for filepath, mtime, size in cache_files:
+            if removed_size >= bytes_to_remove:
+                break
+            
+            try:
+                os.remove(filepath)
+                removed_size += size
+                removed_count += 1
+                logger.debug(f"Removed cache file: {filepath} ({size} bytes)")
+            except (OSError, IOError) as e:
+                logger.warning(f"Error removing cache file {filepath}: {e}")
+        
+        final_size = get_directory_size(cache_dir)
+        logger.info(f"Cache cleanup completed: removed {removed_count} files ({removed_size / (1024**2):.2f}MB), "
+                   f"final size: {final_size / (1024**3):.2f}GB")
+        
+    except Exception as e:
+        logger.error(f"Error during cache cleanup: {e}")
+
 # Create FastAPI app
 app = FastAPI(title="LLM Server", description="A simple LLM server that provides LLM services")
 
@@ -39,6 +170,7 @@ MODEL_NAME = None
 MODEL = None
 CURRENT_CACHE = None  # Track current cache to invalidate when model changes
 CURRENT_INFERENCE_CONFIGS = None  # Track current inference configurations
+MAX_CACHE_SIZE_BYTES = 2 * 1024**3  # Default 2GB, configurable via command line
 
 
 # Define request and response models
@@ -131,19 +263,47 @@ class Cache:
         temperature: float = 0.0,
         capacity_bytes: int = 2 << 30,
         seed: Optional[int] = None,
+        max_cache_size_bytes: Optional[int] = None,  # Use global default if None
     ):
         cache = Cache(model)
 
         # Always set seed for consistency, use default if not provided
         effective_seed = seed if seed is not None else 12345  # Default consistent seed
         model.set_seed(effective_seed)
+        
+        # Use global cache size limit if not specified
+        effective_cache_size = max_cache_size_bytes if max_cache_size_bytes is not None else MAX_CACHE_SIZE_BYTES
 
         # Create a model-specific cache directory
         model_specific_cache_dir = os.path.join(cache_dir, model_name)
-        os.makedirs(model_specific_cache_dir, exist_ok=True)  # Ensure the directory exists
+        
+        # Ensure proper cache directory permissions
+        if not ensure_cache_permissions(model_specific_cache_dir):
+            logger.warning(f"Cache permission issues detected, clearing cache directory: {model_specific_cache_dir}")
+            clear_corrupted_cache(model_specific_cache_dir)
+        
+        # Clean up old cache entries if cache size exceeds limit
+        cleanup_old_cache_entries(model_specific_cache_dir, effective_cache_size)
 
-        cache_context = LlamaDiskCache(cache_dir=model_specific_cache_dir)
-        model.set_cache(cache_context)
+        # Try to create cache context with error recovery
+        try:
+            cache_context = LlamaDiskCache(cache_dir=model_specific_cache_dir)
+            model.set_cache(cache_context)
+        except Exception as e:
+            if "readonly database" in str(e).lower() or "permission" in str(e).lower():
+                logger.warning(f"Cache database permission error detected: {e}")
+                logger.info("Attempting to clear corrupted cache and retry")
+                clear_corrupted_cache(model_specific_cache_dir)
+                try:
+                    cache_context = LlamaDiskCache(cache_dir=model_specific_cache_dir)
+                    model.set_cache(cache_context)
+                    logger.info("Cache recovery successful after clearing corrupted cache")
+                except Exception as retry_e:
+                    logger.error(f"Cache recovery failed even after clearing cache: {retry_e}")
+                    raise HTTPException(status_code=500, detail=f"Cache system error: {str(retry_e)}")
+            else:
+                logger.error(f"Unexpected cache error: {e}")
+                raise
 
         # Use improved cache key that includes seed and temperature
         cache_key = cache.get_cache_key(prompts, effective_seed, temperature)
@@ -167,9 +327,19 @@ class Cache:
             echo=False,
         )
         # Save the state to cache with the new key
-        cache_state = model.save_state()
-        cache_context[cache_key] = cache_state
-        return cache_state
+        try:
+            cache_state = model.save_state()
+            cache_context[cache_key] = cache_state
+            return cache_state
+        except Exception as e:
+            if "readonly database" in str(e).lower() or "permission" in str(e).lower():
+                logger.error(f"Failed to save cache state due to permission error: {e}")
+                # Return the state without caching it
+                cache_state = model.save_state()
+                logger.warning("Cache save failed, returning uncached state")
+                return cache_state
+            else:
+                raise
 
 
 def is_cache_valid_for_request(messages, tools, inference_configs):
@@ -421,6 +591,93 @@ def format_tools(tools):
     return t_tools
 
 
+@app.get("/cache/status")
+async def get_cache_status():
+    """Get cache directory status and permissions for troubleshooting"""
+    try:
+        cache_base_dir = os.path.join(os.path.dirname(__file__), "cache")
+        status_info = {
+            "cache_base_directory": cache_base_dir,
+            "exists": os.path.exists(cache_base_dir),
+            "is_writable": os.access(cache_base_dir, os.W_OK) if os.path.exists(cache_base_dir) else False,
+            "is_readable": os.access(cache_base_dir, os.R_OK) if os.path.exists(cache_base_dir) else False,
+            "total_size_bytes": get_directory_size(cache_base_dir) if os.path.exists(cache_base_dir) else 0,
+        }
+        
+        # Add model-specific cache info if model is loaded
+        if MODEL_NAME:
+            model_cache_dir = os.path.join(cache_base_dir, MODEL_NAME)
+            status_info["model_cache_directory"] = model_cache_dir
+            status_info["model_cache_exists"] = os.path.exists(model_cache_dir)
+            status_info["model_cache_writable"] = os.access(model_cache_dir, os.W_OK) if os.path.exists(model_cache_dir) else False
+            status_info["model_cache_size_bytes"] = get_directory_size(model_cache_dir) if os.path.exists(model_cache_dir) else 0
+            
+            # List cache files for the current model
+            if os.path.exists(model_cache_dir):
+                cache_files = []
+                for filename in os.listdir(model_cache_dir):
+                    filepath = os.path.join(model_cache_dir, filename)
+                    if os.path.isfile(filepath):
+                        try:
+                            file_info = {
+                                "name": filename,
+                                "size_bytes": os.path.getsize(filepath),
+                                "modified": os.path.getmtime(filepath),
+                                "readable": os.access(filepath, os.R_OK),
+                                "writable": os.access(filepath, os.W_OK),
+                            }
+                            cache_files.append(file_info)
+                        except (OSError, IOError) as e:
+                            cache_files.append({"name": filename, "error": str(e)})
+                status_info["cache_files"] = cache_files[:10]  # Limit to first 10 files
+        
+        # Convert size to human readable format
+        size_bytes = status_info.get("total_size_bytes", 0)
+        if size_bytes > 0:
+            status_info["total_size_mb"] = round(size_bytes / (1024**2), 2)
+            status_info["total_size_gb"] = round(size_bytes / (1024**3), 3)
+        
+        # Add cache size limit info
+        status_info["max_cache_size_bytes"] = MAX_CACHE_SIZE_BYTES
+        status_info["max_cache_size_gb"] = round(MAX_CACHE_SIZE_BYTES / (1024**3), 2)
+        
+        return {"status": "ok", "cache_info": status_info}
+        
+    except Exception as e:
+        logger.error(f"Error getting cache status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting cache status: {str(e)}")
+
+
+@app.post("/cache/clear")
+async def clear_cache():
+    """Clear all cache files (useful for troubleshooting permission issues)"""
+    try:
+        cache_base_dir = os.path.join(os.path.dirname(__file__), "cache")
+        
+        if not os.path.exists(cache_base_dir):
+            return {"status": "ok", "message": "Cache directory does not exist"}
+        
+        # Get size before clearing
+        size_before = get_directory_size(cache_base_dir)
+        
+        # Clear the cache
+        clear_corrupted_cache(cache_base_dir)
+        
+        # Reset current cache tracking
+        global CURRENT_CACHE
+        CURRENT_CACHE = None
+        
+        logger.info(f"Cache cleared manually via API, freed {size_before / (1024**2):.2f}MB")
+        return {
+            "status": "ok", 
+            "message": f"Cache cleared successfully, freed {size_before / (1024**2):.2f}MB"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}")
+        raise HTTPException(status_code=500, detail=f"Error clearing cache: {str(e)}")
+
+
 @app.post("/restore_cache")
 async def restore_cache(request: RestoreCacheRequest):
     global MODEL
@@ -438,8 +695,13 @@ async def restore_cache(request: RestoreCacheRequest):
 
         # handle cache
         prompt = format_prompt(messages, tools)
+        
+        # Get cache directory path
+        cache_base_dir = os.path.join(os.path.dirname(__file__), "cache")
+        logger.debug(f"Using cache directory: {cache_base_dir}")
+        
         cache_context = Cache.build_cache(
-            cache_dir=os.path.join(os.path.dirname(__file__), "cache"),
+            cache_dir=cache_base_dir,
             prompts=prompt,
             model=MODEL,
             model_name=MODEL_NAME,
@@ -451,9 +713,22 @@ async def restore_cache(request: RestoreCacheRequest):
 
         logger.info(f"Cache restored successfully for model {MODEL_NAME} with seed {seed}")
         return {"status": "ok", "message": "cache is restored"}
+    except HTTPException:
+        # Re-raise HTTPException as-is (already has proper status code)
+        raise
     except Exception as e:
-        logger.error(f"Error restoring cache: {e}")
-        raise HTTPException(status_code=500, detail=f"Error restoring cache: {str(e)}")
+        error_msg = str(e)
+        if "readonly database" in error_msg.lower():
+            detailed_msg = f"Cache database permission error: {error_msg}. The cache may have been created by a different user or process."
+            logger.error(f"Cache restore failed - {detailed_msg}")
+            raise HTTPException(status_code=500, detail=detailed_msg)
+        elif "permission" in error_msg.lower():
+            detailed_msg = f"Cache permission error: {error_msg}. Check file/directory permissions for the cache directory."
+            logger.error(f"Cache restore failed - {detailed_msg}")
+            raise HTTPException(status_code=500, detail=detailed_msg)
+        else:
+            logger.error(f"Error restoring cache: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Error restoring cache: {str(e)}")
 
 
 @app.post("/chat/completions")
@@ -540,6 +815,12 @@ def main():
         choices=["debug", "info", "warning", "error", "critical"],
         help="Log level",
     )
+    parser.add_argument(
+        "--max-cache-size-gb",
+        type=float,
+        default=2.0,
+        help="Maximum cache size in GB before cleanup (default: 2.0)",
+    )
     args = parser.parse_args()
 
     # --- Setup Logging ---
@@ -568,6 +849,11 @@ def main():
                 exc_info=True,
             )
             sys.exit("Error loading default model.")
+
+    # Set cache size limit from command line argument
+    global MAX_CACHE_SIZE_BYTES
+    MAX_CACHE_SIZE_BYTES = int(args.max_cache_size_gb * 1024**3)
+    logger.info(f"Cache size limit set to {args.max_cache_size_gb}GB ({MAX_CACHE_SIZE_BYTES} bytes)")
 
     logger.info(f"Starting LLM Server on {args.host}:{args.port}")
 
