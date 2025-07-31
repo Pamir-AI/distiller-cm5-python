@@ -440,11 +440,18 @@ rlimit-nproc=3
 
                 config_content = "\n".join(lines)
 
-            # Write configuration
-            with open(avahi_config_path, "w") as f:
-                f.write(config_content)
-
-            os.chmod(avahi_config_path, 0o644)
+            # Write configuration using sudo
+            cmd = self._build_command(["tee", "/etc/avahi/avahi-daemon.conf"])
+            result = subprocess.run(
+                cmd,
+                input=config_content,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f"Failed to write avahi config: {result.stderr.strip()}")
 
             # Restart Avahi daemon
             subprocess.run(
