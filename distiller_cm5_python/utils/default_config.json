@@ -47,7 +47,7 @@
     "dark_mode": "false"
   },
   "system": {
-    "pre_shutdown_command": "python -c \"from distiller_cm5_sdk.hardware.eink import display_png_auto, ScalingMethod; display_png_auto('/opt/distiller-eink-stash/sleep-image.png',scaling=ScalingMethod.CROP_CENTER, crop_x=0, crop_y=0)\"",
+    "pre_shutdown_command": "python -c \"from distiller_cm5_sdk.hardware.eink import display_png_auto, ScalingMethod; display_png_auto('/opt/distiller-eink-stash/sleep-image.png',scaling=ScalingMethod.CROP_CENTER, crop_x=0, crop_y=0, rotate=1, flop=1)\"",
     "pre_shutdown_timeout": 5
   }
 }
