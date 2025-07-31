@@ -23,6 +23,7 @@ PageBase {
     property bool conversationScrollMode: false // Track if conversation is in scroll mode
     property bool showStatusInBothPlaces: true // Set to true to show status in voice area instead of header
     property bool cacheRestoring: state === "cacheRestoring" // Flag to track if cache is being restored
+    property real lastStreamingTimestamp: 0 // Track last time we received streaming data
 
     // Helper function to get status text for current state
     function getStatusTextForState(currentState) {
@@ -427,9 +428,24 @@ PageBase {
         onTriggered: {
             // Check for stuck processing state (was stateCheckTimer's job)
             // Exclude cache restoration from timeout logic - it has its own lifecycle
-            if (isProcessing && state !== "cacheRestoring" && (Date.now() - lastActionTimestamp > 15000)) {
-                console.log("StateResetTimer triggered: Detected stuck state after inactivity");
-                voiceAssistantPage.state = "idle";
+            if (isProcessing && state !== "cacheRestoring") {
+                var timeSinceLastAction = Date.now() - lastActionTimestamp;
+                var timeSinceLastStream = Date.now() - voiceAssistantPage.lastStreamingTimestamp;
+                
+                console.log("StateResetTimer check: state=" + state + 
+                           ", timeSinceLastAction=" + Math.round(timeSinceLastAction/1000) + "s" +
+                           ", timeSinceLastStream=" + Math.round(timeSinceLastStream/1000) + "s");
+                
+                if (timeSinceLastAction > 30000) {
+                    // Check if we're still receiving streaming data (within last 5 seconds)
+                    var streamingActive = timeSinceLastStream < 5000;
+                    if (!streamingActive) {
+                        console.log("StateResetTimer: Resetting to idle - no activity for 30s and no streaming for 5s");
+                        voiceAssistantPage.state = "idle";
+                    } else {
+                        console.log("StateResetTimer: Keeping thinking state - still streaming");
+                    }
+                }
             }
         }
     }
@@ -538,6 +554,21 @@ PageBase {
             transcriptionInProgress = false;
         }
 
+        // Handler for action events (when LLM uses tools)
+        function onActionReceived(content, eventId, timestamp) {
+            console.log("Action received: " + content);
+            // Update timestamps to prevent timeout during tool execution
+            stateResetTimer.lastActionTimestamp = Date.now();
+            voiceAssistantPage.lastStreamingTimestamp = Date.now();
+            // Set or maintain toolExecution state
+            if (state === "idle" || state === "thinking") {
+                state = "toolExecution";
+            }
+            // Add the action to the conversation view
+            if (conversationView)
+                conversationView.updateModel(bridge.get_conversation());
+        }
+
         // Handler for SSH information events
         function onSshInfoReceived(content, eventId, timestamp) {
             console.log("SSH Info received: " + content);
@@ -555,6 +586,13 @@ PageBase {
         // Handler for function events
         function onFunctionReceived(content, eventId, timestamp) {
             console.log("Function info received: " + content);
+            // Update timestamps to prevent timeout during tool execution
+            stateResetTimer.lastActionTimestamp = Date.now();
+            voiceAssistantPage.lastStreamingTimestamp = Date.now();
+            // Ensure we stay in thinking/toolExecution state
+            if (state === "idle") {
+                state = "toolExecution";
+            }
             // Add the function information to the conversation view
             if (conversationView)
                 conversationView.updateModel(bridge.get_conversation());
@@ -563,6 +601,13 @@ PageBase {
         // Handler for observation events
         function onObservationReceived(content, eventId, timestamp) {
             console.log("Observation received: " + content);
+            // Update timestamps to prevent timeout during tool execution
+            stateResetTimer.lastActionTimestamp = Date.now();
+            voiceAssistantPage.lastStreamingTimestamp = Date.now();
+            // Ensure we stay in thinking/toolExecution state
+            if (state === "idle") {
+                state = "toolExecution";
+            }
             // Add the observation to the conversation view
             if (conversationView)
                 conversationView.updateModel(bridge.get_conversation());
@@ -632,7 +677,11 @@ PageBase {
                 state = "cacheRestoring";
                 // Cache restoration is now handled separately and won't be reset by timer
             } else if (newStatus === "idle" || newStatus === "Ready") {
-                state = "idle";
+                // Don't immediately go to idle if we're still streaming
+                var streamingActive = (Date.now() - voiceAssistantPage.lastStreamingTimestamp) < 3000;
+                if (!streamingActive) {
+                    state = "idle";
+                }
             } else if (newStatus.toLowerCase().includes("listening"))
                 state = "listening";
             else if (newStatus.toLowerCase().includes("error"))
@@ -914,9 +963,10 @@ PageBase {
 
             function onMessageReceived(message, eventId, timestamp, status) {
                 console.log("QML onMessageReceived:", status, eventId, message.substring(0, 50));
-                if (status === "in_progress") {
+                if (status === "in_progress" || status === "streaming") {
                     // Update timestamp to prevent timeout during text streaming
                     stateResetTimer.lastActionTimestamp = Date.now();
+                    voiceAssistantPage.lastStreamingTimestamp = Date.now();
 
                     // Get current conversation
                     var conversation = bridge.get_conversation();
@@ -937,9 +987,11 @@ PageBase {
                     conversationView.updateModel(conversation);
                     conversationView.setResponseInProgress(true);
                     // Let updateModel and setResponseInProgress handle scrolling
-                } else if (status === "success") {
-                    console.log("QML: Message complete, resetting UI state");
+                } else if (status === "success" || status === "complete") {
+                    console.log("QML: Message complete (status=" + status + "), resetting UI state");
                     // Final message or end of streaming
+                    // Clear streaming timestamp to allow state reset
+                    voiceAssistantPage.lastStreamingTimestamp = 0;
                     // Reset UI state now that the response is complete
                     voiceAssistantPage.state = "idle";
                     // Final scroll to bottom after response completion
@@ -948,8 +1000,8 @@ PageBase {
                             conversationView.scrollToBottom();
                         }
                     });
-                    // Stop failsafe timer
-                    stateResetTimer.stop();
+                    // Restart failsafe timer instead of stopping it
+                    stateResetTimer.restart();
                 }
             }
 
