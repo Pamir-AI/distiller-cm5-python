@@ -50,7 +50,7 @@ DeviceAllow=/dev/fb* rw
 DevicePolicy=auto
 
 # Access to hardware groups
-SupplementaryGroups=netdev gpio spi dialout audio i2c input tty
+SupplementaryGroups=netdev gpio spi dialout audio i2c input
 
 # Capabilities
 AmbientCapabilities=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_DAC_OVERRIDE CAP_MKNOD CAP_SYS_RAWIO CAP_SYS_TIME CAP_NET_BIND_SERVICE

@@ -46,14 +46,14 @@ create_system_user() {
                 --user-group "$DISTILLER_USER"
         
         # Add user to required groups for hardware and network access
-        usermod -a -G netdev,gpio,spi,dialout,audio "$DISTILLER_USER" 2>/dev/null || true
+        usermod -a -G netdev,gpio,spi,dialout,audio,i2c,input "$DISTILLER_USER" 2>/dev/null || true
         
         echo_success "System user '$DISTILLER_USER' created successfully."
     else
         echo_status "System user '$DISTILLER_USER' already exists."
         
         # Ensure user is in required groups for WiFi service support
-        usermod -a -G netdev,gpio,spi,dialout,audio "$DISTILLER_USER" 2>/dev/null || true
+        usermod -a -G netdev,gpio,spi,dialout,audio,i2c,input "$DISTILLER_USER" 2>/dev/null || true
     fi
 }
 
