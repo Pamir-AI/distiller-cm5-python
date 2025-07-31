@@ -39,9 +39,9 @@ To switch to a different model, follow these steps:
 
 1. Ensure your model is in GGUF format
    - See: [How to create GGUF model](https://github.com/ggml-org/llama.cpp/discussions/2948)
-2. Navigate to the path `/home/distiller/distiller-cm5-python/distiller_cm5_python/llm_server`
+2. Navigate to the path `/opt/distiller-cm5-python/distiller_cm5_python/llm_server`
 3. Add your model to the `./models` directory
-4. In `/home/distiller/distiller-cm5-python/distiller_cm5_python/utils/default_config.json`, change:
+4. In `/opt/distiller-cm5-python/distiller_cm5_python/utils/default_config.json`, change:
    ```json
    "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf"
    ```
@@ -62,7 +62,7 @@ To switch to a different model, follow these steps:
 ## Adding Custom Prompts
 
 To add custom prompts, follow the example at:
-`/home/distiller/distiller-cm5-python/distiller_cm5_python/mcp_server/medical_assistant_server.py`
+`/opt/distiller-cm5-python/distiller_cm5_python/mcp_server/medical_assistant_server.py`
 
 Once you reboot or manually rerun, you can find your customized LLM with customized prompt in the selection page.
 
@@ -116,7 +116,7 @@ Enter without spinning up the default LLM chat services, then show SSH info on s
 
 When LLM cache runs into issues, delete the cache folder at:
 ```
-/home/distiller/distiller-cm5-python/distiller_cm5_python/llm_server/cache
+/opt/distiller-cm5-python/distiller_cm5_python/llm_server/cache
 ```
 
 This will reset the cache.

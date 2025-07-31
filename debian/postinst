@@ -268,16 +268,21 @@ download_llm_models() {
     QWEN3_MEDICAL_MODEL_PATH="$MODEL_DIR/$QWEN3_MEDICAL_MODEL_FILE"
     QWEN3_MEDICAL_MODEL_URL="https://huggingface.co/mradermacher/Qwen3-0.6B-Medical-Expert-i1-GGUF/resolve/main/Qwen3-0.6B-Medical-Expert.i1-Q6_K.gguf"
     
+    # Model 3: MedGemma Medical Expert
+    MEDGEMMA_MODEL_FILE="medgemma-4b-it-Q4_K_M.gguf"
+    MEDGEMMA_MODEL_PATH="$MODEL_DIR/$MEDGEMMA_MODEL_FILE"
+    MEDGEMMA_MODEL_URL="https://huggingface.co/unsloth/medgemma-4b-it-GGUF/resolve/main/medgemma-4b-it-Q4_K_S.gguf"
+    
     # Create models directory if it doesn't exist
     mkdir -p "$MODEL_DIR"
     chown "$DISTILLER_USER:$DISTILLER_USER" "$MODEL_DIR"
     
-    # Check available disk space (models are ~2GB + ~0.5GB)
+    # Check available disk space (models are ~2GB + ~0.5GB + ~2.5GB)
     AVAILABLE_SPACE=$(df "$MODEL_DIR" | awk 'NR==2 {print $4}')
-    REQUIRED_SPACE=2621440  # 2.5GB in KB for both models
+    REQUIRED_SPACE=5242880  # 5GB in KB for all three models
     
     if [ "$AVAILABLE_SPACE" -lt "$REQUIRED_SPACE" ]; then
-        echo_error "Insufficient disk space. Need at least 2.5GB free space for both models."
+        echo_error "Insufficient disk space. Need at least 5GB free space for all three models."
         echo_error "Available: $(($AVAILABLE_SPACE / 1024))MB, Required: $(($REQUIRED_SPACE / 1024))MB"
         return 1
     fi
@@ -347,6 +352,9 @@ download_llm_models() {
     
     # Download Qwen3 Medical Expert model (~0.5GB)
     download_single_model "Qwen3 Medical Expert model" "$QWEN3_MEDICAL_MODEL_PATH" "$QWEN3_MEDICAL_MODEL_URL" 268435456
+    
+    # Download MedGemma Medical Expert model (~2.5GB)
+    download_single_model "MedGemma Medical Expert model" "$MEDGEMMA_MODEL_PATH" "$MEDGEMMA_MODEL_URL" 2147483648
     
     echo_success "All LLM models processed successfully."
 }

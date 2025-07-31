@@ -67,6 +67,11 @@ The Distiller CM5 Python project is a comprehensive AI assistant application for
 # Alternative: Quick setup with uv
 uv sync
 
+# Run application after setup
+./run.sh           # CLI mode
+./run.sh --gui      # GUI mode
+./spin_up.sh        # Alternative GUI launcher
+
 # Note: For full hardware functionality, also install distiller-cm5-sdk
 # See: https://github.com/Pamir-AI/distiller-cm5-sdk/tree/debian
 ```
@@ -82,7 +87,8 @@ uv sync
 ./spin_up.sh
 
 # Direct Python execution
-python main.py [--gui]
+python main.py      # CLI mode (default)
+python main.py --gui # GUI mode
 ```
 
 ### Model Management
@@ -92,7 +98,8 @@ python main.py [--gui]
 
 # Models downloaded by install.sh:
 # 1. qwen2.5-3b-instruct-q4_k_m.gguf (General purpose, 3B params)
-# 2. qwen3-0.6b-medical-expert-q6_k.gguf (Medical domain, 0.6B params)
+# 2. qwen3-0.6b-medical-expert-q6_k.gguf (Medical domain, 0.6B params) 
+# 3. medgemma-4b-it-Q4_K_M.gguf (Medical domain, 4B params)
 
 # Manual download if needed:
 wget -O distiller_cm5_python/llm_server/models/qwen2.5-3b-instruct-q4_k_m.gguf \
@@ -126,6 +133,9 @@ uv run pyright distiller_cm5_python/
 
 # Build distribution package
 uv build
+
+# Service installation
+./install-service.sh
 ```
 
 ## Configuration
@@ -303,6 +313,91 @@ Designed to work with `distiller-cm5-services` for system-level integration and 
 ### Power Management
 UART-based signaling provides power state information to the broader system architecture.
 
+## Hostname Management
+
+### Overview
+The application includes comprehensive hostname management functionality in `distiller_cm5_python/client/ui/network/device_config.py` that properly updates both system hostname and `/etc/hosts` file for correct local resolution.
+
+### Hostname Update Process
+When a hostname is updated, the system performs these steps:
+
+1. **Validation**: Validates hostname format according to RFC standards
+2. **Backup**: Creates timestamped backup of `/etc/hosts` (e.g., `/etc/hosts.backup.1234567890`)
+3. **System Update**: Updates hostname using `hostnamectl` (preferred) or `/etc/hostname` (fallback)
+4. **Hosts File Update**: Updates `/etc/hosts` with proper localhost entries
+5. **Avahi Configuration**: Updates Avahi daemon configuration for mDNS
+
+### `/etc/hosts` Format
+The system ensures a standard-compliant `/etc/hosts` format:
+
+```
+127.0.0.1       localhost
+127.0.1.1       hostname hostname.local
+::1             localhost ip6-localhost ip6-loopback
+# ... other custom entries preserved
+```
+
+### Key Features
+- **FQDN Support**: Handles both short hostnames and fully qualified domain names
+- **Localhost Preservation**: Ensures proper `127.0.0.1 localhost` entry exists
+- **IPv6 Support**: Maintains IPv6 localhost entries (`::1`)
+- **Backup Creation**: Automatic backup before modification with rollback guidance
+- **Permission Handling**: Uses sudo via `_build_command()` for secure file operations
+- **Validation**: RFC-compliant hostname validation (max 253 chars, proper label format)
+
+### Hostname Functions
+
+**Core Functions in `device_config.py`:**
+- `_validate_hostname(hostname)`: RFC standard validation
+- `_backup_hosts_file()`: Creates timestamped backup  
+- `_update_hosts_file(hostname)`: Comprehensive hosts file management
+- `_update_system_hostname(hostname)`: Full hostname update process
+
+**Validation Rules:**
+- Maximum 253 characters total length
+- Labels (parts between dots) max 63 characters each
+- Must start/end with alphanumeric characters
+- Can contain hyphens within labels
+- Supports both short names and FQDNs
+
+### Permissions Required
+The `debian/distiller-system` sudoers file grants necessary permissions:
+
+```bash
+# Hostname management for WiFi service
+distiller ALL=(ALL) NOPASSWD: /usr/bin/hostnamectl*
+distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hosts
+distiller ALL=(ALL) NOPASSWD: /usr/bin/cp /etc/hosts /etc/hosts.backup.*
+distiller ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/hosts
+```
+
+### Troubleshooting Hostname Issues
+
+**Check current hostname:**
+```bash
+hostname                    # Current runtime hostname
+hostnamectl                 # Detailed hostname info
+cat /etc/hostname          # Persistent hostname
+cat /etc/hosts             # Local resolution entries
+```
+
+**Manual hostname restoration:**
+```bash
+# If automatic backup exists
+sudo cp /etc/hosts.backup.TIMESTAMP /etc/hosts
+
+# Or recreate standard entries
+echo "127.0.0.1    localhost" | sudo tee /etc/hosts
+echo "127.0.1.1    your-hostname your-hostname.local" | sudo tee -a /etc/hosts
+echo "::1          localhost ip6-localhost ip6-loopback" | sudo tee -a /etc/hosts
+```
+
+**Common hostname issues:**
+- **"hostname: Name or service not known"**: Check `/etc/hosts` for proper `127.0.1.1` entry
+- **mDNS resolution fails**: Verify Avahi configuration and restart `avahi-daemon`
+- **Permission denied**: Ensure distiller user has proper sudo permissions
+- **Invalid hostname format**: Must comply with RFC standards (see validation rules above)
+
 ## Troubleshooting
 
 ### Cache Issues
@@ -318,6 +413,9 @@ rm -rf distiller_cm5_python/llm_server/cache
 - **GUI won't start**: Ensure PyQt6 dependencies are installed and display is available; try CLI mode first
 - **uv command not found**: Install uv package manager or use pip alternatives shown in commands
 - **Permission errors**: Ensure proper GPIO/UART permissions for hardware access
+- **Virtual environment issues**: Run `./install.sh` to recreate environment if `.venv` is corrupted
+- **Dependency conflicts**: Use `uv sync` to resolve and update all dependencies
+- **Hostname resolution issues**: Check `/etc/hosts` for proper localhost entries; see hostname management section below
 
 ## Memory Annotations
 

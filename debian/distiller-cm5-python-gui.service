@@ -3,38 +3,67 @@ Description=Distiller CM5 Python GUI Assistant
 Documentation=https://github.com/pamir-ai/distiller-cm5-python
 After=network-online.target
 Wants=network-online.target
+
 [Service]
 Type=simple
-User=root
-Group=root
+User=distiller
+Group=distiller
+
+# Environment variables
 Environment=PYTHONPATH=/opt/distiller-cm5-sdk/src:/opt/distiller-cm5-python
 Environment=LD_LIBRARY_PATH=/opt/distiller-cm5-sdk/lib
 Environment=PYTHONUNBUFFERED=1
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+# Working directory and start command
 WorkingDirectory=/opt/distiller-cm5-python
-ExecStartPre=/bin/bash -c 'cd /opt/distiller-cm5-python && if command -v uv >/dev/null 2>&1; then uv sync --quiet 2>/dev/null || true; elif [ -f "/usr/local/bin/uv" ]; then /usr/local/bin/uv sync --quiet 2>/dev/null || true; fi'
-ExecStartPre=/bin/sleep 5
+ExecStartPre=/bin/sleep 10
 ExecStart=/opt/distiller-cm5-python/.venv/bin/python /opt/distiller-cm5-python/main.py --gui
+
+# Restart policy
 Restart=always
 RestartSec=5
+
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=distiller-cm5-python-gui
-# Security settings (relaxed for hardware access)
+
+# Permissions and security settings
 NoNewPrivileges=false
-PrivateTmp=true
-ProtectSystem=false
-ProtectHome=false
+PrivateTmp=false
+ProtectSystem=off
+ProtectHome=off
 PrivateDevices=false
-DevicePolicy=open
-SupplementaryGroups=netdev gpio spi dialout audio i2c
-# Grant hostname management capabilities
-AmbientCapabilities=CAP_SYS_ADMIN
-ReadWritePaths=/opt/distiller-cm5-python /var/log/distiller-cm5-python /etc/distiller /sys/class/ /sys/devices/platform /etc/NetworkManager/system-connections /etc/hostname /etc/hosts /etc/avahi
-# Automatic restart on failure
+DeviceAllow=/dev/null rw
+DeviceAllow=/dev/mem rw
+DeviceAllow=/dev/tty rw
+DeviceAllow=/dev/gpiomem* rw
+DeviceAllow=/dev/gpiochip* rw
+DeviceAllow=/dev/i2c-* rw
+DeviceAllow=/dev/spidev* rw
+DeviceAllow=/dev/video0 rw
+DeviceAllow=/dev/snd/* rw
+DeviceAllow=/dev/pamir-sam rw
+DeviceAllow=/dev/input/event* rw
+DeviceAllow=/dev/serial* rw
+DeviceAllow=/dev/fb* rw
+DevicePolicy=auto
+
+# Access to hardware groups
+SupplementaryGroups=netdev gpio spi dialout audio i2c input tty
+
+# Capabilities
+AmbientCapabilities=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_DAC_OVERRIDE CAP_MKNOD CAP_SYS_RAWIO CAP_SYS_TIME CAP_NET_BIND_SERVICE
+
+# Filesystem access
+ReadWritePaths=/opt/distiller-cm5-python /opt/distiller-eink-stash /opt/distiller-cm5-sdk /var/log/distiller-cm5-python /etc/distiller /sys/class /sys/devices /etc/NetworkManager/system-connections /etc/hostname /etc/hosts /etc/avahi /tmp /home/distiller
+ReadOnlyPaths=/boot /proc/sys
+
+# Kill behavior
 RestartKillSignal=SIGTERM
 KillMode=mixed
 TimeoutStartSec=30
 TimeoutStopSec=10
+
 [Install]
 WantedBy=multi-user.target

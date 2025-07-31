@@ -24,7 +24,12 @@ distiller ALL=(ALL) NOPASSWD: /usr/bin/hostname
 distiller ALL=(ALL) NOPASSWD: /usr/bin/hostnamectl*
 distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hostname
 distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hosts
+distiller ALL=(ALL) NOPASSWD: /bin/tee /etc/hosts
+distiller ALL=(ALL) NOPASSWD: /usr/bin/cp /etc/hosts /etc/hosts.backup.*
+distiller ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/hosts
 distiller ALL=(ALL) NOPASSWD: /bin/hostname
+distiller ALL=(ALL) NOPASSWD: /bin/cp /etc/hosts /etc/hosts.backup.*
+distiller ALL=(ALL) NOPASSWD: /bin/cat /etc/hosts
 distiller ALL=(ALL) NOPASSWD: /bin/sh -c echo * > /etc/hostname
 
 # System configuration file management

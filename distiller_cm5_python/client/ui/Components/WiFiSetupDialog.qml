@@ -175,10 +175,7 @@ Rectangle {
                 var currentItem = FocusManager.currentFocusItems[FocusManager.currentFocusIndex];
                 console.log("WiFiSetupDialog focus changed to:", currentItem ? currentItem.objectName : "null");
                 
-                // Update content list view focus
-                if (contentListView) {
-                    contentListView.visualFocus = (currentItem === contentListView);
-                }
+                // Update content list view focus - removed contentListView reference as component doesn't exist
             }
         }
     }

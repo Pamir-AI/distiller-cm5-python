@@ -308,25 +308,31 @@ class DeviceConfigManager:
                 logger.warning(f"  Service will claim: {hostname}.local")
                 return False
 
-            # Update /etc/hosts (optional, continue if fails)
+            # Update /etc/hosts (critical for hostname resolution)
+            hosts_updated = False
             try:
                 self._update_hosts_file(hostname)
+                hosts_updated = True
             except Exception as e:
-                logger.warning(f"Failed to update /etc/hosts: {e}")
+                logger.error(f"Failed to update /etc/hosts: {e}")
+                logger.error("This may cause hostname resolution issues for subsequent operations")
 
             # Update Avahi configuration (optional, continue if fails)
-            try:
-                self._update_avahi_config(hostname)
+            if hosts_updated:
+                try:
+                    self._update_avahi_config(hostname)
 
-                # Restart avahi-daemon to pick up new hostname
-                subprocess.run(
-                    self._build_command(["systemctl", "restart", "avahi-daemon"]),
-                    check=False,
-                    timeout=10,
-                )
-                logger.info("Restarted avahi-daemon")
-            except Exception as e:
-                logger.warning(f"Failed to update avahi config: {e}")
+                    # Restart avahi-daemon to pick up new hostname
+                    subprocess.run(
+                        self._build_command(["systemctl", "restart", "avahi-daemon"]),
+                        check=False,
+                        timeout=10,
+                    )
+                    logger.info("Restarted avahi-daemon")
+                except Exception as e:
+                    logger.warning(f"Failed to update avahi config: {e}")
+            else:
+                logger.warning("Skipping avahi configuration update due to /etc/hosts update failure")
 
             # Verify the change
             new_hostname = self._get_current_hostname()
@@ -343,33 +349,163 @@ class DeviceConfigManager:
             logger.error(f"Failed to update hostname: {e}")
             return False
 
-    def _update_hosts_file(self, hostname: str):
-        """Update /etc/hosts with new hostname"""
+    def _validate_hostname(self, hostname: str) -> bool:
+        """Validate hostname format according to RFC standards"""
+        import re
+        
+        if not hostname or len(hostname) > 253:
+            return False
+        
+        # Remove trailing dot for FQDN validation
+        if hostname.endswith('.'):
+            hostname = hostname[:-1]
+        
+        # Check each label
+        labels = hostname.split('.')
+        for label in labels:
+            if not label or len(label) > 63:
+                return False
+            # Must start and end with alphanumeric, can contain hyphens
+            if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$', label):
+                return False
+        
+        return True
+
+    def _backup_hosts_file(self) -> bool:
+        """Create backup of /etc/hosts file"""
         try:
+            import shutil
+            import time
+            
+            timestamp = int(time.time())
+            backup_path = f"/etc/hosts.backup.{timestamp}"
+            
+            # Use sudo to copy the file
+            cmd = self._build_command(["cp", "/etc/hosts", backup_path])
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                logger.info(f"Created /etc/hosts backup: {backup_path}")
+                return True
+            else:
+                logger.warning(f"Failed to create /etc/hosts backup: {result.stderr.strip()}")
+                return False
+                
+        except Exception as e:
+            logger.warning(f"Failed to backup /etc/hosts: {e}")
+            return False
+
+    def _update_hosts_file(self, hostname: str):
+        """Update /etc/hosts with proper localhost entries and FQDN support"""
+        if not self._validate_hostname(hostname):
+            raise ValueError(f"Invalid hostname format: {hostname}")
+        
+        try:
+            # Create backup before modification
+            backup_created = self._backup_hosts_file()
+            
             hosts_content = []
-            updated = False
-
+            has_localhost = False
+            has_localhost_alias = False
+            has_ipv6_localhost = False
+            
+            # Prepare hostname entries
+            short_hostname = hostname.split('.')[0]  # Extract short name from FQDN
+            fqdn = hostname if '.' in hostname else f"{hostname}.local"
+            
             # Read current hosts file
-            with open("/etc/hosts", "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("127.0.1.1"):
-                        # Update localhost alias line
-                        hosts_content.append(f"127.0.1.1\t{hostname}")
-                        updated = True
-                    else:
-                        hosts_content.append(line)
-
-            # Add localhost alias if not found
-            if not updated:
-                hosts_content.append(f"127.0.1.1\t{hostname}")
-
-            # Write updated hosts file
-            with open("/etc/hosts", "w") as f:
-                f.write("\n".join(hosts_content) + "\n")
-
+            try:
+                with open("/etc/hosts", "r") as f:
+                    content = f.read()
+            except PermissionError:
+                # If we can't read directly, use sudo
+                cmd = self._build_command(["cat", "/etc/hosts"])
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                if result.returncode != 0:
+                    raise Exception(f"Failed to read /etc/hosts: {result.stderr.strip()}")
+                content = result.stdout
+            
+            # Process each line
+            for line in content.splitlines():
+                original_line = line
+                line = line.strip()
+                
+                # Skip empty lines and comments for processing, but preserve them
+                if not line or line.startswith('#'):
+                    hosts_content.append(original_line)
+                    continue
+                
+                # Parse the line
+                parts = line.split()
+                if len(parts) < 2:
+                    hosts_content.append(original_line)
+                    continue
+                
+                ip = parts[0]
+                hostnames = parts[1:]
+                
+                if ip == "127.0.0.1":
+                    # Ensure localhost is present
+                    if "localhost" not in hostnames:
+                        hostnames.append("localhost")
+                    hosts_content.append(f"127.0.0.1\t{' '.join(hostnames)}")
+                    has_localhost = True
+                elif ip == "127.0.1.1":
+                    # Update with new hostname
+                    # Keep existing hostnames that aren't the old hostname
+                    filtered_hostnames = [h for h in hostnames if not h.startswith('distiller-') and h != short_hostname and h != fqdn]
+                    # Add new hostname entries
+                    new_hostnames = [short_hostname, fqdn] + filtered_hostnames
+                    hosts_content.append(f"127.0.1.1\t{' '.join(new_hostnames)}")
+                    has_localhost_alias = True
+                elif ip == "::1":
+                    # Ensure IPv6 localhost entries
+                    standard_ipv6 = ["localhost", "ip6-localhost", "ip6-loopback"]
+                    for std_entry in standard_ipv6:
+                        if std_entry not in hostnames:
+                            hostnames.append(std_entry)
+                    hosts_content.append(f"::1\t\t{' '.join(hostnames)}")
+                    has_ipv6_localhost = True
+                else:
+                    # Preserve other entries as-is
+                    hosts_content.append(original_line)
+            
+            # Add missing standard entries
+            if not has_localhost:
+                hosts_content.insert(0, "127.0.0.1\tlocalhost")
+            
+            if not has_localhost_alias:
+                # Find position after 127.0.0.1 entry to insert 127.0.1.1
+                insert_pos = 1 if has_localhost else 0
+                hosts_content.insert(insert_pos, f"127.0.1.1\t{short_hostname} {fqdn}")
+            
+            if not has_ipv6_localhost:
+                hosts_content.append("::1\t\tlocalhost ip6-localhost ip6-loopback")
+            
+            # Write updated hosts file using sudo
+            new_content = "\n".join(hosts_content) + "\n"
+            
+            cmd = self._build_command(["tee", "/etc/hosts"])
+            result = subprocess.run(
+                cmd,
+                input=new_content,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f"Failed to write /etc/hosts: {result.stderr.strip()}")
+            
+            logger.info(f"Successfully updated /etc/hosts with hostname: {hostname}")
+            logger.info(f"Added entries: 127.0.1.1 {short_hostname} {fqdn}")
+            
         except Exception as e:
             logger.error(f"Failed to update /etc/hosts: {e}")
+            # If backup was created, suggest manual restoration
+            if backup_created:
+                logger.error("A backup was created. You can restore it manually if needed.")
+            raise
 
     def _update_avahi_config(self, hostname: str):
         """Update Avahi daemon configuration with hostname"""
@@ -451,7 +587,7 @@ rlimit-nproc=3
             )
             
             if result.returncode != 0:
-                raise Exception(f"Failed to write avahi config: {result.stderr.strip()}")
+                raise Exception(f"Failed to write avahi-daemon.conf: {result.stderr.strip()}")
 
             # Restart Avahi daemon
             subprocess.run(
