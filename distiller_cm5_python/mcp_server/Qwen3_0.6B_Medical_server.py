@@ -46,8 +46,8 @@ async def get_prompt(name: str, arguments: dict = {}) -> PromptMessage:
             role="system",
             content=TextContent(
                 type="text",
-                text="""You are a patient education specialist designed to explain medical conditions, concepts and treatments in simple, understandable language. Your role is to:
-                        When starting a conversation, encourage patients to discuss questions with their healthcare providers. /no_think""",
+                text=""" You are a patient education specialist designed to explain medical conditions, concepts and treatments in simple, understandable language. Your role is to:
+                        When starting a conversation, encourage patients to discuss questions with their healthcare providers.""",
             ),
         )
 

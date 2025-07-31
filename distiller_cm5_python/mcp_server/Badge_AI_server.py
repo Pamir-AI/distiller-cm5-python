@@ -4,8 +4,8 @@ MCP Server: Full LED Control
 
 This MCP server exposes tools to fully control all 4 RGB LEDs on the Distiller CM5 device.
 Available tools:
-  - set_led_color: Set all 4 LEDs to a specific RGB color and brightness
-  - clear_led: Turn off all LEDs
+  - set_led_color: Set all 4 LEDs to a specific RGB color (pass as array [r,g,b])
+  - turn_off_led: Turn off all LEDs
 
 Follow llms.txt guidelines for MCP server implementations.
 """
@@ -51,20 +51,23 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="set_led_color",
-            description="Set all 4 RGB LEDs to the same specific color and brightness.",
+            description="Set all 4 RGB LEDs to the same specific color. Pass RGB values as a list [r, g, b].",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "r": {"type": "integer", "description": "Red value (0 to 255)"},
-                    "g": {"type": "integer", "description": "Green value (0 to 255)"},
-                    "b": {"type": "integer", "description": "Blue value (0 to 255)"},
-                    "brightness": {"type": "number", "description": "Brightness scale (0.0 to 1.0)"},
+                    "rgb": {
+                        "type": "array",
+                        "description": "RGB color values as [red, green, blue] where each value is 0-255",
+                        "items": {"type": "integer", "minimum": 0, "maximum": 255},
+                        "minItems": 3,
+                        "maxItems": 3
+                    },
                 },
-                "required": ["r", "g", "b"],
+                "required": ["rgb"],
             },
         ),
         types.Tool(
-            name="clear_led",
+            name="turn_off_led",
             description="Turn off all LEDs on the device.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
@@ -86,24 +89,28 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
 
     try:
         if name == "set_led_color":
-            r = args.get("r") or 0
-            g = args.get("g") or 0
-            b = args.get("b") or 0
-            brightness = args.get("brightness") or 1.0
+            rgb = args.get("rgb", [0, 0, 0])
+            if len(rgb) != 3:
+                return [types.TextContent(type="text", text="RGB array must contain exactly 3 values [r, g, b]")]
+            
+            # Cap and protect RGB values (0-255 range)
+            r = max(0, min(255, int(rgb[0])))
+            g = max(0, min(255, int(rgb[1])))
+            b = max(0, min(255, int(rgb[2])))
 
             try:
                 available_leds = [0, 1, 2, 3]
                 failed_leds = []
 
                 for led_id in available_leds:
-                    success = led.set_led_color(r, g, b, brightness, led_id=led_id)
+                    success = led.set_led_color(r, g, b, 1.0, led_id=led_id)
                     if not success:
                         failed_leds.append(led_id)
 
                 if not failed_leds:
-                    text = f"All {len(available_leds)} LEDs set to color (R:{r}, G:{g}, B:{b}) at brightness {brightness}"
+                    text = f"All {len(available_leds)} LEDs set to color (R:{r}, G:{g}, B:{b})"
                 else:
-                    text = f"Failed to set LEDs: {failed_leds}. Successfully set: {len(available_leds) - len(failed_leds)}/{len(available_leds)} LEDs to (R:{r}, G:{g}, B:{b}) at brightness {brightness}"
+                    text = f"Failed to set LEDs: {failed_leds}. Successfully set: {len(available_leds) - len(failed_leds)}/{len(available_leds)} LEDs to (R:{r}, G:{g}, B:{b})"
                     logger.warning(text)
 
             except Exception as e:
@@ -113,7 +120,7 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
 
             return [types.TextContent(type="text", text=text)]
 
-        elif name == "clear_led":
+        elif name == "turn_off_led":
             try:
                 available_leds = [0, 1, 2, 3]
                 failed_leds = []
