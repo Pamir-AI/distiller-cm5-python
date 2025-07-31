@@ -7,8 +7,6 @@ distiller ALL=(ALL) NOPASSWD: /usr/bin/nmcli
 distiller ALL=(ALL) NOPASSWD: /usr/bin/nmcli *
 
 # Service management for networking and system services
-distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart avahi-daemon
-distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload avahi-daemon
 distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl start NetworkManager
 distiller ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart NetworkManager
 distiller ALL=(ALL) NOPASSWD: /bin/systemctl restart networking
@@ -19,22 +17,7 @@ distiller ALL=(ALL) NOPASSWD: /usr/bin/ip addr show*
 distiller ALL=(ALL) NOPASSWD: /usr/bin/ip link show*
 distiller ALL=(ALL) NOPASSWD: /usr/bin/iwgetid*
 
-# Hostname management for WiFi service
-distiller ALL=(ALL) NOPASSWD: /usr/bin/hostname
-distiller ALL=(ALL) NOPASSWD: /usr/bin/hostnamectl*
-distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hostname
-distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hosts
-distiller ALL=(ALL) NOPASSWD: /bin/tee /etc/hosts
-distiller ALL=(ALL) NOPASSWD: /usr/bin/cp /etc/hosts /etc/hosts.backup.*
-distiller ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/hosts
-distiller ALL=(ALL) NOPASSWD: /bin/hostname
-distiller ALL=(ALL) NOPASSWD: /bin/cp /etc/hosts /etc/hosts.backup.*
-distiller ALL=(ALL) NOPASSWD: /bin/cat /etc/hosts
-distiller ALL=(ALL) NOPASSWD: /bin/sh -c echo * > /etc/hostname
 
-# System configuration file management
-distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/avahi/avahi-daemon.conf
-distiller ALL=(ALL) NOPASSWD: /bin/tee /etc/avahi/avahi-daemon.conf
 
 # LED control via sysfs (requires sudo for write operations)
 distiller ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/class/leds/*

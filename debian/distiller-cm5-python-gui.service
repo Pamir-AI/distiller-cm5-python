@@ -43,7 +43,7 @@ SupplementaryGroups=netdev gpio spi dialout audio i2c input
 AmbientCapabilities=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_DAC_OVERRIDE CAP_MKNOD CAP_SYS_RAWIO CAP_SYS_TIME CAP_NET_BIND_SERVICE
 
 # Filesystem access
-ReadWritePaths=/opt/distiller-cm5-python /opt/distiller-eink-stash /opt/distiller-cm5-sdk /var/log/distiller-cm5-python /etc/distiller /sys/class /sys/devices /etc/NetworkManager/system-connections /etc/hostname /etc/hosts /etc/avahi /tmp /home/distiller
+ReadWritePaths=/opt/distiller-cm5-python /opt/distiller-eink-stash /opt/distiller-cm5-sdk /var/log/distiller-cm5-python /etc/distiller /sys/class /sys/devices /etc/NetworkManager/system-connections /tmp /home/distiller
 ReadOnlyPaths=/boot /proc/sys
 
 # Kill behavior

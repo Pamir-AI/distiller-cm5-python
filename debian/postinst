@@ -173,8 +173,7 @@ polkit.addRule(function(action, subject) {
          action.id == "org.freedesktop.NetworkManager.network-control" ||
          action.id == "org.freedesktop.NetworkManager.wifi.share.protected" ||
          action.id == "org.freedesktop.NetworkManager.wifi.share.open" ||
-         action.id == "org.freedesktop.hostname1.set-static-hostname" ||
-         action.id == "org.freedesktop.NetworkManager.settings.modify.hostname") &&
+         action.id == "org.freedesktop.NetworkManager.wifi.share.open") &&
         subject.user == "distiller") {
         return polkit.Result.YES;
     }
