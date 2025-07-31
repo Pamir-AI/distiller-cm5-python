@@ -34,20 +34,7 @@ PrivateTmp=false
 ProtectSystem=off
 ProtectHome=off
 PrivateDevices=false
-DeviceAllow=/dev/null rw
-DeviceAllow=/dev/mem rw
-DeviceAllow=/dev/tty rw
-DeviceAllow=/dev/gpiomem* rw
-DeviceAllow=/dev/gpiochip* rw
-DeviceAllow=/dev/i2c-* rw
-DeviceAllow=/dev/spidev* rw
-DeviceAllow=/dev/video0 rw
-DeviceAllow=/dev/snd/* rw
-DeviceAllow=/dev/pamir-sam rw
-DeviceAllow=/dev/input/event* rw
-DeviceAllow=/dev/serial* rw
-DeviceAllow=/dev/fb* rw
-DevicePolicy=auto
+DevicePolicy=
 
 # Access to hardware groups
 SupplementaryGroups=netdev gpio spi dialout audio i2c input
