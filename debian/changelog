@@ -1,3 +1,17 @@
+distiller-cm5-python (1.0.0-4) stable; urgency=medium
+
+  [ utsavbalar1231 ]
+  * feat: optimize for small medical model only
+  * chore(debian): Update groups permissions
+  * fix(debian): Unset DevicePolicy to allow full hardware access
+  * chore!: Remove all hostname and /etc/hosts management functionality
+  * Revert "feat: optimize for small medical model only"
+  * chore(project.toml): Remove unused dependencies
+  * chore(debian): Use development packages of libsndfile1 and libgpiod
+  * feat: Add github workflow for deb package release
+
+ -- PamirAI Incorporated <founders@pamir.ai>  Wed, 06 Aug 2025 01:15:57 +0530
+
 distiller-cm5-python (1.0.0-3) stable; urgency=medium
 
   * Add support for MedGemma-4B medical expert model in debian packaging
