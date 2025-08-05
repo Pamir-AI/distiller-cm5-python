@@ -1,0 +1,264 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+        type: string
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  build-release:
+    runs-on: ubuntu-22.04-arm
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version information
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            # For non-tag pushes, use default version
+            VERSION="v1.0.0"
+          fi
+          
+          # Remove 'v' prefix if present and parse version format vX.Y.Z-A
+          CLEAN_VERSION=${VERSION#v}
+          
+          # Split version into semantic version and debian revision
+          if [[ "$CLEAN_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
+            SEMANTIC_VERSION="${BASH_REMATCH[1]}"
+            DEBIAN_REVISION="${BASH_REMATCH[2]}"
+          else
+            # Fallback for other formats
+            SEMANTIC_VERSION="$CLEAN_VERSION"
+            DEBIAN_REVISION="1"
+          fi
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "clean_version=${CLEAN_VERSION}" >> $GITHUB_OUTPUT
+          echo "semantic_version=${SEMANTIC_VERSION}" >> $GITHUB_OUTPUT
+          echo "debian_revision=${DEBIAN_REVISION}" >> $GITHUB_OUTPUT
+          echo "package_name=distiller-cm5-python_${SEMANTIC_VERSION}-${DEBIAN_REVISION}_arm64.deb" >> $GITHUB_OUTPUT
+          
+          echo "Building version: ${VERSION}"
+          echo "Clean version: ${CLEAN_VERSION}"
+
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('debian/control') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
+      - name: Update package lists
+        run: |
+          sudo apt-get update
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get install -y \
+            build-essential \
+            debhelper \
+            dh-python \
+            devscripts \
+            curl \
+            ca-certificates \
+            pkg-config \
+            fakeroot \
+            dpkg-dev \
+            alsa-utils \
+            portaudio19-dev \
+            libasound2-dev \
+            libsndfile1-dev \
+            libgpiod-dev \
+            python3-spidev \
+            python3-setuptools \
+            python3-dev \
+            python3-venv
+
+      - name: Install uv package manager
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/bin:$PATH"
+          
+      - name: Verify build environment
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          gcc --version
+          python3 --version
+          uv --version
+          uname -m
+          echo "Native ARM64 build environment ready"
+
+      - name: Update package version in debian/changelog
+        run: |
+          # Update the changelog with proper timestamp
+          CURRENT_DATE=$(date -R)
+          sed -i "s|\$(date -R)|${CURRENT_DATE}|" debian/changelog
+          
+          # Update version if different from default
+          if [[ "${{ steps.version.outputs.semantic_version }}" != "1.0.0" ]] || [[ "${{ steps.version.outputs.debian_revision }}" != "1" ]]; then
+            sed -i "s/1.0.0-3/${{ steps.version.outputs.semantic_version }}-${{ steps.version.outputs.debian_revision }}/" debian/changelog
+          fi
+          
+          echo "Updated changelog:"
+          head -5 debian/changelog
+
+      - name: Build Debian package
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "Starting build process..."
+          chmod +x build-deb.sh
+          
+          # Build the Debian package
+          ./build-deb.sh
+          
+          echo "Build completed. Checking artifacts:"
+          ls -la dist/
+
+      - name: Verify package integrity
+        run: |
+          if [[ -f "dist/${{ steps.version.outputs.package_name }}" ]]; then
+            echo "Package found: dist/${{ steps.version.outputs.package_name }}"
+            
+            # Check package metadata
+            dpkg -I "dist/${{ steps.version.outputs.package_name }}"
+            
+            # Check package contents
+            echo "Package contents:"
+            dpkg -c "dist/${{ steps.version.outputs.package_name }}"
+            
+            # Verify package architecture
+            ARCH=$(dpkg -f "dist/${{ steps.version.outputs.package_name }}" Architecture)
+            echo "Package architecture: $ARCH"
+            
+          else
+            echo "Error: Expected package not found"
+            echo "Available files in dist/:"
+            ls -la dist/
+            exit 1
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: distiller-cm5-python-${{ steps.version.outputs.clean_version }}-arm64
+          path: |
+            dist/*.deb
+            dist/*.changes
+            dist/*.buildinfo
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Create Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            # Distiller CM5 Python Release ${{ steps.version.outputs.version }}
+            
+            ## Package Information
+            - **Version**: ${{ steps.version.outputs.clean_version }}
+            - **Architecture**: ARM64 (aarch64)
+            - **Target Platform**: Raspberry Pi CM5, Distiller devices
+            
+            ## Features
+            - Dual interface architecture (CLI and Qt/QML GUI)
+            - LLM integration with local llama-cpp servers and remote providers
+            - MCP (Model Context Protocol) server support
+            - Hardware interfacing capabilities including audio, display, and LED control
+            - Speech-to-text processing with faster_whisper
+            - E-ink display control via distiller-cm5-sdk integration
+            - UART-based power management signaling
+            - Modular LLM integration with automatic server lifecycle management
+            - Direct hardware control for SPI and GPIO interfaces
+            
+            ## Installation
+            ```bash
+            # Download the .deb package
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/${{ steps.version.outputs.package_name }}
+            
+            # Install the package
+            sudo dpkg -i ${{ steps.version.outputs.package_name }}
+            
+            # Install dependencies if needed
+            sudo apt-get install -f
+            
+            # Start the service (CLI mode)
+            sudo systemctl enable distiller-cm5-python-cli
+            sudo systemctl start distiller-cm5-python-cli
+            
+            # Or start GUI mode
+            sudo systemctl enable distiller-cm5-python-gui
+            sudo systemctl start distiller-cm5-python-gui
+            ```
+            
+            ## Usage
+            ```bash
+            # CLI mode
+            distiller-cm5-python-cli
+            
+            # GUI mode
+            distiller-cm5-python-gui
+            
+            # Manual execution
+            python3 -m distiller_cm5_python.client.cli
+            ```
+            
+            ## Dependencies
+            This package requires the `distiller-cm5-sdk` package to be installed for hardware functionality.
+            
+            Built automatically with GitHub Actions.
+          files: |
+            dist/${{ steps.version.outputs.package_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY  
+          echo "- **Package**: ${{ steps.version.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Architecture**: ARM64" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ -f "dist/${{ steps.version.outputs.package_name }}" ]]; then
+            PACKAGE_SIZE=$(du -h "dist/${{ steps.version.outputs.package_name }}" | cut -f1)
+            echo "- **Package Size**: $PACKAGE_SIZE" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation Commands" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "sudo dpkg -i ${{ steps.version.outputs.package_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "sudo apt-get install -f" >> $GITHUB_STEP_SUMMARY
+          echo "sudo systemctl enable distiller-cm5-python-cli" >> $GITHUB_STEP_SUMMARY
+          echo "sudo systemctl start distiller-cm5-python-cli" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
