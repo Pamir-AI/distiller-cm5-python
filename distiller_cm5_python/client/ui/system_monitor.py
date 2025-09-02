@@ -4,38 +4,15 @@ import psutil
 
 
 class SystemMonitor:
-    def __init__(self):
+    def __init__(self, llm_model: str):
         self.ram_usage = 0.0
         self.cpu_usage = 0.0
         self.temperature = 0.0
-        self.llm_model = "Local"  # Default LLM model name
+        self.llm_model = llm_model or "Local"
         self.last_update_time = 0
         self.update_interval = (
             2.0  # Update every 2 seconds to avoid excessive resource usage
         )
-
-    def get_ram_usage(self):
-        """Return current RAM usage as a percentage."""
-        self._update_if_needed()
-        return self.ram_usage
-
-    def get_cpu_usage(self):
-        """Return current CPU usage as a percentage."""
-        self._update_if_needed()
-        return self.cpu_usage
-
-    def get_temperature(self):
-        """Return current CPU temperature in Celsius."""
-        self._update_if_needed()
-        return self.temperature
-
-    def get_llm_model(self):
-        """Return the current LLM model name."""
-        return self.llm_model
-
-    def set_llm_model(self, model_name):
-        """Set the current LLM model name."""
-        self.llm_model = model_name
 
     def get_formatted_stats(self):
         """Return all stats in a formatted dictionary."""
@@ -97,7 +74,3 @@ class SystemMonitor:
                 self.temperature = 0.0
         except Exception:
             self.temperature = 0.0
-
-
-# Create a singleton instance
-system_monitor = SystemMonitor()

@@ -9,7 +9,7 @@ aiohttp
 colorama
 nest_asyncio
 psutil>=5.9.0
-PyQt6>=6.4.0
+PyQt6==6.7.1
 qasync
 pyaudio
 faster_whisper

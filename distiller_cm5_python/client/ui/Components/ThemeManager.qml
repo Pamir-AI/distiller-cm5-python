@@ -45,15 +45,15 @@ QtObject {
 
     // Initialize theme from bridge settings
     function initializeTheme() {
-        if (!themeCached && bridge && bridge.ready) {
-            var savedTheme = bridge.getConfigValue("display", "dark_mode");
-            if (savedTheme !== "")
-                setDarkMode(savedTheme === "true" || savedTheme === "True");
-
-            themeCached = true;
-            return true;
-        }
-        return false;
+        // if (!themeCached && bridge && bridge.ready) {
+        //     var savedTheme = bridge.getConfigValue("display", "dark_mode");
+        //     if (savedTheme !== "")
+        //         setDarkMode(savedTheme === "true" || savedTheme === "True");
+        //
+        //     themeCached = true;
+        //     return true;
+        // }
+        // return false;
     }
 
     // Helper function to get theme-appropriate icon path

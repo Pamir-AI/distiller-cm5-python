@@ -14,7 +14,7 @@ PageBase {
     property bool isListening: state === "listening"
     property bool isProcessing: ["processing", "thinking", "toolExecution", "cacheRestoring"].includes(state)
     property bool isServerConnected: bridge && bridge.ready ? bridge.isConnected : false
-    property string statusText: conversationView && conversationView.scrollModeActive ? "Scroll Mode (↑↓ to scroll)" : _statusText
+    property string statusText: conversationView && conversationView.scrollModeActive ? "Scroll Mode" : _statusText
     property string _statusText: getStatusTextForState(state)
     property var focusableItems: []
     property var previousFocusedItem: null
@@ -584,20 +584,6 @@ PageBase {
             transcriptionInProgress = false;
         }
 
-        // Handler for SSH information events
-        function onSshInfoReceived(content, eventId, timestamp) {
-            console.log("SSH Info received: " + content);
-            // Add to conversation if not empty
-            if (content && content.trim().length > 0) {
-                // Update the UI to show SSH connection info
-                if (conversationView)
-                    conversationView.updateModel(bridge.get_conversation());
-
-                // Show a toast notification for the SSH info
-                messageToast.showMessage("SSH Connection Info: " + content, 5000);
-            }
-        }
-
         // Handler for function events
         function onFunctionReceived(content, eventId, timestamp) {
             console.log("Function info received: " + content);
@@ -771,7 +757,7 @@ PageBase {
         serverName: _serverName
         statusText: voiceAssistantPage.statusText
         isConnected: bridge && bridge.ready ? bridge.isConnected : false
-        showStatusText: true
+        
         Component.onCompleted: {
             // Add high contrast border for visibility
             var headerRect = findChild(header, "headerBackground");
@@ -1120,7 +1106,7 @@ PageBase {
         dialogTitle: "Server Connection"
         message: "Server connection lost. Do you want to reconnect?"
         standardButtonTypes: DialogButtonBox.Yes | DialogButtonBox.No
-        yesButtonText: "Reconnect"
+        yesButtonText: "Sure"
         noButtonText: "Cancel"
         acceptButtonColor: ThemeManager.backgroundColor
         onAccepted: {

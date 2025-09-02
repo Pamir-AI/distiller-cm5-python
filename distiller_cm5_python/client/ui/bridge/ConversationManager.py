@@ -70,24 +70,6 @@ class ConversationManager:
         """
         return self._conversation
 
-    def get_messages_copy(self):
-        """Get a copy of the conversation messages.
-
-        Returns:
-            A copy of the internal conversation list
-        """
-        return self._conversation.copy()
-
-    def set_messages(self, messages):
-        """Set the conversation messages list.
-
-        Args:
-            messages: The new conversation list to use
-        """
-        self._conversation = messages
-        # Immediate update for set operation (not batched)
-        self._bridge.conversationChanged.emit()
-
     def get_formatted_messages(self):
         """Format the conversation messages for display in the UI.
 
